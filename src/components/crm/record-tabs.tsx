@@ -32,11 +32,25 @@ type Permissions = {
   canDeleteFiles: boolean;
 };
 
-export function RecordTabs({ links, permissions }: { links: RecordLinks; permissions: Permissions }) {
+export function RecordTabs({
+  links,
+  permissions,
+  refreshKey,
+}: {
+  links: RecordLinks;
+  permissions: Permissions;
+  /**
+   * Changes whenever the server re-renders the record (its `updatedAt`), so a
+   * change made outside the tabs — a stage move, an inline edit — reloads the
+   * timeline instead of showing stale data.
+   */
+  refreshKey?: string;
+}) {
   const router = useRouter();
   const [tab, setTab] = React.useState<TabKey>("timeline");
   const [drawer, setDrawer] = React.useState<null | "activity" | "note" | "task" | "meeting">(null);
-  const [version, setVersion] = React.useState(0);
+  const [localVersion, setLocalVersion] = React.useState(0);
+  const version = `${refreshKey ?? ""}:${localVersion}`;
 
   const query = React.useMemo(() => {
     const params = new URLSearchParams();
@@ -46,7 +60,7 @@ export function RecordTabs({ links, permissions }: { links: RecordLinks; permiss
 
   const refresh = () => {
     setDrawer(null);
-    setVersion((value) => value + 1);
+    setLocalVersion((value) => value + 1);
     router.refresh();
   };
 
@@ -130,7 +144,7 @@ export function RecordTabs({ links, permissions }: { links: RecordLinks; permiss
   );
 }
 
-function useResource<T>(path: string, version: number) {
+function useResource<T>(path: string, version: string) {
   const [data, setData] = React.useState<T | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -164,7 +178,7 @@ function TabState({ loading, error, empty, children }: { loading: boolean; error
   return <>{children}</>;
 }
 
-function TimelineTab({ query, version }: { query: string; version: number }) {
+function TimelineTab({ query, version }: { query: string; version: string }) {
   const { data, loading, error } = useResource<{ items: ActivityDTO[] }>(`/api/v1/activities?${query}&pageSize=50`, version);
   return (
     <TabState loading={loading} error={error} empty={false}>
@@ -185,7 +199,7 @@ function NotesTab({
 }: {
   query: string;
   links: RecordLinks;
-  version: number;
+  version: string;
   canWrite: boolean;
   onChanged: () => void;
 }) {
@@ -232,7 +246,7 @@ function NotesTab({
   );
 }
 
-function TasksTab({ query, version, onChanged }: { query: string; version: number; onChanged: () => void }) {
+function TasksTab({ query, version, onChanged }: { query: string; version: string; onChanged: () => void }) {
   type Task = {
     id: string;
     title: string;
@@ -288,7 +302,7 @@ function TasksTab({ query, version, onChanged }: { query: string; version: numbe
   );
 }
 
-function MeetingsTab({ links, version }: { links: RecordLinks; version: number }) {
+function MeetingsTab({ links, version }: { links: RecordLinks; version: string }) {
   type Meeting = { id: string; title: string; startAt: string; endAt: string; location: string | null; status: string };
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(links)) if (value) params.set(key, value);
@@ -318,7 +332,7 @@ function MeetingsTab({ links, version }: { links: RecordLinks; version: number }
   );
 }
 
-function EmailsTab({ query, version }: { query: string; version: number }) {
+function EmailsTab({ query, version }: { query: string; version: string }) {
   type Email = {
     id: string;
     subject: string;
@@ -368,7 +382,7 @@ function FilesTab({
 }: {
   query: string;
   links: RecordLinks;
-  version: number;
+  version: string;
   canUpload: boolean;
   canDelete: boolean;
   onChanged: () => void;

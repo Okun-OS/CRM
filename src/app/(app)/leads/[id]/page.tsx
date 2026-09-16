@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, PropertyList, RecordDetailLayout, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
-import { LeadForm } from "@/components/crm/forms/lead-form";
 import { ConvertLeadAction } from "./convert-action";
 import { formatDate, formatRelative } from "@/lib/format";
 
@@ -73,28 +72,25 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                   <ConvertLeadAction leadId={lead.id} leadName={lead.name} companyName={lead.companyName} />
                 ) : null
               }
-              renderForm={(close) => (
-                <LeadForm
-                  initial={{
-                    id: lead.id,
-                    firstName: lead.firstName,
-                    lastName: lead.lastName,
-                    email: lead.email,
-                    phone: lead.phone,
-                    companyName: lead.companyName,
-                    jobTitle: lead.jobTitle,
-                    source: lead.source,
-                    status: lead.status,
-                    score: lead.score,
-                    qualification: lead.qualification,
-                    nextStepAt: lead.nextStepAt,
-                    ownerId: lead.owner?.id ?? null,
-                    properties: lead.properties,
-                  }}
-                  onDone={() => close(true)}
-                  onCancel={() => close(false)}
-                />
-              )}
+              editor={{
+                kind: "lead",
+                initial: {
+                  id: lead.id,
+                  firstName: lead.firstName,
+                  lastName: lead.lastName,
+                  email: lead.email,
+                  phone: lead.phone,
+                  companyName: lead.companyName,
+                  jobTitle: lead.jobTitle,
+                  source: lead.source,
+                  status: lead.status,
+                  score: lead.score,
+                  qualification: lead.qualification,
+                  nextStepAt: lead.nextStepAt,
+                  ownerId: lead.owner?.id ?? null,
+                  properties: lead.properties,
+                },
+              }}
             />
           </div>
         </div>
@@ -139,6 +135,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       center={
         <RecordTabs
           links={{ leadId: lead.id }}
+          refreshKey={lead.updatedAt}
           permissions={{
             canLogActivity: can(actor, "activities.write"),
             canWriteNotes: can(actor, "notes.write"),

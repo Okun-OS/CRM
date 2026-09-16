@@ -12,7 +12,6 @@ import { Avatar } from "@/components/ui/misc";
 import { Breadcrumb, PropertyList, RecordDetailLayout, RelatedList, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
-import { ContactForm } from "@/components/crm/forms/contact-form";
 import { formatCurrency, formatDate, formatRelative } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -79,34 +78,31 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
               canDelete={can(actor, "contacts.delete")}
               deleteTitle="Kontakt löschen?"
               deleteDescription={`„${contact.name}" wird als gelöscht markiert. Aktivitäten und Deals bleiben erhalten.`}
-              renderForm={(close) => (
-                <ContactForm
-                  initial={{
-                    id: contact.id,
-                    firstName: contact.firstName,
-                    lastName: contact.lastName,
-                    email: contact.email,
-                    phone: contact.phone,
-                    mobile: contact.mobile,
-                    jobTitle: contact.jobTitle,
-                    companyId: contact.company?.id ?? null,
-                    companyName: contact.company?.name ?? null,
-                    lifecycleStage: contact.lifecycleStage,
-                    leadStatus: contact.leadStatus,
-                    source: contact.source,
-                    street: contact.street,
-                    postalCode: contact.postalCode,
-                    city: contact.city,
-                    country: contact.country,
-                    linkedinUrl: contact.linkedinUrl,
-                    description: contact.description,
-                    ownerId: contact.owner?.id ?? null,
-                    properties: contact.properties,
-                  }}
-                  onDone={() => close(true)}
-                  onCancel={() => close(false)}
-                />
-              )}
+              editor={{
+                kind: "contact",
+                initial: {
+                  id: contact.id,
+                  firstName: contact.firstName,
+                  lastName: contact.lastName,
+                  email: contact.email,
+                  phone: contact.phone,
+                  mobile: contact.mobile,
+                  jobTitle: contact.jobTitle,
+                  companyId: contact.company?.id ?? null,
+                  companyName: contact.company?.name ?? null,
+                  lifecycleStage: contact.lifecycleStage,
+                  leadStatus: contact.leadStatus,
+                  source: contact.source,
+                  street: contact.street,
+                  postalCode: contact.postalCode,
+                  city: contact.city,
+                  country: contact.country,
+                  linkedinUrl: contact.linkedinUrl,
+                  description: contact.description,
+                  ownerId: contact.owner?.id ?? null,
+                  properties: contact.properties,
+                },
+              }}
             />
           </div>
 
@@ -170,6 +166,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
       center={
         <RecordTabs
           links={{ contactId: contact.id }}
+          refreshKey={contact.updatedAt}
           permissions={{
             canLogActivity: can(actor, "activities.write"),
             canWriteNotes: can(actor, "notes.write"),

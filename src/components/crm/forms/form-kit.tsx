@@ -82,11 +82,15 @@ export function FormSection({
   );
 }
 
-/** Strips empty strings so optional fields are omitted rather than blanked. */
+/**
+ * Drops keys the form does not manage. Empty strings are kept on purpose: the
+ * server reads them as "clear this field", which is how an edit form removes a
+ * value rather than only ever adding one.
+ */
 export function cleanPayload<T extends Record<string, unknown>>(payload: T): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(payload)) {
-    if (value === "" || value === undefined) continue;
+    if (value === undefined) continue;
     result[key] = value;
   }
   return result;

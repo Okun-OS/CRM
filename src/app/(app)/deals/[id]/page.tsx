@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, PropertyList, RecordDetailLayout, RelatedList, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
-import { DealForm } from "@/components/crm/forms/deal-form";
 import { DealStagePicker } from "./stage-picker";
 import { formatCurrency, formatDate, formatDateTime, formatNumber } from "@/lib/format";
 
@@ -74,29 +73,26 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
               canDelete={can(actor, "deals.delete")}
               deleteTitle="Deal löschen?"
               deleteDescription={`„${deal.name}" wird als gelöscht markiert. Die Stage-Historie bleibt erhalten.`}
-              renderForm={(close) => (
-                <DealForm
-                  initial={{
-                    id: deal.id,
-                    name: deal.name,
-                    pipelineId: deal.pipeline.id,
-                    stageId: deal.stage.id,
-                    amount: deal.amount,
-                    currency: deal.currency,
-                    probability: deal.probability,
-                    expectedCloseDate: deal.expectedCloseDate,
-                    companyId: deal.company?.id ?? null,
-                    companyName: deal.company?.name ?? null,
-                    contactIds: deal.contacts.map((contact) => contact.id),
-                    source: deal.source,
-                    description: deal.description,
-                    ownerId: deal.owner?.id ?? null,
-                    properties: deal.properties,
-                  }}
-                  onDone={() => close(true)}
-                  onCancel={() => close(false)}
-                />
-              )}
+              editor={{
+                kind: "deal",
+                initial: {
+                  id: deal.id,
+                  name: deal.name,
+                  pipelineId: deal.pipeline.id,
+                  stageId: deal.stage.id,
+                  amount: deal.amount,
+                  currency: deal.currency,
+                  probability: deal.probability,
+                  expectedCloseDate: deal.expectedCloseDate,
+                  companyId: deal.company?.id ?? null,
+                  companyName: deal.company?.name ?? null,
+                  contactIds: deal.contacts.map((contact) => contact.id),
+                  source: deal.source,
+                  description: deal.description,
+                  ownerId: deal.owner?.id ?? null,
+                  properties: deal.properties,
+                },
+              }}
             />
           </div>
 
@@ -150,6 +146,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       center={
         <RecordTabs
           links={{ dealId: deal.id }}
+          refreshKey={deal.updatedAt}
           permissions={{
             canLogActivity: can(actor, "activities.write"),
             canWriteNotes: can(actor, "notes.write"),

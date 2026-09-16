@@ -5,13 +5,26 @@ import { z } from "zod";
  * same definitions, so the UI cannot submit something the API would reject for
  * a different reason than it shows.
  */
+/**
+ * Optional field semantics, used by every CRM schema:
+ *   undefined → leave the value untouched
+ *   "" or null → clear the value
+ * This is what lets an edit form remove a phone number or unlink a company
+ * instead of only ever adding data.
+ */
 const optionalString = (max: number) =>
   z
     .string()
     .trim()
     .max(max)
-    .optional()
-    .transform((value) => (value === "" ? undefined : value));
+    .nullish()
+    .transform((value) => (value === "" || value === null ? null : value));
+
+const optionalNumber = (min: number, max: number) =>
+  z
+    .union([z.coerce.number().min(min).max(max), z.literal(""), z.null()])
+    .nullish()
+    .transform((value) => (value === "" || value === null ? null : value));
 
 export const emailField = z
   .string()
@@ -21,14 +34,19 @@ export const emailField = z
   .max(254);
 
 export const optionalEmail = z
-  .union([emailField, z.literal("")])
-  .optional()
-  .transform((value) => (value ? value : undefined));
+  .union([emailField, z.literal(""), z.null()])
+  .nullish()
+  .transform((value) => (value ? value : null));
 
 export const optionalUrl = z
-  .union([z.string().trim().url("Bitte eine gültige URL angeben.").max(500), z.literal("")])
-  .optional()
-  .transform((value) => (value ? value : undefined));
+  .union([z.string().trim().url("Bitte eine gültige URL angeben.").max(500), z.literal(""), z.null()])
+  .nullish()
+  .transform((value) => (value ? value : null));
+
+const optionalDate = z
+  .union([z.coerce.date(), z.literal(""), z.null()])
+  .nullish()
+  .transform((value) => (value === "" || value === null ? null : value));
 
 export const propertiesInput = z.record(z.string().max(48), z.unknown()).optional();
 
@@ -60,8 +78,8 @@ export const companyInputSchema = z.object({
   name: z.string().trim().min(1, "Firmenname ist erforderlich.").max(160),
   domain: optionalString(160),
   industry: optionalString(120),
-  employeeCount: z.coerce.number().int().min(0).max(10_000_000).optional(),
-  annualRevenue: z.coerce.number().min(0).max(1_000_000_000_000).optional(),
+  employeeCount: optionalNumber(0, 10_000_000),
+  annualRevenue: optionalNumber(0, 1_000_000_000_000),
   phone: optionalString(40),
   email: optionalEmail,
   website: optionalUrl,
@@ -88,9 +106,9 @@ export const leadInputSchema = z.object({
   jobTitle: optionalString(120),
   source: optionalString(80),
   status: z.string().trim().min(1).max(48),
-  score: z.coerce.number().int().min(0).max(100).optional(),
+  score: optionalNumber(0, 100),
   qualification: optionalString(5000),
-  nextStepAt: z.coerce.date().optional(),
+  nextStepAt: optionalDate,
   ownerId: optionalString(30),
   contactId: optionalString(30),
   companyId: optionalString(30),
@@ -105,8 +123,8 @@ export const dealInputSchema = z.object({
   stageId: z.string().min(1, "Stage ist erforderlich.").max(30),
   amount: z.coerce.number().min(0).max(1_000_000_000_000).default(0),
   currency: z.string().length(3).default("EUR"),
-  probability: z.coerce.number().int().min(0).max(100).optional(),
-  expectedCloseDate: z.coerce.date().optional(),
+  probability: optionalNumber(0, 100),
+  expectedCloseDate: optionalDate,
   companyId: optionalString(30),
   contactIds: z.array(z.string().max(30)).max(50).optional(),
   source: optionalString(80),
@@ -130,8 +148,8 @@ export const taskInputSchema = z.object({
   description: optionalString(5000),
   status: z.enum(["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).default("OPEN"),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
-  dueAt: z.coerce.date().optional(),
-  remindAt: z.coerce.date().optional(),
+  dueAt: optionalDate,
+  remindAt: optionalDate,
   ownerId: optionalString(30),
   contactId: optionalString(30),
   companyId: optionalString(30),
@@ -147,7 +165,7 @@ export const activityInputSchema = z.object({
   body: optionalString(10_000),
   direction: z.enum(["INBOUND", "OUTBOUND"]).optional(),
   outcome: optionalString(120),
-  durationMinutes: z.coerce.number().int().min(0).max(24 * 60).optional(),
+  durationMinutes: optionalNumber(0, 24 * 60),
   occurredAt: z.coerce.date().optional(),
   contactId: optionalString(30),
   companyId: optionalString(30),

@@ -21,6 +21,8 @@ const csp = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Tests and e2e specs are type-checked separately (pnpm typecheck).
+  typedRoutes: false,
   poweredByHeader: false,
   serverExternalPackages: ["@prisma/adapter-pg", "pg"],
   experimental: { optimizePackageImports: ["lucide-react", "date-fns"] },

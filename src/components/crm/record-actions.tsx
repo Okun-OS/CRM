@@ -8,11 +8,23 @@ import { Dropdown, DropdownItem } from "@/components/ui/misc";
 import { ConfirmDialog, Drawer } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { api, ApiError } from "@/lib/api-client";
+import { ContactForm, type ContactFormValues } from "./forms/contact-form";
+import { CompanyForm, type CompanyFormValues } from "./forms/company-form";
+import { LeadForm, type LeadFormValues } from "./forms/lead-form";
+import { DealForm, type DealFormValues } from "./forms/deal-form";
 
 /**
- * Edit and delete actions shared by all record detail pages. Deletion always
- * goes through a confirmation, and both actions respect server permissions.
+ * Edit and delete actions for record detail pages.
+ *
+ * The editor is described by plain data rather than a render prop: detail pages
+ * are server components, and a function cannot cross that boundary.
  */
+export type RecordEditor =
+  | { kind: "contact"; initial: ContactFormValues }
+  | { kind: "company"; initial: CompanyFormValues }
+  | { kind: "lead"; initial: LeadFormValues }
+  | { kind: "deal"; initial: DealFormValues };
+
 export function RecordActions({
   recordId,
   endpoint,
@@ -22,7 +34,7 @@ export function RecordActions({
   deleteDescription,
   canEdit,
   canDelete,
-  renderForm,
+  editor,
   extraActions,
 }: {
   recordId: string;
@@ -33,7 +45,7 @@ export function RecordActions({
   deleteDescription: string;
   canEdit: boolean;
   canDelete: boolean;
-  renderForm: (close: (changed: boolean) => void) => React.ReactNode;
+  editor: RecordEditor;
   extraActions?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -55,6 +67,11 @@ export function RecordActions({
       setConfirming(false);
     }
   }
+
+  const close = (changed: boolean) => {
+    setEditing(false);
+    if (changed) router.refresh();
+  };
 
   return (
     <div className="flex items-center gap-2">
@@ -81,10 +98,15 @@ export function RecordActions({
       ) : null}
 
       <Drawer open={editing} onClose={() => setEditing(false)} title={editTitle} width="lg">
-        {renderForm((changed) => {
-          setEditing(false);
-          if (changed) router.refresh();
-        })}
+        {editor.kind === "contact" ? (
+          <ContactForm initial={editor.initial} onDone={() => close(true)} onCancel={() => close(false)} />
+        ) : editor.kind === "company" ? (
+          <CompanyForm initial={editor.initial} onDone={() => close(true)} onCancel={() => close(false)} />
+        ) : editor.kind === "lead" ? (
+          <LeadForm initial={editor.initial} onDone={() => close(true)} onCancel={() => close(false)} />
+        ) : (
+          <DealForm initial={editor.initial} onDone={() => close(true)} onCancel={() => close(false)} />
+        )}
       </Drawer>
 
       <ConfirmDialog

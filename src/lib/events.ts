@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import type { ActorContext } from "./context";
 import { logError } from "./logger";
+import type { DomainEventName } from "./domain-events";
 
 /**
  * Domain events are the single fan-out point for everything that reacts to a
@@ -11,29 +12,7 @@ import { logError } from "./logger";
  * Reactions never fail the originating request; failures are logged (and, for
  * workflows, recorded as a failed execution).
  */
-export const DOMAIN_EVENTS = [
-  "contact.created",
-  "contact.updated",
-  "contact.deleted",
-  "company.created",
-  "company.updated",
-  "company.deleted",
-  "lead.created",
-  "lead.updated",
-  "lead.status_changed",
-  "lead.converted",
-  "deal.created",
-  "deal.updated",
-  "deal.stage_changed",
-  "deal.won",
-  "deal.lost",
-  "deal.deleted",
-  "task.created",
-  "task.completed",
-  "meeting.created",
-] as const;
-
-export type DomainEventName = (typeof DOMAIN_EVENTS)[number];
+export { DOMAIN_EVENTS, type DomainEventName } from "./domain-events";
 
 export type DomainEvent = {
   name: DomainEventName;

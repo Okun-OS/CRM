@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, PropertyList, RecordDetailLayout, RelatedList, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
-import { CompanyForm } from "@/components/crm/forms/company-form";
 import { formatCurrency, formatDate, formatNumber, formatRelative } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -71,32 +70,29 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
               canDelete={can(actor, "companies.delete")}
               deleteTitle="Unternehmen löschen?"
               deleteDescription={`„${company.name}" wird als gelöscht markiert. Kontakte und Deals bleiben erhalten.`}
-              renderForm={(close) => (
-                <CompanyForm
-                  initial={{
-                    id: company.id,
-                    name: company.name,
-                    domain: company.domain,
-                    industry: company.industry,
-                    employeeCount: company.employeeCount,
-                    annualRevenue: company.annualRevenue,
-                    phone: company.phone,
-                    email: company.email,
-                    website: company.website,
-                    street: company.street,
-                    postalCode: company.postalCode,
-                    city: company.city,
-                    country: company.country,
-                    lifecycleStage: company.lifecycleStage,
-                    source: company.source,
-                    description: company.description,
-                    ownerId: company.owner?.id ?? null,
-                    properties: company.properties,
-                  }}
-                  onDone={() => close(true)}
-                  onCancel={() => close(false)}
-                />
-              )}
+              editor={{
+                kind: "company",
+                initial: {
+                  id: company.id,
+                  name: company.name,
+                  domain: company.domain,
+                  industry: company.industry,
+                  employeeCount: company.employeeCount,
+                  annualRevenue: company.annualRevenue,
+                  phone: company.phone,
+                  email: company.email,
+                  website: company.website,
+                  street: company.street,
+                  postalCode: company.postalCode,
+                  city: company.city,
+                  country: company.country,
+                  lifecycleStage: company.lifecycleStage,
+                  source: company.source,
+                  description: company.description,
+                  ownerId: company.owner?.id ?? null,
+                  properties: company.properties,
+                },
+              }}
             />
           </div>
 
@@ -163,6 +159,7 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
       center={
         <RecordTabs
           links={{ companyId: company.id }}
+          refreshKey={company.updatedAt}
           permissions={{
             canLogActivity: can(actor, "activities.write"),
             canWriteNotes: can(actor, "notes.write"),

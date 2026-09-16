@@ -17,3 +17,6 @@ storage/
 .idea/
 next-env.d.ts
 tsconfig.tsbuildinfo
+storage-test/
+storage-e2e/
+test-results/

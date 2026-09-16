@@ -529,6 +529,10 @@ export async function changeDealStage(
         id: deal.id,
         name: deal.name,
         amount: Number(deal.amount),
+        // Both the ids (workflow triggers match on these) and the names
+        // (webhook consumers read these) are part of the payload.
+        fromStageId: deal.stageId,
+        toStageId: target.id,
         fromStage: deal.stage.name,
         toStage: target.name,
         status,

@@ -11,5 +11,7 @@ export const POST = route(
     await createSession(user.userId, user.organizationId, await requestMeta());
     return NextResponse.json({ data: { userId: user.userId, email: user.email, name: user.name } }, { status: 201 });
   },
-  { auth: false, rateLimit: { limit: 5, windowMs: 60 * 60 * 1000, scope: "auth:register" } },
+  // Registration is rare; a generous instance-wide ceiling keeps automated
+  // sign-up floods out without blocking legitimate traffic behind one NAT.
+  { auth: false, rateLimit: { limit: 60, windowMs: 60 * 60 * 1000, scope: "auth:register" } },
 );

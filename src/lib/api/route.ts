@@ -6,6 +6,7 @@ import { z } from "zod";
 import { AppError, Forbidden, Unauthenticated, ValidationError } from "./errors";
 import { serialize } from "./json";
 import { consumeRateLimit } from "./rate-limit";
+import { trustProxy } from "@/lib/env";
 import { CSRF_COOKIE, getActor } from "@/lib/auth/session";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import type { Permission } from "@/lib/rbac";
@@ -56,7 +57,12 @@ export function route<P = Record<string, string>>(
       }
 
       if (rateLimit) {
-        const identity = ctx?.userId ?? req.headers.get("x-real-ip") ?? "anonymous";
+        // Authenticated requests are limited per user. Unauthenticated ones
+        // share a per-instance bucket, which is only a burst guard — endpoints
+        // that need per-account limits (login, registration) apply their own
+        // key on the submitted identity, so one caller cannot lock out everyone.
+        const forwarded = trustProxy() ? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : undefined;
+        const identity = ctx?.userId ?? forwarded ?? "anonymous";
         consumeRateLimit({
           key: `${rateLimit.scope ?? url.pathname}:${identity}`,
           limit: rateLimit.limit,

@@ -1,3 +1,6 @@
+// Fails the build if a client component ever imports the database, instead of
+// silently bundling the pg driver for the browser.
+import "server-only";
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { env } from "./env";
