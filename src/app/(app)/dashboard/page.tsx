@@ -15,6 +15,7 @@ import { scope } from "@/lib/tenant";
 import { dashboardSummary, dealsOverTime, pipelineFunnel, salesForecast } from "@/server/services/reports";
 import { getOrganization, onboardingStatus } from "@/server/services/organizations";
 import { listActivities } from "@/server/services/activities";
+import { getActiveCrmSummary } from "@/server/services/next-actions";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/misc";
@@ -35,9 +36,10 @@ export default async function DashboardPage() {
   const actor = await getActor();
   if (!actor) return null;
 
-  const [organization, summary, funnel, forecast, timeline, onboarding, deals, tasks, meetings] = await Promise.all([
+  const [organization, summary, active, funnel, forecast, timeline, onboarding, deals, tasks, meetings] = await Promise.all([
     getOrganization(actor),
     dashboardSummary(actor),
+    getActiveCrmSummary(actor),
     pipelineFunnel(actor),
     salesForecast(actor, {}),
     listActivities(actor, { page: 1, pageSize: 8 }),
@@ -105,6 +107,36 @@ export default async function DashboardPage() {
       />
 
       {!onboarding.completed ? <OnboardingChecklist status={onboarding} /> : null}
+
+      <Card>
+        <CardHeader
+          title="Aktives CRM"
+          description="Woran das System gerade arbeitet – und wo es auf eine Entscheidung wartet."
+          action={
+            <Link href="/heute" className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+              Zum Action Center <ArrowRight className="h-3 w-3" />
+            </Link>
+          }
+        />
+        <CardBody>
+          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            <StatTile label="Überfällig" value={formatNumber(active.overdue)} tone={active.overdue > 0 ? "danger" : undefined} />
+            <StatTile label="Heute fällig" value={formatNumber(active.today)} />
+            <StatTile
+              label="Ohne nächste Aktion"
+              value={formatNumber(active.withoutNextAction)}
+              tone={active.withoutNextAction > 0 ? "warning" : undefined}
+            />
+            <StatTile label="Wartet auf uns" value={formatNumber(active.waitingForUs)} />
+            <StatTile label="Wartet auf Kunden" value={formatNumber(active.waitingForCustomer)} />
+            <StatTile label="Stagniert" value={formatNumber(active.stalled)} tone={active.stalled > 0 ? "danger" : undefined} />
+          </div>
+          <p className="mt-3 text-2xs text-ink-500">
+            {active.automationsPending} geplante Automation(en) · {active.automationsExecutedToday} heute ausgeführt. Jede
+            Automation prüft ihre Bedingungen unmittelbar vor der Ausführung erneut.
+          </p>
+        </CardBody>
+      </Card>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi) => (
@@ -274,13 +306,21 @@ export default async function DashboardPage() {
   );
 }
 
-function StatTile({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "danger" }) {
+function StatTile({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "danger" | "warning";
+}) {
+  const valueTone =
+    tone === "danger" ? "text-danger-600" : tone === "warning" ? "text-warning-700" : "text-ink-900";
   return (
     <div className="rounded-md border border-ink-200/70 bg-ink-50/50 px-3 py-2.5">
       <p className="text-2xs text-ink-500">{label}</p>
-      <p className={`mt-0.5 text-lg font-semibold tabular-nums ${tone === "danger" ? "text-danger-600" : "text-ink-900"}`}>
-        {value}
-      </p>
+      <p className={`mt-0.5 text-lg font-semibold tabular-nums ${valueTone}`}>{value}</p>
     </div>
   );
 }

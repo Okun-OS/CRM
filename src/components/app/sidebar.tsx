@@ -19,6 +19,7 @@ import {
   Users,
   Workflow,
   Activity as ActivityIcon,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { OkunCrmLogo, OkunCrmIcon, PoweredByOkunSoftware } from "@/components/brand/marks";
@@ -33,7 +34,12 @@ type NavItem = { href: string; label: string; icon: React.ReactNode; permission?
 type NavSection = { label?: string; items: NavItem[] };
 
 const SECTIONS: NavSection[] = [
-  { items: [{ href: "/dashboard", label: "Dashboard", icon: <Gauge className="h-4 w-4" /> }] },
+  {
+    items: [
+      { href: "/heute", label: "Heute", icon: <Zap className="h-4 w-4" /> },
+      { href: "/dashboard", label: "Dashboard", icon: <Gauge className="h-4 w-4" /> },
+    ],
+  },
   {
     label: "CRM",
     items: [

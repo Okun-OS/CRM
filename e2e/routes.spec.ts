@@ -13,6 +13,7 @@ const EMAIL = `routen-${unique}@example.test`;
 const PASSWORD = "E2ePasswort2026x";
 
 const ROUTES = [
+  "/heute",
   "/dashboard",
   "/contacts",
   "/companies",
@@ -36,6 +37,8 @@ const ROUTES = [
   "/settings/crm-options",
   "/settings/integrations",
   "/settings/webhooks",
+  "/settings/active-crm",
+  "/settings/api-keys",
   "/settings/import",
   "/settings/duplicates",
   "/settings/audit",

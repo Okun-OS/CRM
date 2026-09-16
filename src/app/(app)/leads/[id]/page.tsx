@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, PropertyList, RecordDetailLayout, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
+import { NextActionPanel } from "@/components/crm/next-action-panel";
 import { ConvertLeadAction } from "./convert-action";
 import { formatDate, formatRelative } from "@/lib/format";
 
@@ -97,6 +98,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       }
       left={
         <>
+          <NextActionPanel kind="lead" id={lead.id} canEdit={can(actor, "leads.write")} />
+
           <Section title="Eigenschaften">
             <PropertyList
               items={[

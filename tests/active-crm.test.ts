@@ -58,6 +58,7 @@ function subjectFixture(overrides: Partial<EngineSubject> = {}): EngineSubject {
     lastCustomerResponseAt: null,
     nextMeetingAt: null,
     meetingCompletedAt: null,
+    lastEngagementInbound: null,
     offerSentAt: null,
     expectedCloseDate: null,
     recallAt: null,
@@ -291,7 +292,9 @@ describe("Ereignisse", () => {
     expect(second.duplicate).toBe(true);
     expect(second.id).toBe(first.id);
 
-    const events = await prisma.domainEventRecord.count({ where: { dealId: deal.id, type: "OFFER_SENT" } });
+    const events = await prisma.domainEventRecord.count({
+      where: { organizationId: ctx.organizationId, dealId: deal.id, type: "OFFER_SENT" },
+    });
     expect(events).toBe(1);
 
     const activities = await prisma.activity.count({
@@ -531,7 +534,10 @@ describe("Eingehende Ereignisse anderer OKUN-Produkte", () => {
     });
 
     expect(results[0].status).toBe("accepted");
-    const event = await prisma.domainEventRecord.findFirstOrThrow({ where: { idempotencyKey: "deals-contract-991" } });
+    const event = await prisma.domainEventRecord.findFirstOrThrow({
+      // The key is unique per organization, so the lookup is scoped too.
+      where: { organizationId: ctx.organizationId, idempotencyKey: "deals-contract-991" },
+    });
     expect(event.dealId).toBe(deal.id);
     expect(event.source).toBe("INTEGRATION");
     expect(event.processedAt).not.toBeNull();
@@ -585,5 +591,29 @@ describe("Mandantentrennung der Active-CRM-Ebene", () => {
       where: { organizationId: beta.organizationId, dealId: alphaDeal.id },
     });
     expect(betaEvents).toBe(0);
+  });
+});
+
+describe("Gleichzeitige Erfassung", () => {
+  const now = new Date();
+
+  it("entscheidet bei identischem Zeitstempel anhand der Ereignisreihenfolge", () => {
+    const stamp = new Date(now.getTime() - 60_000);
+
+    const inboundLast = evaluateRules(
+      subjectFixture({ lastOutboundAt: stamp, lastCustomerResponseAt: stamp, lastEngagementInbound: true }),
+      DEFAULT_THRESHOLDS,
+      {},
+      now,
+    );
+    expect(inboundLast.proposal.operationalState).toBe("WAITING_FOR_US");
+
+    const outboundLast = evaluateRules(
+      subjectFixture({ lastOutboundAt: stamp, lastCustomerResponseAt: stamp, lastEngagementInbound: false }),
+      DEFAULT_THRESHOLDS,
+      {},
+      now,
+    );
+    expect(outboundLast.proposal.operationalState).not.toBe("WAITING_FOR_US");
   });
 });

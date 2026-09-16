@@ -11,6 +11,7 @@ import {
   Plug,
   ScrollText,
   ShieldCheck,
+  Zap,
   SlidersHorizontal,
   Upload,
   UserCircle,
@@ -39,6 +40,7 @@ const SECTIONS: { label: string; items: { href: string; label: string; icon: Rea
       { href: "/settings/properties", label: "Eigenschaften", icon: <SlidersHorizontal className="h-4 w-4" />, permission: "properties.manage" },
       { href: "/settings/pipelines", label: "Pipelines", icon: <ListTree className="h-4 w-4" />, permission: "pipelines.manage" },
       { href: "/settings/crm-options", label: "Status & Tags", icon: <ListTree className="h-4 w-4" />, permission: "settings.manage" },
+      { href: "/settings/active-crm", label: "Aktives CRM", icon: <Zap className="h-4 w-4" />, permission: "settings.manage" },
     ],
   },
   {
@@ -54,6 +56,7 @@ const SECTIONS: { label: string; items: { href: string; label: string; icon: Rea
     items: [
       { href: "/settings/integrations", label: "Integrationen", icon: <Plug className="h-4 w-4" />, permission: "settings.manage" },
       { href: "/settings/webhooks", label: "Webhooks", icon: <Webhook className="h-4 w-4" />, permission: "webhooks.manage" },
+      { href: "/settings/api-keys", label: "API-Keys", icon: <KeyRound className="h-4 w-4" />, permission: "settings.manage" },
     ],
   },
   {

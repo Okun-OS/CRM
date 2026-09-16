@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, PropertyList, RecordDetailLayout, RelatedList, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
+import { NextActionPanel } from "@/components/crm/next-action-panel";
 import { DealStagePicker } from "./stage-picker";
 import { formatCurrency, formatDate, formatDateTime, formatNumber } from "@/lib/format";
 
@@ -106,6 +107,8 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       }
       left={
         <>
+          <NextActionPanel kind="deal" id={deal.id} canEdit={can(actor, "deals.write")} />
+
           <Section title="Eigenschaften">
             <PropertyList
               items={[

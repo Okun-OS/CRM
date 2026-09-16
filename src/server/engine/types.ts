@@ -27,6 +27,12 @@ export type EngineSubject = {
   lastCustomerResponseAt: Date | null;
   nextMeetingAt: Date | null;
   meetingCompletedAt: Date | null;
+  /**
+   * Whether the most recently recorded engagement was inbound. Manually logged
+   * activities often share a timestamp to the minute, so comparing the two
+   * timestamps alone cannot say who is at bat — the event order can.
+   */
+  lastEngagementInbound: boolean | null;
   offerSentAt: Date | null;
   expectedCloseDate: Date | null;
   recallAt: Date | null;

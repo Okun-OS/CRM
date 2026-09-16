@@ -1,5 +1,10 @@
+import type { CrmEventType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import type { EngineSubject, SubjectKind } from "./types";
+
+/** Events that say who spoke last. */
+const INBOUND_EVENTS: CrmEventType[] = ["EMAIL_RECEIVED", "CUSTOMER_REPLIED", "CONTRACT_ACCEPTED", "PAYMENT_RECEIVED"];
+const OUTBOUND_EVENTS: CrmEventType[] = ["EMAIL_SENT", "CALL_LOGGED", "OFFER_SENT", "CONTRACT_SENT"];
 
 /**
  * Loads the snapshot the rules work on. Everything the engine needs is read
@@ -14,7 +19,7 @@ function leadLabel(lead: { firstName: string | null; lastName: string | null; co
 async function loadShared(organizationId: string, ref: SubjectRef) {
   const where = ref.kind === "DEAL" ? { dealId: ref.id } : { leadId: ref.id };
 
-  const [manual, recall, openTask] = await Promise.all([
+  const [manual, recall, openTask, lastEngagement] = await Promise.all([
     prisma.nextAction.findFirst({
       where: { organizationId, ...where, isManual: true, status: { in: ["OPEN", "SNOOZED"] } },
       orderBy: { createdAt: "desc" },
@@ -28,6 +33,11 @@ async function loadShared(organizationId: string, ref: SubjectRef) {
       where: { organizationId, ...where, deletedAt: null, status: { in: ["OPEN", "IN_PROGRESS"] } },
       orderBy: { dueAt: "asc" },
       select: { dueAt: true },
+    }),
+    prisma.domainEventRecord.findFirst({
+      where: { organizationId, ...where, type: { in: [...INBOUND_EVENTS, ...OUTBOUND_EVENTS] } },
+      orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+      select: { type: true },
     }),
   ]);
 
@@ -51,6 +61,7 @@ async function loadShared(organizationId: string, ref: SubjectRef) {
     recallAt: recall?.scheduledFor ?? null,
     openTaskDueAt: openTask?.dueAt ?? null,
     openTaskCount,
+    lastEngagementInbound: lastEngagement ? INBOUND_EVENTS.includes(lastEngagement.type) : null,
   };
 }
 
@@ -95,6 +106,7 @@ export async function loadSubject(organizationId: string, ref: SubjectRef): Prom
       lastCustomerResponseAt: deal.lastCustomerResponseAt,
       nextMeetingAt: upcoming?.startAt ?? deal.nextMeetingAt,
       meetingCompletedAt: held?.endAt ?? null,
+      lastEngagementInbound: shared.lastEngagementInbound,
       offerSentAt: deal.offerSentAt,
       expectedCloseDate: deal.expectedCloseDate,
       recallAt: shared.recallAt,
@@ -128,6 +140,7 @@ export async function loadSubject(organizationId: string, ref: SubjectRef): Prom
     lastCustomerResponseAt: lead.lastCustomerResponseAt,
     nextMeetingAt: lead.nextMeetingAt,
     meetingCompletedAt: null,
+    lastEngagementInbound: shared.lastEngagementInbound,
     offerSentAt: null,
     expectedCloseDate: null,
     recallAt: shared.recallAt,

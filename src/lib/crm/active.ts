@@ -7,6 +7,7 @@ import type {
   NextActionType,
   OperationalState,
 } from "@/generated/prisma/enums";
+import type { BadgeTone } from "@/components/ui/badge";
 
 /**
  * Vocabulary of the Active CRM layer.
@@ -24,10 +25,10 @@ export const OPERATIONAL_STATE_LABELS: Record<OperationalState, string> = {
 };
 
 /** Tone used by badges; maps to the design tokens, not to raw colours. */
-export const OPERATIONAL_STATE_TONE: Record<OperationalState, "info" | "warning" | "success" | "neutral" | "danger"> = {
+export const OPERATIONAL_STATE_TONE: Record<OperationalState, BadgeTone> = {
   WAITING_FOR_US: "warning",
-  WAITING_FOR_CUSTOMER: "info",
-  SCHEDULED: "success",
+  WAITING_FOR_CUSTOMER: "brand",
+  SCHEDULED: "accent",
   NO_NEXT_ACTION: "danger",
   CLOSED: "neutral",
 };
@@ -65,9 +66,9 @@ export const MOMENTUM_LABELS: Record<Momentum, string> = {
   STALLED: "Stagniert",
 };
 
-export const MOMENTUM_TONE: Record<Momentum, "success" | "info" | "warning" | "danger"> = {
+export const MOMENTUM_TONE: Record<Momentum, BadgeTone> = {
   HIGH: "success",
-  MEDIUM: "info",
+  MEDIUM: "brand",
   LOW: "warning",
   STALLED: "danger",
 };

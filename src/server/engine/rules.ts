@@ -29,11 +29,21 @@ function daysBetween(from: Date, to: Date): number {
   return Math.floor((to.getTime() - from.getTime()) / DAY);
 }
 
-/** True when the customer's last reply is newer than our last outbound message. */
+/**
+ * True when the customer spoke last and we still owe an answer.
+ *
+ * Timestamps decide as long as they differ. They often do not: an activity
+ * logged by hand carries the minute it was entered, so a reply and the message
+ * it answers can share a timestamp. In that case the order in which the events
+ * were recorded settles it.
+ */
 function customerIsWaitingForUs(subject: EngineSubject): boolean {
   if (!subject.lastCustomerResponseAt) return false;
   if (!subject.lastOutboundAt) return true;
-  return subject.lastCustomerResponseAt.getTime() > subject.lastOutboundAt.getTime();
+
+  const difference = subject.lastCustomerResponseAt.getTime() - subject.lastOutboundAt.getTime();
+  if (difference !== 0) return difference > 0;
+  return subject.lastEngagementInbound === true;
 }
 
 const respondToCustomer: Rule = {

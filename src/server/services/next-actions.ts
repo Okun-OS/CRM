@@ -613,3 +613,52 @@ export async function resumeRecordAutomation(ctx: ActorContext, ref: SubjectRef)
   await reconcileSubject(ctx.organizationId, ref, { actorId: ctx.userId });
   return getRecordActionState(ctx, ref);
 }
+
+export type ActiveCrmSummary = {
+  overdue: number;
+  today: number;
+  withoutNextAction: number;
+  waitingForUs: number;
+  waitingForCustomer: number;
+  stalled: number;
+  automationsPending: number;
+  automationsExecutedToday: number;
+};
+
+/**
+ * Compact overview for the dashboard: how the organization is doing at keeping
+ * its open deals and leads moving. Every number is a live count, not a sample.
+ */
+export async function getActiveCrmSummary(ctx: ActorContext): Promise<ActiveCrmSummary> {
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+
+  const openAction = { ...scope(ctx), status: "OPEN" as const };
+
+  const [overdue, today, withoutNextAction, waitingForUs, waitingForCustomer, stalledDeals, stalledLeads, pending, executed] =
+    await Promise.all([
+      prisma.nextAction.count({ where: { ...openAction, dueAt: { lt: startOfToday } } }),
+      prisma.nextAction.count({ where: { ...openAction, dueAt: { gte: startOfToday, lte: endOfToday } } }),
+      prisma.deal.count({ where: { ...scope(ctx), deletedAt: null, status: "OPEN", operationalState: "NO_NEXT_ACTION" } }),
+      prisma.deal.count({ where: { ...scope(ctx), deletedAt: null, status: "OPEN", operationalState: "WAITING_FOR_US" } }),
+      prisma.deal.count({ where: { ...scope(ctx), deletedAt: null, status: "OPEN", operationalState: "WAITING_FOR_CUSTOMER" } }),
+      prisma.deal.count({ where: { ...scope(ctx), deletedAt: null, status: "OPEN", momentum: "STALLED" } }),
+      prisma.lead.count({ where: { ...scope(ctx), deletedAt: null, convertedAt: null, momentum: "STALLED" } }),
+      prisma.scheduledAutomation.count({ where: { ...scope(ctx), status: "PENDING" } }),
+      prisma.scheduledAutomation.count({ where: { ...scope(ctx), status: "EXECUTED", executedAt: { gte: startOfToday } } }),
+    ]);
+
+  return {
+    overdue,
+    today,
+    withoutNextAction,
+    waitingForUs,
+    waitingForCustomer,
+    stalled: stalledDeals + stalledLeads,
+    automationsPending: pending,
+    automationsExecutedToday: executed,
+  };
+}

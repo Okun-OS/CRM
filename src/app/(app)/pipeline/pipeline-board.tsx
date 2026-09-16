@@ -24,6 +24,14 @@ import { useToast } from "@/components/ui/toast";
 import { DealForm } from "@/components/crm/forms/deal-form";
 import { api, ApiError } from "@/lib/api-client";
 import { formatCurrency, formatRelative } from "@/lib/format";
+import {
+  MOMENTUM_LABELS,
+  MOMENTUM_TONE,
+  OPERATIONAL_STATE_LABELS,
+  OPERATIONAL_STATE_TONE,
+} from "@/lib/crm/active";
+import type { Momentum, OperationalState } from "@/generated/prisma/enums";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * Kanban board. Dropping a card calls the stage endpoint, which records the
@@ -39,6 +47,10 @@ type Deal = {
   owner: { id: string; name: string } | null;
   lastActivityAt: string | null;
   nextActivityAt?: string | null;
+  operationalState: OperationalState;
+  nextActionTitle: string | null;
+  nextActionAt: string | null;
+  momentum: Momentum;
 };
 
 type Stage = {
@@ -274,6 +286,22 @@ function DealCard({ deal, currency, dragging }: { deal: Deal; currency: string; 
         <p className="truncate text-xs font-medium text-ink-900">{deal.name}</p>
       </Link>
       <p className="mt-1 text-sm font-semibold tabular-nums text-ink-900">{formatCurrency(deal.amount, deal.currency || currency)}</p>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        <Badge tone={OPERATIONAL_STATE_TONE[deal.operationalState]}>
+          {OPERATIONAL_STATE_LABELS[deal.operationalState]}
+        </Badge>
+        {deal.momentum === "STALLED" || deal.momentum === "HIGH" ? (
+          <Badge tone={MOMENTUM_TONE[deal.momentum]}>{MOMENTUM_LABELS[deal.momentum]}</Badge>
+        ) : null}
+      </div>
+
+      {deal.nextActionTitle ? (
+        <p className="mt-1.5 truncate text-2xs text-ink-600" title={deal.nextActionTitle}>
+          → {deal.nextActionTitle}
+          {deal.nextActionAt ? ` · ${formatRelative(deal.nextActionAt)}` : ""}
+        </p>
+      ) : null}
 
       {deal.company ? (
         <p className="mt-1 flex items-center gap-1 truncate text-2xs text-ink-500">

@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { Momentum, NextActionType, OperationalState } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import { liveScope, scope, assertFound } from "@/lib/tenant";
@@ -30,6 +31,12 @@ export type DealListItem = {
   stage: { id: string; name: string; type: string; probability: number };
   contacts: { id: string; name: string }[];
   lastActivityAt: string | null;
+  /** Active CRM: operational state next to the pipeline stage. */
+  operationalState: OperationalState;
+  nextActionAt: string | null;
+  nextActionTitle: string | null;
+  nextActionType: NextActionType | null;
+  momentum: Momentum;
   createdAt: string;
   properties: Record<string, unknown>;
 };
@@ -45,6 +52,11 @@ const listSelect = {
   closedAt: true,
   source: true,
   lastActivityAt: true,
+  operationalState: true,
+  nextActionAt: true,
+  nextActionTitle: true,
+  nextActionType: true,
+  momentum: true,
   createdAt: true,
   company: { select: { id: true, name: true } },
   owner: { select: { id: true, name: true } },
@@ -63,6 +75,11 @@ type DealRow = {
   expectedCloseDate: Date | null;
   closedAt: Date | null;
   lastActivityAt: Date | null;
+  operationalState: OperationalState;
+  nextActionAt: Date | null;
+  nextActionTitle: string | null;
+  nextActionType: NextActionType | null;
+  momentum: Momentum;
   createdAt: Date;
   company: { id: string; name: string } | null;
   owner: { id: string; name: string } | null;
@@ -90,6 +107,11 @@ function mapDeal(row: DealRow, properties: Record<string, unknown> = {}): DealLi
       name: `${link.contact.firstName} ${link.contact.lastName}`.trim(),
     })),
     lastActivityAt: row.lastActivityAt?.toISOString() ?? null,
+    operationalState: row.operationalState,
+    nextActionAt: row.nextActionAt?.toISOString() ?? null,
+    nextActionTitle: row.nextActionTitle,
+    nextActionType: row.nextActionType,
+    momentum: row.momentum,
     createdAt: row.createdAt.toISOString(),
     properties,
   };

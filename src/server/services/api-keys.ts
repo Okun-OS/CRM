@@ -5,6 +5,7 @@ import { scope, assertFound } from "@/lib/tenant";
 import { hashToken, randomToken } from "@/lib/crypto";
 import { writeAudit } from "@/lib/audit";
 import { Unauthenticated, ValidationError } from "@/lib/api/errors";
+import { API_KEY_SCOPES, type ApiKeyScope } from "@/lib/crm/api-keys";
 
 /**
  * API keys for machine-to-machine access — the way other OKUN products deliver
@@ -12,13 +13,7 @@ import { Unauthenticated, ValidationError } from "@/lib/api/errors";
  * is stored, and every key is bound to one organization, so the tenant of an
  * incoming event is never taken from the request body.
  */
-export const API_KEY_SCOPES = ["events:write", "scheduler:run"] as const;
-export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
-
-export const API_KEY_SCOPE_LABELS: Record<ApiKeyScope, string> = {
-  "events:write": "Ereignisse melden (z. B. aus OKUN Deals)",
-  "scheduler:run": "Geplante Automationen ausführen",
-};
+export { API_KEY_SCOPES, API_KEY_SCOPE_LABELS, type ApiKeyScope } from "@/lib/crm/api-keys";
 
 const PREFIX = "okun_ck";
 
