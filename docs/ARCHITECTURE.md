@@ -49,6 +49,7 @@ Zwei Zugriffswege auf dieselbe Domänenschicht:
 | `src/components/charts` | Diagramme mit validierter Farbpalette |
 | `src/lib` | Framework-nahe Bausteine: Auth, Fehler, Filter, Feldregister, Format |
 | `src/server/services` | Domänenlogik je Objekt |
+| `src/server/engine` | Next Action Engine des aktiven CRM (siehe `docs/ACTIVE-CRM.md`) |
 | `src/server/workflows` | Workflow-Definition und -Engine |
 | `src/server/integrations` | Integrationskatalog und Adapter-Verträge |
 | `src/server/storage` | Datei-Storage-Treiber |
@@ -173,6 +174,33 @@ Services lösen nach erfolgreicher Änderung ein Domänenereignis aus
 Reaktionen lassen die auslösende Anfrage nie scheitern; Fehler werden
 protokolliert.
 
+## 8a. Aktives CRM (Next Action Engine)
+
+Auf dem CRM-Kern liegt eine zweite, ereignisgetriebene Ebene: Sie beantwortet
+je Deal und Lead, was als Nächstes zu tun ist, worauf der Vorgang wartet und
+warum. Sie ist additiv — kein bestehender Service wurde dafür umgebaut.
+
+- **Ereignisspeicher.** `DomainEventRecord` nimmt alles auf, bevor es wirkt.
+  `@@unique([organizationId, idempotencyKey])` macht die Aufnahme idempotent,
+  auch für Lieferungen anderer Systeme.
+- **Brücke.** `src/server/engine/bridge.ts` übersetzt die bestehenden
+  Domänenereignisse aus Abschnitt 8 in Engine-Ereignisse; die Services rufen
+  die Engine nicht direkt.
+- **Regeln als Daten.** `rules.ts` ist eine Entscheidungstabelle: erste
+  zutreffende Regel gewinnt, jede liefert eine Begründung im Klartext. Die
+  letzte Regel greift immer, damit ein offener Datensatz nie ohne nächsten
+  Schritt bleibt.
+- **Abgleich.** `reconcileSubject()` ist idempotent und läuft nach jedem
+  Ereignis, nach jeder manuellen Änderung und im periodischen Durchlauf.
+- **Sicherheitsprüfungen.** Geplante Automationen führen ihre Bedingungen mit
+  und prüfen sie unmittelbar vor der Ausführung erneut; ein Überspringen wird
+  mit Grund festgehalten, nie still verworfen.
+- **Maschinenzugang.** `ApiKey` (SHA-256-Hash, Scopes, Widerruf) für
+  `/api/v1/ingest/events` und `/api/v1/scheduler/run`. Der Mandant kommt aus
+  dem Schlüssel, nie aus dem Payload.
+
+Vollständig beschrieben in `docs/ACTIVE-CRM.md`.
+
 ## 9. Fehler, Validierung, API-Vertrag
 
 - Ein Fehlertyp (`AppError`) mit festen Codes; `toErrorResponse` bildet ihn auf
@@ -230,7 +258,10 @@ Bewusst offen gelassen und nicht als fertig dargestellt:
 2. **Rate Limiting im Prozessspeicher.** Für mehrere Instanzen braucht es einen
    gemeinsamen Speicher (z. B. Redis).
 3. **Webhook-Wiederholungen** brauchen einen Scheduler, der
-   `retryPendingWebhookDeliveries()` regelmäßig aufruft.
+   `retryPendingWebhookDeliveries()` regelmäßig aufruft. Dasselbe gilt für den
+   Durchlauf des aktiven CRM (`POST /api/v1/scheduler/run`): Ohne externen
+   Auslöser bleiben Fälligkeiten und Stagnationserkennung liegen, bis das
+   nächste Ereignis eintrifft.
 4. **Kein E-Mail-Transport implementiert.** Der Adapter-Vertrag steht, die
    Oberfläche kennzeichnet den Zustand.
 5. **2FA** ohne Selbsteinrichtung.

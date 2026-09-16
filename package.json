@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "brand:build": "tsx scripts/build-brand-assets.tsx",
-    "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts"
+    "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts",
+    "backfill:active-crm": "tsx --conditions=react-server scripts/backfill-active-crm.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -8,6 +8,14 @@ Unternehmen, Leads, Deals, Aktivitäten, Aufgaben, Termine, E-Mail-Vorlagen,
 Automatisierung, Auswertungen und Administration – mandantenfähig und mit
 serverseitig durchgesetzten Berechtigungen.
 
+Der Unterschied liegt in der Arbeitsweise: **OKUN CRM wartet nicht auf Pflege,
+sondern übernimmt Arbeit.** Jeder offene Deal und Lead trägt einen nächsten
+Schritt mit Fälligkeit, Verantwortlichem und Begründung; die Timeline schreibt
+sich aus dem, was tatsächlich passiert; ein Follow-up wird gestoppt, sobald der
+Kunde antwortet. Was das System vorschlägt, lässt sich immer in einem Satz
+begründen – es gibt keine erfundene Abschlusswahrscheinlichkeit und keinen
+Lead-Score (siehe [docs/ACTIVE-CRM.md](docs/ACTIVE-CRM.md)).
+
 ---
 
 ## Schnellstart
@@ -46,6 +54,7 @@ pnpm seed:demo                  # legt „OKUN Demo GmbH" mit wenigen Beispiels�
 | `pnpm db:studio` | Prisma Studio |
 | `pnpm brand:build` | Brand-Assets aus den Marken-Komponenten erzeugen |
 | `pnpm seed:demo` | Demo-Organisation für lokale Entwicklung |
+| `pnpm backfill:active-crm` | Bestandsdaten einmalig mit der Next Action Engine abgleichen |
 
 ## Tech-Stack
 
@@ -61,6 +70,8 @@ pnpm seed:demo                  # legt „OKUN Demo GmbH" mit wenigen Beispiels�
 | Dokument | Inhalt |
 | --- | --- |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architektur, Datenmodell, Auth, Mandanten, Workflows, Grenzen |
+| [docs/ACTIVE-CRM.md](docs/ACTIVE-CRM.md) | Next Action Engine: Ereignisse, Regeln, Zustände, Automationen, Anbindung |
+| [docs/DATA-MODEL.md](docs/DATA-MODEL.md) | Beziehungen der Objekte und die Entscheidungen dahinter |
 | [docs/BRANDING.md](docs/BRANDING.md) | Marke, Design-Tokens, Assets, White-Label-Vorbereitung |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Betrieb, Umgebungsvariablen, Deployment, Backups |
 | [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) | Abnahmeprotokoll: was verifiziert ist und was offen bleibt |
@@ -78,4 +89,11 @@ Dieses Produkt zeigt nichts an, was es nicht tut:
   implementiert.
 - **Zwei-Faktor-Authentifizierung** ist im Datenmodell und in der Sitzungsprüfung
   vorbereitet, die Selbsteinrichtung folgt später.
+- **Automatische Nachrichten an Kunden** verschickt das System nicht von sich
+  aus. Automatisiert werden interne Erinnerungen; jede geplante Automation
+  prüft ihre Bedingungen unmittelbar vor der Ausführung erneut und wird mit
+  Begründung übersprungen, wenn sich die Lage geändert hat.
+- **Der Zeitablauf** (fällige Aktionen, Stagnation) braucht einen Scheduler,
+  der `POST /api/v1/scheduler/run` aufruft – siehe
+  [docs/OPERATIONS.md](docs/OPERATIONS.md).
 - Eine Liste offener Punkte steht in [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).

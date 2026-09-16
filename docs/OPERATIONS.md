@@ -79,9 +79,38 @@ Ein Scheduler (Cron, systemd-Timer, Plattform-Job) sollte regelmäßig aufrufen:
 | Aufgabe | Funktion | Empfohlener Takt |
 | --- | --- | --- |
 | Webhook-Wiederholungen | `retryPendingWebhookDeliveries()` aus `src/server/services/webhooks.ts` | alle 5 Minuten |
+| Durchlauf des aktiven CRM | `POST /api/v1/scheduler/run` | alle 15 Minuten |
 
-Ohne diesen Job bleiben fehlgeschlagene Zustellungen im Status „in
+Ohne den Webhook-Job bleiben fehlgeschlagene Zustellungen im Status „in
 Wiederholung"; die Oberfläche unter Einstellungen → System zeigt das an.
+
+Der Durchlauf des aktiven CRM prüft fällige nächste Aktionen, erkennt
+Stagnation und führt geplante Automationen aus. Er wird mit einem API-Key mit
+dem Scope `scheduler:run` aufgerufen (Einstellungen → API-Keys) und gilt immer
+genau für die Organisation dieses Schlüssels — bei mehreren Mandanten also ein
+Schlüssel und ein Job je Organisation:
+
+```bash
+curl -sS -X POST "$APP_URL/api/v1/scheduler/run" \
+  -H "Authorization: Bearer $OKUN_SCHEDULER_KEY"
+```
+
+Der Aufruf ist gefahrlos wiederholbar: Jede Automation wird vor der Ausführung
+beansprucht, und der Abgleich ist idempotent. Ohne diesen Job reagiert das
+System weiterhin auf Ereignisse, aber nicht auf reinen Zeitablauf — Fristen
+und Stagnation bleiben dann liegen.
+
+### Einmalig: Bestandsdaten nachziehen
+
+Datensätze, die vor der Next Action Engine angelegt wurden, tragen noch keinen
+operativen Zustand. Ein Durchlauf holt das nach:
+
+```bash
+DATABASE_URL=… pnpm backfill:active-crm
+```
+
+Das Skript gleicht ausschließlich ab — es führt keine Automation aus und
+versendet nichts. Es ist gefahrlos wiederholbar.
 
 ## 6. Backups
 

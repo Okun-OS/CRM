@@ -2,6 +2,9 @@
 
 Stand: 16.09.2026 · Commit: siehe `git log`
 
+Enthält die Abnahme des CRM-Kerns (Punkte 1–35) und die des aktiven CRM
+(Punkte A1–A15).
+
 Jeder Punkt der vereinbarten End-to-End-Abnahme ist unten klassifiziert:
 
 - **VERIFIZIERT** – automatisiert getestet und/oder in der laufenden Anwendung
@@ -15,8 +18,8 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 
 | Suite | Umfang | Lauf |
 | --- | --- | --- |
-| `pnpm test` | 97 Unit- und Integrationstests gegen eine echte PostgreSQL-Datenbank | grün |
-| `pnpm test:e2e` | 15 Playwright-Tests gegen den gebauten Server (inkl. Smoke-Test über alle 31 Seiten) | grün |
+| `pnpm test` | 126 Unit- und Integrationstests gegen eine echte PostgreSQL-Datenbank | grün |
+| `pnpm test:e2e` | 22 Playwright-Tests gegen den gebauten Server (inkl. Smoke-Test über alle 34 Seiten) | grün |
 | `pnpm build` | Produktionsbuild inkl. Typprüfung | grün |
 
 ## Abnahmepunkte
@@ -59,6 +62,30 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 | 34 | OKUN CRM Logo | VERIFIZIERT (mit Hinweis) | Produktzeichen in Navigation, Login und Favicon. **Hinweis:** Die Vektorzeichen sind aus der Markenreferenz rekonstruiert; die finalen Dateien aus dem Markenpaket ersetzen sie in `public/brand/` (siehe docs/BRANDING.md) |
 | 35 | „Powered by OKUN Software" | VERIFIZIERT | E2E 1; sichtbar in Login, Sidebar-Footer und Einstellungen |
 
+## Abnahme des aktiven CRM
+
+Die Ergänzung zum Master-Prompt gibt eine Reihenfolge vor: zuerst die
+technische Grundlage, dann die Automationen. Genau so wurde gebaut; Punkte
+jenseits dieser Reihenfolge sind nicht vorweggenommen.
+
+| # | Punkt | Status | Nachweis |
+| --- | --- | --- | --- |
+| A1 | Ereignismodell | VERIFIZIERT | `DomainEventRecord`; Test „verarbeitet dieselbe Lieferung nur einmal" (zweite Zustellung wird als Duplikat erkannt, keine zweite Aktivität, kein zweiter Feldeffekt) |
+| A2 | Operativer Deal-Zustand | VERIFIZIERT | Test „wechselt bei eingehender Antwort auf ‚Wir sind am Zug'"; E2E 3 und 4 zeigen den Wechsel in der Oberfläche |
+| A3 | Nächste Aktion je Deal und Lead | VERIFIZIERT | Test „gibt jedem neuen Deal sofort einen nachvollziehbaren nächsten Schritt"; E2E 2 |
+| A4 | Warte-Zustand (uns / Kunde / keiner) | VERIFIZIERT | Tests zum Regelkatalog und „entscheidet bei identischem Zeitstempel anhand der Ereignisreihenfolge" |
+| A5 | Action Center „Heute" | VERIFIZIERT | Test „sortiert offene Aktionen in die Buckets des Vertriebstags"; E2E 6 |
+| A6 | Stagnationserkennung | VERIFIZIERT | Test „erkennt Stagnation und meldet sie dem Verantwortlichen" (Momentum `STAGNIERT`, `stalledSince`, Empfehlung `REACTIVATE`, Benachrichtigung) |
+| A7 | Regel-Engine, konfigurierbar | VERIFIZIERT | Tests zu Reihenfolge, Deaktivierung und Verzug-Override; Oberfläche unter Einstellungen → Aktives CRM |
+| A8 | Automatische Aktivitätserfassung | VERIFIZIERT | Test „schreibt die Timeline automatisch, ohne dass jemand etwas erfasst" |
+| A9 | Aufgaben automatisch erzeugen und schließen | VERIFIZIERT | Tests „erstellt bei Fälligkeit eine Aufgabe für den Verantwortlichen" und zum automatischen Schließen bei Kundenantwort; von Hand angelegte Aufgaben bleiben unberührt |
+| A10 | Sichere Follow-up-Automation | VERIFIZIERT | Test „prüft die Sicherheitsbedingungen erneut, unmittelbar vor der Ausführung" (Kunde antwortet nach dem Planen → übersprungen mit Grund, keine Aufgabe) |
+| A11 | Anbindung OKUN Deals | VERIFIZIERT | Tests zur Zuordnung über die Kontakt-E-Mail, zur Meldung unauflösbarer Ereignisse und zur Mandantenbindung des API-Keys; E2E 7 |
+| A12 | Weitere Integrationen | OFFEN | Bewusst nicht vorweggenommen; die Ingestion-Schnittstelle steht dafür bereit |
+| A13 | Manuelle Übersteuerung nachvollziehbar | VERIFIZIERT | Tests zu Erledigen, Verschieben, Verwerfen (nur mit Begründung), Wiedervorlage und Pausieren – jeweils mit Timeline- und Audit-Eintrag; E2E 5 |
+| A14 | Momentum ohne erfundene Kennzahlen | VERIFIZIERT | Tests „begründet jeden Wert mit sichtbaren Signalen" und zur Stagnation; die Oberfläche zeigt alle Signale mit Gewicht und nennt ausdrücklich, dass es keine Abschlusswahrscheinlichkeit ist |
+| A15 | Mandantentrennung der neuen Ebene | VERIFIZIERT | Test „zeigt keine Aktionen, Ereignisse oder Automationen fremder Organisationen" |
+
 ## Offene Punkte
 
 Diese Punkte sind bewusst nicht umgesetzt und werden nirgends als fertig
@@ -75,6 +102,9 @@ dargestellt:
 | Organisationswechsel | Datenmodell unterstützt mehrere Mitgliedschaften | Kein Umschalter in der Oberfläche |
 | Dashboard-Builder | Feste, sinnvolle Dashboard-Komposition | Keine Widget-Konfiguration |
 | Volltextsuche | `ILIKE`-basiert | Ausreichend für den aktuellen Umfang, für große Bestände ist ein Volltextindex vorgesehen |
+| Zeitgesteuerter Durchlauf | `POST /api/v1/scheduler/run` ist implementiert und getestet, braucht aber einen externen Auslöser | Ohne Scheduler reagiert das System auf Ereignisse, nicht auf reinen Zeitablauf; Betriebshandbuch nennt Takt und Aufruf |
+| Automatische Kunden-E-Mails | Nur mit ausdrücklich eingerichteter Vorlage und verbundenem Transport; ein Transport existiert derzeit nicht | Automatisiert werden interne Erinnerungen; eine E-Mail-Automation ohne Transport wird mit Grund übersprungen |
+| Ereignis-Wiederholung (Replay) | Der Ereignisspeicher ist vollständig, ein Wiederaufbau daraus ist nicht implementiert | Keine Oberfläche, keine Andeutung |
 
 ## Nicht beanspruchte Aussagen
 
@@ -82,12 +112,15 @@ dargestellt:
   Rechteprüfung, Audit Log, Soft Delete und Exporte. Ob ein Einsatz konform ist,
   hängt von Betrieb, Verträgen und Prozessen des einsetzenden Unternehmens ab.
 - **Keine KI-Funktionen.** Es sind keine implementiert und keine angedeutet.
+  Das Momentum ist eine Summe benannter, angezeigter Signale, keine Schätzung.
+  Abschlusswahrscheinlichkeiten stammen weiterhin aus Stage oder Eingabe, nicht
+  aus einem Modell.
 - **Keine Demo-Daten im Produktbetrieb.** Der Seed ist ein separates Skript für
   lokale Entwicklung.
 
 ## Während der Abnahme gefundene und behobene Fehler
 
-Die Testsuiten haben fünf echte Fehler aufgedeckt, die vor der Abgabe behoben
+Die Testsuiten haben sechs echte Fehler aufgedeckt, die vor der Abgabe behoben
 wurden:
 
 1. `deal.stage_changed` trug nur Stage-Namen – stage-spezifische Workflow-Trigger
@@ -101,3 +134,9 @@ wurden:
    und zwar je Konto.
 5. Die Timeline eines Datensatzes aktualisierte sich nach einer Stage-Änderung
    nicht.
+6. Zwei im selben Minutentakt erfasste Aktivitäten trugen denselben Zeitstempel;
+   damit ließ sich nicht mehr bestimmen, wer am Zug ist, und ein Deal blieb nach
+   einer Kundenantwort auf „Warten auf Kunden" stehen. Der Zustand wird jetzt
+   zusätzlich über die Reihenfolge der aufgezeichneten Ereignisse entschieden.
+   Gefunden durch den End-to-End-Test „Eine eingehende Antwort dreht den
+   Zustand".
