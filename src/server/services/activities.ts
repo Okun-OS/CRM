@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ActivityType } from "@/generated/prisma/enums";
+import type { ActivityType, CrmEventType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import { liveScope, scope } from "@/lib/tenant";
@@ -227,7 +227,47 @@ export async function createActivity(ctx: ActorContext, input: z.input<typeof ac
   });
 
   await touchLastActivity(ctx, links, occurredAt);
+  await reportEngagement(ctx, data, links, occurredAt);
   return mapActivity(activity as ActivityRow);
+}
+
+/**
+ * Zero administration: what the user logged is also what the engine reasons
+ * about. Logging an inbound e-mail stops the follow-up that was waiting for
+ * exactly that answer — the user does not have to cancel anything by hand.
+ */
+async function reportEngagement(
+  ctx: ActorContext,
+  data: { type: ActivityType; direction?: string | null; subject?: string | null; outcome?: string | null },
+  links: ActivityLinks,
+  occurredAt: Date,
+): Promise<void> {
+  if (!links.dealId && !links.leadId) return;
+
+  const type: CrmEventType | null =
+    data.type === "EMAIL"
+      ? data.direction === "INBOUND"
+        ? "EMAIL_RECEIVED"
+        : "EMAIL_SENT"
+      : data.type === "CALL"
+        ? "CALL_LOGGED"
+        : data.type === "MEETING"
+          ? "MEETING_COMPLETED"
+          : null;
+  if (!type) return;
+
+  const { recordEvent } = await import("@/server/engine/events");
+  await recordEvent(ctx, {
+    type,
+    source: "USER",
+    occurredAt,
+    suppressActivity: true,
+    contactId: links.contactId ?? null,
+    companyId: links.companyId ?? null,
+    dealId: links.dealId ?? null,
+    leadId: links.leadId ?? null,
+    payload: { subject: data.subject ?? null, outcome: data.outcome ?? null },
+  });
 }
 
 /**

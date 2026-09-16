@@ -175,6 +175,108 @@ enum DuplicateStrategy {
   CREATE_ANYWAY
 }
 
+// ───────────────────── Active CRM ─────────────────────
+
+/// What a record is currently waiting for. Separate from the pipeline stage:
+/// the stage says where a deal stands, this says what has to happen with it.
+enum OperationalState {
+  WAITING_FOR_US
+  WAITING_FOR_CUSTOMER
+  SCHEDULED
+  NO_NEXT_ACTION
+  CLOSED
+}
+
+enum NextActionType {
+  CONTACT_LEAD
+  QUALIFY_LEAD
+  FOLLOW_UP
+  CALL
+  SCHEDULE_MEETING
+  CONFIRM_MEETING
+  PREPARE_MEETING
+  CREATE_OFFER
+  SEND_OFFER
+  CHASE_OFFER
+  GET_DECISION
+  PREPARE_CONTRACT
+  REACTIVATE
+  DEFINE_NEXT_STEP
+  CUSTOM
+}
+
+enum NextActionStatus {
+  OPEN
+  DONE
+  DISMISSED
+  SUPERSEDED
+  SNOOZED
+}
+
+/// Momentum is derived from visible signals, never from an invented probability.
+enum Momentum {
+  HIGH
+  MEDIUM
+  LOW
+  STALLED
+}
+
+enum AutomationType {
+  FOLLOW_UP_EMAIL
+  FOLLOW_UP_TASK
+  RECALL
+  REMINDER
+}
+
+enum AutomationStatus {
+  PENDING
+  EXECUTED
+  SKIPPED
+  CANCELLED
+  FAILED
+}
+
+enum EventSource {
+  USER
+  SYSTEM
+  AUTOMATION
+  INTEGRATION
+}
+
+/// The business events the CRM reacts to. Everything that changes a record's
+/// operational state passes through one of these.
+enum CrmEventType {
+  CONTACT_CREATED
+  LEAD_CREATED
+  LEAD_STATUS_CHANGED
+  DEAL_CREATED
+  DEAL_STAGE_CHANGED
+  DEAL_UPDATED
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  CALL_LOGGED
+  NOTE_ADDED
+  MEETING_BOOKED
+  MEETING_COMPLETED
+  MEETING_CANCELLED
+  OFFER_CREATED
+  OFFER_SENT
+  OFFER_VIEWED
+  CUSTOMER_REPLIED
+  TASK_CREATED
+  TASK_COMPLETED
+  CONTRACT_SENT
+  CONTRACT_ACCEPTED
+  PAYMENT_RECEIVED
+  DEAL_WON
+  DEAL_LOST
+  NEXT_ACTION_COMPLETED
+  NEXT_ACTION_SNOOZED
+  AUTOMATION_EXECUTED
+  AUTOMATION_CANCELLED
+  RECALL_REQUESTED
+}
+
 // ───────────────────── Tenancy, identity, access ─────────────────────
 
 model Organization {
@@ -228,6 +330,12 @@ model Organization {
   tags                  Tag[]
   importJobs            ImportJob[]
   sessions              Session[]
+  domainEvents          DomainEventRecord[]
+  nextActions           NextAction[]
+  automations           ScheduledAutomation[]
+  apiKeys               ApiKey[]
+  activeCrmSetting      ActiveCrmSetting?
+  activeCrmRules        ActiveCrmRuleSetting[]
 
   @@index([deletedAt])
 }
@@ -277,6 +385,12 @@ model User {
   importJobs        ImportJob[]
   invitationsSent   Invitation[]
   dealStageChanges  DealStageHistory[]
+  domainEvents      DomainEventRecord[]
+  ownedNextActions  NextAction[]        @relation("NextActionOwner")
+  completedNextActions NextAction[]     @relation("NextActionCompleter")
+  ownedAutomations  ScheduledAutomation[] @relation("AutomationOwner")
+  createdAutomations ScheduledAutomation[] @relation("AutomationCreator")
+  apiKeys           ApiKey[]
 }
 
 model Membership {
@@ -444,6 +558,8 @@ model Company {
   emailMessages  EmailMessage[]
   tags           CompanyTag[]
   propertyValues PropertyValue[]
+  domainEvents   DomainEventRecord[]
+  nextActions    NextAction[]
 
   @@index([organizationId, deletedAt])
   @@index([organizationId, name])
@@ -503,6 +619,9 @@ model Contact {
   emailMessages  EmailMessage[]
   tags           ContactTag[]
   propertyValues PropertyValue[]
+  domainEvents   DomainEventRecord[]
+  nextActions    NextAction[]
+  automations    ScheduledAutomation[]
 
   @@index([organizationId, deletedAt])
   @@index([organizationId, lastName, firstName])
@@ -544,6 +663,23 @@ model Lead {
   convertedContactId String?
   convertedCompanyId String?
   convertedDealId    String?
+
+  /// Active CRM: what has to happen next, and what the record is waiting for.
+  operationalState   OperationalState @default(NO_NEXT_ACTION)
+  nextActionAt       DateTime?
+  nextActionType     NextActionType?
+  nextActionTitle    String?
+  momentum           Momentum         @default(MEDIUM)
+  /// The signals behind the momentum value, so the user can see the reasoning.
+  momentumSignals    Json?
+  lastOutboundAt     DateTime?
+  lastCustomerResponseAt DateTime?
+  nextMeetingAt      DateTime?
+  stalledSince       DateTime?
+  /// Manual override: automation is paused for this record until then.
+  automationPausedUntil  DateTime?
+  automationPausedReason String?
+
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
   deletedAt          DateTime?
@@ -556,9 +692,13 @@ model Lead {
   tasks              Task[]
   notes              Note[]
   propertyValues     PropertyValue[]
+  domainEvents       DomainEventRecord[]
+  nextActions        NextAction[]
+  automations        ScheduledAutomation[]
 
   @@index([organizationId, deletedAt])
   @@index([organizationId, status])
+  @@index([organizationId, operationalState, nextActionAt])
   @@index([organizationId, ownerId])
   @@index([organizationId, createdAt])
   @@index([organizationId, email])
@@ -591,6 +731,10 @@ model PipelineStage {
   position       Int          @default(0)
   probability    Int          @default(0)
   type           StageType    @default(OPEN)
+  /// Active CRM: what the system should propose for a deal sitting in this
+  /// stage, and after how many days without progress it becomes due.
+  expectedAction     NextActionType?
+  expectedActionDays Int?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -622,6 +766,24 @@ model Deal {
   description       String?
   ownerId           String?
   lastActivityAt    DateTime?
+
+  /// Active CRM: the operational state next to the pipeline stage.
+  operationalState  OperationalState @default(NO_NEXT_ACTION)
+  nextActionAt      DateTime?
+  nextActionType    NextActionType?
+  nextActionTitle   String?
+  momentum          Momentum         @default(MEDIUM)
+  momentumSignals   Json?
+  stageEnteredAt    DateTime?
+  offerSentAt       DateTime?
+  lastOutboundAt    DateTime?
+  lastCustomerResponseAt DateTime?
+  nextMeetingAt     DateTime?
+  stalledSince      DateTime?
+  /// Manual override: automation is paused for this record until then.
+  automationPausedUntil  DateTime?
+  automationPausedReason String?
+
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   deletedAt         DateTime?
@@ -642,8 +804,13 @@ model Deal {
   emailMessages     EmailMessage[]
   tags              DealTag[]
   propertyValues    PropertyValue[]
+  domainEvents      DomainEventRecord[]
+  nextActions       NextAction[]
+  automations       ScheduledAutomation[]
 
   @@index([organizationId, deletedAt])
+  @@index([organizationId, operationalState, nextActionAt])
+  @@index([organizationId, momentum])
   @@index([organizationId, stageId])
   @@index([organizationId, pipelineId, status])
   @@index([organizationId, ownerId])
@@ -785,6 +952,7 @@ model Task {
   deal           Deal?        @relation(fields: [dealId], references: [id], onDelete: Cascade)
   lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   activities     Activity[]
+  nextActions    NextAction[]
 
   @@index([organizationId, status, dueAt])
   @@index([organizationId, ownerId, status])
@@ -1063,6 +1231,7 @@ model EmailTemplate {
   owner          User?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   team           Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
   messages       EmailMessage[]
+  automations    ScheduledAutomation[]
 
   @@unique([organizationId, name])
   @@index([organizationId, isActive])
@@ -1239,4 +1408,197 @@ model ImportJob {
   createdBy         User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
+}
+
+
+// ───────────────────── Active CRM: events, next actions, automation ─────────────────────
+
+/// Append-only event log. Every business event is recorded once (idempotency
+/// key) and then dispatched to the engines. It is the audit trail of *why* the
+/// CRM did something, and the integration surface for OKUN Deals.
+/// Per-organization thresholds for the Next Action engine. Every number the
+/// engine uses is configurable here — nothing is hardcoded in the rules.
+model ActiveCrmSetting {
+  id                     String   @id @default(cuid())
+  organizationId         String   @unique
+  /// Master switch: off means the engine still proposes, but never executes.
+  automationEnabled      Boolean  @default(true)
+  /// Hours a new lead may stay untouched before contacting it becomes due.
+  leadContactWithinHours Int      @default(24)
+  /// Days after an outbound message without a reply before a follow-up is due.
+  followUpAfterDays      Int      @default(3)
+  /// Days after an offer was sent before chasing it becomes due.
+  offerChaseAfterDays    Int      @default(5)
+  /// Days without any activity before a record counts as stalled.
+  stagnationAfterDays    Int      @default(14)
+  /// Hours before a meeting at which preparing it becomes due.
+  meetingPrepLeadHours   Int      @default(24)
+  /// Days after a completed meeting without a next step before it becomes due.
+  meetingFollowUpDays    Int      @default(2)
+  /// Only inside these hours may an automation send anything outbound.
+  quietHoursStart        Int      @default(20)
+  quietHoursEnd          Int      @default(7)
+  /// Outbound automations send only on working days when true.
+  workdaysOnly           Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+/// Per-organization override for a single rule of the catalogue: switch it off
+/// or shift its due date, without changing code.
+model ActiveCrmRuleSetting {
+  id             String   @id @default(cuid())
+  organizationId String
+  ruleKey        String
+  isEnabled      Boolean  @default(true)
+  /// Overrides the rule's own delay, in days.
+  delayDays      Int?
+  /// Overrides the rule's priority (0–100, higher is more urgent).
+  priority       Int?
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, ruleKey])
+}
+
+model DomainEventRecord {
+  id             String       @id @default(cuid())
+  organizationId String
+  type           CrmEventType
+  source         EventSource  @default(SYSTEM)
+  /// Stable key per logical event; a repeated delivery is ignored.
+  idempotencyKey String
+  contactId      String?
+  companyId      String?
+  dealId         String?
+  leadId         String?
+  actorId        String?
+  payload        Json?
+  occurredAt     DateTime     @default(now())
+  processedAt    DateTime?
+  processingError String?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  company        Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deal           Deal?        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, type, occurredAt])
+  @@index([dealId, occurredAt])
+  @@index([leadId, occurredAt])
+}
+
+/// The one thing that has to happen next for a record. Produced by the rule
+/// engine with a human-readable reason, or set by a person.
+model NextAction {
+  id             String           @id @default(cuid())
+  organizationId String
+  type           NextActionType
+  status         NextActionStatus @default(OPEN)
+  title          String
+  /// Why the system proposes this — always shown to the user.
+  reason         String
+  /// Key of the rule that produced it; empty for manual actions.
+  ruleKey        String?
+  isManual       Boolean          @default(false)
+  dueAt          DateTime?
+  snoozedUntil   DateTime?
+  priority       Int              @default(50)
+  ownerId        String?
+  contactId      String?
+  companyId      String?
+  dealId         String?
+  leadId         String?
+  taskId         String?
+  completedAt    DateTime?
+  completedById  String?
+  dismissedAt    DateTime?
+  dismissReason  String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner          User?        @relation("NextActionOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  completedBy    User?        @relation("NextActionCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  company        Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deal           Deal?        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  task           Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, dueAt])
+  @@index([organizationId, ownerId, status, dueAt])
+  @@index([dealId, status])
+  @@index([leadId, status])
+}
+
+/// A scheduled follow-up. Guards are re-checked immediately before execution,
+/// so a customer reply cancels the message instead of sending it anyway.
+model ScheduledAutomation {
+  id             String           @id @default(cuid())
+  organizationId String
+  type           AutomationType
+  status         AutomationStatus @default(PENDING)
+  scheduledFor   DateTime
+  /// Human-readable reason, shown wherever the automation appears.
+  reason         String
+  ruleKey        String?
+  /// Conditions re-checked before execution (see engine/guards.ts).
+  guards         Json?
+  payload        Json?
+  dealId         String?
+  leadId         String?
+  contactId      String?
+  ownerId        String?
+  templateId     String?
+  createdById    String?
+  executedAt     DateTime?
+  cancelledAt    DateTime?
+  /// Why it was cancelled or skipped — never silent.
+  outcomeReason  String?
+  attempts       Int              @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deal           Deal?          @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  lead           Lead?          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contact        Contact?       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  owner          User?          @relation("AutomationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy      User?          @relation("AutomationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  template       EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, scheduledFor])
+  @@index([dealId, status])
+  @@index([leadId, status])
+}
+
+/// API credentials for machine-to-machine event ingestion (OKUN Deals and other
+/// OKUN products). Only the hash is stored.
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  /// First characters of the key, for recognising it in the UI.
+  prefix         String
+  keyHash        String       @unique
+  scopes         String[]
+  createdById    String?
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, revokedAt])
 }

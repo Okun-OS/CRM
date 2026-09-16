@@ -33,6 +33,7 @@ export async function emitDomainEvent(ctx: ActorContext, event: DomainEvent): Pr
   await Promise.allSettled([
     runWorkflows(ctx, event, depth),
     dispatchWebhooks(ctx, event),
+    feedEngine(ctx, event),
   ]);
 }
 
@@ -44,6 +45,16 @@ async function runWorkflows(ctx: ActorContext, event: DomainEvent, depth: number
     await runWorkflowsForEvent(ctx, event, depth);
   } catch (error) {
     logError("workflow.dispatch_failed", error, { event: event.name, entityId: event.entityId });
+  }
+}
+
+/** Feeds the Active CRM engine; a failure here never breaks the request. */
+async function feedEngine(ctx: ActorContext, event: DomainEvent) {
+  try {
+    const { bridgeToEngine } = await import("@/server/engine/bridge");
+    await bridgeToEngine(ctx, event);
+  } catch (error) {
+    logError("engine.bridge_failed", error, { event: event.name, entityId: event.entityId });
   }
 }
 

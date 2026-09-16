@@ -114,6 +114,20 @@ export async function createNote(ctx: ActorContext, input: z.input<typeof noteIn
   await touchLastActivity(ctx, links);
   await writeAudit(ctx, { action: "note.created", entityType: "Note", entityId: note.id });
 
+  if (links.dealId || links.leadId) {
+    const { recordEvent } = await import("@/server/engine/events");
+    await recordEvent(ctx, {
+      type: "NOTE_ADDED",
+      source: "USER",
+      suppressActivity: true,
+      contactId: links.contactId ?? null,
+      companyId: links.companyId ?? null,
+      dealId: links.dealId ?? null,
+      leadId: links.leadId ?? null,
+      payload: { noteId: note.id },
+    });
+  }
+
   return mapNote(note as NoteRow);
 }
 

@@ -305,6 +305,18 @@ export async function sendEmail(ctx: ActorContext, input: z.input<typeof emailCo
     });
     await touchLastActivity(ctx, links);
 
+    // The engine needs to know we are now waiting for the customer.
+    const { recordEvent } = await import("@/server/engine/events");
+    await recordEvent(ctx, {
+      type: "EMAIL_SENT",
+      source: "USER",
+      suppressActivity: true,
+      contactId: data.contactId ?? null,
+      companyId: data.companyId ?? null,
+      dealId: data.dealId ?? null,
+      payload: { subject: data.subject, messageId: message.id },
+    });
+
     return { id: message.id, status: "SENT" as const };
   } catch (error) {
     logError("email.send_failed", error, { messageId: message.id });

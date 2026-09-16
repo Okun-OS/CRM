@@ -335,6 +335,7 @@ export async function createDeal(ctx: ActorContext, input: z.input<typeof dealIn
       source: data.source,
       description: data.description,
       ownerId: data.ownerId ?? ctx.userId,
+      stageEnteredAt: new Date(),
       contacts: data.contactIds?.length
         ? {
             create: data.contactIds.map((contactId, index) => ({

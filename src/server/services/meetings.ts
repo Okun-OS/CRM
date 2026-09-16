@@ -256,6 +256,21 @@ export async function updateMeeting(ctx: ActorContext, id: string, input: z.inpu
     });
   }
 
+  if (data.status && data.status !== existing.status && meeting.dealId) {
+    const type = data.status === "COMPLETED" ? "MEETING_COMPLETED" : data.status === "CANCELLED" ? "MEETING_CANCELLED" : null;
+    if (type) {
+      const { recordEvent } = await import("@/server/engine/events");
+      await recordEvent(ctx, {
+        type,
+        source: "USER",
+        contactId: meeting.contactId,
+        companyId: meeting.companyId,
+        dealId: meeting.dealId,
+        payload: { title: meeting.title, startAt: meeting.startAt.toISOString() },
+      });
+    }
+  }
+
   return mapMeeting(meeting as MeetingRow);
 }
 
