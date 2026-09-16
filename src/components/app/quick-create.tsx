@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarDays, ListChecks, Plus, Sparkles, StickyNote, Target, Users } from "lucide-react";
+import { Building2, CalendarDays, ListChecks, Plus, Sparkles, Target, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Drawer } from "@/components/ui/modal";
 import { Dropdown, DropdownItem } from "@/components/ui/misc";

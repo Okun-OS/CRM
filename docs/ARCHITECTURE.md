@@ -200,7 +200,7 @@ liegt bei 25 MB, Pfad-Traversal wird im Treiber abgefangen.
 | --- | --- |
 | Transport | CSP, `X-Content-Type-Options`, `X-Frame-Options`, Referrer-Policy, HSTS in Produktion (`next.config.ts`) |
 | Sitzungen | httpOnly, SameSite=Lax, gehashte Tokens, Widerruf |
-| CSRF | Double-Submit-Token bei jeder schreibenden Anfrage |
+| CSRF | Double-Submit-Token bei jeder schreibenden Anfrage; zusätzlich Origin-Prüfung für **alle** Mutationen, auch auf den öffentlichen Auth-Endpunkten |
 | Autorisierung | Serverseitig je Service-Aufruf |
 | Mandanten | Scope in jeder Abfrage, Tests als Regressionsschutz |
 | Eingaben | Zod auf dem Server, keine Businesslogik nur im Client |

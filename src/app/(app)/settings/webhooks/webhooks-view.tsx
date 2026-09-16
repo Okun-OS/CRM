@@ -171,7 +171,7 @@ export function WebhooksView({ endpoints, deliveries }: { endpoints: Endpoint[];
             Kopieren
           </Button>
           <p className="text-2xs leading-relaxed text-ink-500">
-            Signatur-Header: <code className="font-mono">x-okun-signature: sha256=HMAC(secret, "timestamp.body")</code>
+            Signatur-Header: <code className="font-mono">x-okun-signature: sha256=HMAC(secret, „timestamp.body“)</code>
           </p>
         </div>
       </Modal>

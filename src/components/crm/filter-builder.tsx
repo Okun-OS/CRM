@@ -29,7 +29,7 @@ export function FilterBuilder({
   onClose?: () => void;
 }) {
   const { data } = useReference();
-  const customProperties = data?.properties[objectType] ?? [];
+  const customProperties = React.useMemo(() => data?.properties[objectType] ?? [], [data, objectType]);
 
   const options = React.useMemo(() => {
     const builtIn = fieldsFor(objectType)

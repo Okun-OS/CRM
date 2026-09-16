@@ -93,7 +93,7 @@ export default async function PrivacyPage() {
             <p>
               Das Löschen im Arbeitsalltag ist ein Soft Delete: Der Datensatz verschwindet aus Listen und Suchen, bleibt
               aber wiederherstellbar und im Audit Log nachvollziehbar. Für eine endgültige Löschung steht im Service-Layer
-              eine Purge-Funktion bereit, die zusätzlich das Recht „settings.manage" verlangt.
+              eine Purge-Funktion bereit, die zusätzlich das Recht „settings.manage“ verlangt.
             </p>
             <p className="flex items-start gap-2 rounded-md bg-ink-50 px-3 py-2">
               <Trash2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-400" />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
-import { createTestOrganization, addMember, defaultPipeline } from "./setup/factories";
+import { createTestOrganization, defaultPipeline } from "./setup/factories";
 import { createWorkflow } from "@/server/services/workflows";
 import { createContact, getContact, updateContact } from "@/server/services/contacts";
 import { createDeal, changeDealStage } from "@/server/services/deals";

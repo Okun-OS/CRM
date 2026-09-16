@@ -6,7 +6,7 @@ import { Archive, Pencil, Plus, Trash2 } from "lucide-react";
 import type { CrmObjectType } from "@/generated/prisma/enums";
 import type { PropertyDefinitionDTO } from "@/lib/properties";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Drawer, ConfirmDialog } from "@/components/ui/modal";

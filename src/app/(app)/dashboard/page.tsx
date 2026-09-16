@@ -17,7 +17,6 @@ import { getOrganization, onboardingStatus } from "@/server/services/organizatio
 import { listActivities } from "@/server/services/activities";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/misc";
 import { DealsOverTimeChart, ForecastChart, PipelineFunnelChart } from "@/components/charts/dashboard-charts";
 import { ActivityTimeline } from "@/components/crm/activity-timeline";

@@ -403,7 +403,9 @@ export async function updateDeal(
   await assertRelationsExist(ctx, { companyId: data.companyId });
   await assertOwnerInOrganization(ctx, data.ownerId);
 
-  const { properties, tagIds, contactIds, stageId, pipelineId, ...fields } = data;
+  // pipelineId and stageId are handled by the stage-change path below, not by
+  // the generic field update.
+  const { properties, tagIds, contactIds, stageId, pipelineId: _pipelineId, ...fields } = data;
 
   // A stage change has its own path (history, won/lost handling).
   if (stageId && stageId !== existing.stageId) {

@@ -110,10 +110,17 @@ Sitzungen liegen in der Datenbank und funktionieren über Instanzen hinweg.
 ## 9. Tests im CI
 
 ```bash
+pnpm lint
 pnpm typecheck
 pnpm test          # benötigt eine PostgreSQL-Instanz (TEST_DATABASE_URL)
 pnpm build
 pnpm test:e2e      # startet den gebauten Server selbst (E2E_DATABASE_URL)
+```
+
+Für eine lokale Datenbank inklusive Test- und E2E-Datenbank:
+
+```bash
+./scripts/dev-db.sh
 ```
 
 Die Testdatenbanken müssen leer angelegt werden können; Migrationen werden von

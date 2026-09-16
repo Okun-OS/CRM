@@ -34,7 +34,7 @@ export function ConvertLeadAction({
   const [dealAmount, setDealAmount] = React.useState("0");
   const [pipelineId, setPipelineId] = React.useState("");
 
-  const pipelines = data?.pipelines ?? [];
+  const pipelines = React.useMemo(() => data?.pipelines ?? [], [data]);
   React.useEffect(() => {
     if (!pipelineId && pipelines[0]) setPipelineId(pipelines[0].id);
   }, [pipelines, pipelineId]);

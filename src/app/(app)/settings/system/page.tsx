@@ -67,7 +67,7 @@ export default async function SystemPage() {
           <p className="mt-2 text-2xs leading-relaxed text-ink-500">
             Wiederholungen fehlgeschlagener Webhooks werden über einen wiederkehrenden Aufruf von{" "}
             <code className="rounded bg-ink-100 px-1 py-0.5 font-mono">retryPendingWebhookDeliveries()</code> ausgeführt.
-            Ohne eingerichteten Scheduler bleiben sie im Status „in Wiederholung".
+            Ohne eingerichteten Scheduler bleiben sie im Status „in Wiederholung“.
           </p>
         </CardBody>
       </Card>

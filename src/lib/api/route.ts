@@ -6,7 +6,7 @@ import { z } from "zod";
 import { AppError, Forbidden, Unauthenticated, ValidationError } from "./errors";
 import { serialize } from "./json";
 import { consumeRateLimit } from "./rate-limit";
-import { trustProxy } from "@/lib/env";
+import { env, trustProxy } from "@/lib/env";
 import { CSRF_COOKIE, getActor } from "@/lib/auth/session";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import type { Permission } from "@/lib/rbac";
@@ -48,6 +48,10 @@ export function route<P = Record<string, string>>(
       const params = ((await segmentData?.params) ?? {}) as P;
       const url = new URL(req.url);
 
+      // Cross-origin writes are refused before anything else, including on the
+      // public auth endpoints where there is no session to carry a CSRF token.
+      if (MUTATING_METHODS.has(req.method)) assertSameOrigin(req);
+
       let ctx: ActorContext | null = null;
       if (auth) {
         ctx = await getActor();
@@ -78,6 +82,35 @@ export function route<P = Record<string, string>>(
       return toErrorResponse(error, req);
     }
   };
+}
+
+/**
+ * Origin check for mutations. A browser always sends `Origin` on cross-origin
+ * requests, so a mismatch means the call did not come from this application.
+ * Requests without an Origin header (server-to-server API clients) are allowed
+ * through — those carry no ambient cookies to abuse.
+ */
+function assertSameOrigin(req: NextRequest): void {
+  const origin = req.headers.get("origin");
+  if (!origin) return;
+
+  let expected: string;
+  try {
+    expected = new URL(env().APP_URL).host;
+  } catch {
+    return;
+  }
+
+  let actual: string;
+  try {
+    actual = new URL(origin).host;
+  } catch {
+    throw Forbidden("Ungültiger Origin-Header.");
+  }
+
+  if (actual !== expected && actual !== req.nextUrl.host) {
+    throw Forbidden("Anfragen von einer fremden Herkunft werden abgelehnt.");
+  }
 }
 
 /** Double-submit CSRF check: header must match both cookie and stored token. */
