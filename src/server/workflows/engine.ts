@@ -4,7 +4,7 @@ import type { ActorContext } from "@/lib/context";
 import { scope } from "@/lib/tenant";
 import { logError, logInfo } from "@/lib/logger";
 import { buildWhere, type FilterGroup } from "@/lib/filters";
-import { listDefinitions } from "@/lib/properties";
+import { listDefinitions } from "@/server/services/property-store";
 import { findField } from "@/lib/crm/fields";
 import { MAX_EVENT_DEPTH, type DomainEvent } from "@/lib/events";
 import { actionSchema, triggerConfigSchema, type WorkflowAction } from "./types";

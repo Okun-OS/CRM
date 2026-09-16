@@ -193,7 +193,7 @@ export async function touchLastActivity(
   await Promise.all(updates);
 }
 
-export async function createActivity(ctx: ActorContext, input: z.infer<typeof activityInputSchema>) {
+export async function createActivity(ctx: ActorContext, input: z.input<typeof activityInputSchema>) {
   assertPermission(ctx, "activities.write");
   const data = activityInputSchema.parse(input);
 

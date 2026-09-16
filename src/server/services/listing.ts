@@ -3,7 +3,7 @@ import type { CrmObjectType } from "@/generated/prisma/enums";
 import type { ActorContext } from "@/lib/context";
 import { buildWhere, filterGroupSchema, type FilterFieldResolver, type FilterGroup } from "@/lib/filters";
 import { findField, fieldsFor, SEARCH_FIELDS } from "@/lib/crm/fields";
-import { listDefinitions } from "@/lib/properties";
+import { listDefinitions } from "@/server/services/property-store";
 import { paginationSchema, skipTake, type Pagination } from "@/lib/api/pagination";
 import { ValidationError } from "@/lib/api/errors";
 import { liveScope } from "@/lib/tenant";

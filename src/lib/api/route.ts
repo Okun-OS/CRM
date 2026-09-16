@@ -42,7 +42,7 @@ export function route<P = Record<string, string>>(
 ) {
   const { auth = true, permission, rateLimit } = options;
 
-  return async (req: NextRequest, segmentData?: { params: Promise<P> }): Promise<NextResponse> => {
+  return async (req: NextRequest, segmentData: { params: Promise<P> }): Promise<NextResponse> => {
     try {
       const params = ((await segmentData?.params) ?? {}) as P;
       const url = new URL(req.url);

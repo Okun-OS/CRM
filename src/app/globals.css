@@ -124,6 +124,11 @@
     letter-spacing: -0.011em;
   }
 
+  /* On the dark OKUN surfaces headings take the surrounding text colour. */
+  .okun-surface-dark :is(h1, h2, h3, h4, h5, h6) {
+    color: inherit;
+  }
+
   /* One consistent focus treatment across the whole product. */
   :focus-visible {
     outline: 2px solid var(--focus-ring);

@@ -1,17 +1,13 @@
 import { z } from "zod";
 import type { CrmObjectType, PropertyType } from "@/generated/prisma/enums";
-import { Prisma } from "@/generated/prisma/client";
-import { prisma } from "./db";
-import type { ActorContext } from "./context";
 import { ValidationError } from "./api/errors";
-import { scope } from "./tenant";
 
 /**
- * Custom property engine.
+ * Custom property engine — pure part.
  *
- * Definitions are per organization and per object type; values are stored in
- * typed columns on PropertyValue so filters and sorting behave like they do for
- * built-in fields.
+ * Types, validation and value mapping live here with no database import, so the
+ * filter builder and forms can use them in the browser. Reading and writing
+ * values lives in `src/server/services/property-store.ts`.
  */
 export type PropertyDefinitionDTO = {
   id: string;
@@ -67,18 +63,6 @@ export function mapDefinition(row: {
 }): PropertyDefinitionDTO {
   const parsed = z.array(optionSchema).safeParse(row.options ?? []);
   return { ...row, options: parsed.success ? parsed.data : [] };
-}
-
-export async function listDefinitions(
-  ctx: ActorContext,
-  objectType: CrmObjectType,
-  includeArchived = false,
-): Promise<PropertyDefinitionDTO[]> {
-  const rows = await prisma.propertyDefinition.findMany({
-    where: { ...scope(ctx), objectType, ...(includeArchived ? {} : { isArchived: false }) },
-    orderBy: [{ position: "asc" }, { label: "asc" }],
-  });
-  return rows.map(mapDefinition);
 }
 
 /** The PropertyValue column that holds a value of the given type. */
@@ -212,66 +196,4 @@ export function readValues(
     }
   }
   return out;
-}
-
-/**
- * Writes a partial `{ key: value }` map for one record. Unknown keys are
- * rejected rather than silently dropped, so typos surface immediately.
- */
-export async function writeValues(
-  ctx: ActorContext,
-  objectType: CrmObjectType,
-  entityId: string,
-  values: Record<string, unknown>,
-): Promise<void> {
-  const keys = Object.keys(values);
-  if (keys.length === 0) return;
-
-  const definitions = await listDefinitions(ctx, objectType);
-  const byKey = new Map(definitions.map((d) => [d.key, d]));
-  const unknown = keys.filter((key) => !byKey.has(key));
-  if (unknown.length > 0) {
-    throw ValidationError(`Unbekannte Eigenschaften: ${unknown.join(", ")}`);
-  }
-
-  const entityColumn = entityColumnFor[objectType];
-
-  for (const key of keys) {
-    const definition = byKey.get(key)!;
-    const coerced = coerceValue(definition, values[key]);
-    // Prisma distinguishes "JSON null" from "SQL NULL" — clearing a value means SQL NULL.
-    const columns = {
-      ...coerced,
-      valueJson: (coerced.valueJson ?? Prisma.DbNull) as Prisma.InputJsonValue | typeof Prisma.DbNull,
-    };
-    await prisma.propertyValue.upsert({
-      where: { [`definitionId_${entityColumn}`]: { definitionId: definition.id, [entityColumn]: entityId } } as never,
-      create: {
-        organizationId: ctx.organizationId,
-        definitionId: definition.id,
-        objectType,
-        [entityColumn]: entityId,
-        ...columns,
-      } as never,
-      update: columns,
-    });
-  }
-}
-
-/** Enforces required custom properties when creating a record. */
-export async function assertRequiredProperties(
-  ctx: ActorContext,
-  objectType: CrmObjectType,
-  values: Record<string, unknown>,
-): Promise<void> {
-  const definitions = await listDefinitions(ctx, objectType);
-  for (const definition of definitions) {
-    if (!definition.isRequired) continue;
-    const value = values[definition.key];
-    if (value === undefined || value === null || value === "") {
-      throw ValidationError(`Das Feld "${definition.label}" ist erforderlich.`, {
-        fields: { [`properties.${definition.key}`]: "Pflichtfeld" },
-      });
-    }
-  }
 }

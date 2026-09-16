@@ -7,7 +7,7 @@ import { writeAudit } from "@/lib/audit";
 import { ValidationError } from "@/lib/api/errors";
 import { parseCsv } from "@/lib/csv";
 import { fieldsFor } from "@/lib/crm/fields";
-import { listDefinitions } from "@/lib/properties";
+import { listDefinitions } from "@/server/services/property-store";
 import { paginate, paginationSchema, skipTake } from "@/lib/api/pagination";
 import { createContact } from "./contacts";
 import { createCompany } from "./companies";
