@@ -55,9 +55,10 @@ const LAST_ACTIVITY: CrmField = {
 
 const CONTACT_FIELDS: CrmField[] = [
   { key: "firstName", label: "Vorname", type: "string", filterable: true, sortable: true, importable: true },
+  // Rendered as the record's full name and links to the detail page.
   {
     key: "lastName",
-    label: "Nachname",
+    label: "Name",
     type: "string",
     filterable: true,
     sortable: true,
@@ -137,7 +138,8 @@ const COMPANY_FIELDS: CrmField[] = [
 
 const LEAD_FIELDS: CrmField[] = [
   { key: "firstName", label: "Vorname", type: "string", filterable: true, sortable: true, importable: true },
-  { key: "lastName", label: "Nachname", type: "string", filterable: true, sortable: true, importable: true, defaultVisible: true },
+  // Rendered as the lead's full name and links to the detail page.
+  { key: "lastName", label: "Name", type: "string", filterable: true, sortable: true, importable: true, defaultVisible: true },
   { key: "email", label: "E-Mail", type: "string", filterable: true, sortable: true, importable: true, defaultVisible: true },
   { key: "phone", label: "Telefon", type: "string", filterable: true, importable: true },
   { key: "companyName", label: "Unternehmen", type: "string", filterable: true, sortable: true, importable: true, defaultVisible: true },

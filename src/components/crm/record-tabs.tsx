@@ -68,7 +68,7 @@ export function RecordTabs({
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-1">
         <Tabs
-          className="border-none"
+          className="min-w-0 flex-1 border-none"
           active={tab}
           onChange={(key) => setTab(key as TabKey)}
           tabs={[

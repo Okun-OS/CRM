@@ -310,3 +310,50 @@ describe("CRM-Objekte", () => {
     expect(fetched.industry).toBe("Handel");
   });
 });
+
+describe("Benachrichtigungen", () => {
+  it("benachrichtigt bei Zuweisung von Aufgaben und Deals", async () => {
+    const { createTestOrganization, addMember, defaultPipeline } = await import("./setup/factories");
+    const { listNotifications } = await import("@/server/services/notifications");
+    const org = await createTestOrganization();
+    const colleague = await addMember(org.ctx, "SALES");
+    const pipeline = await defaultPipeline(org.ctx);
+
+    await createTask(org.ctx, {
+      title: "Bitte übernehmen",
+      ownerId: colleague.user.id,
+      status: "OPEN",
+      priority: "MEDIUM",
+    });
+    await createDeal(org.ctx, {
+      name: "Zugewiesener Deal",
+      pipelineId: pipeline.id,
+      stageId: pipeline.stages[0].id,
+      amount: 500,
+      currency: "EUR",
+      ownerId: colleague.user.id,
+    });
+
+    const received = await listNotifications(colleague.ctx, { page: 1, pageSize: 10, unreadOnly: true });
+    expect(received.unread).toBe(2);
+    expect(received.items.map((item) => item.type).sort()).toEqual(["DEAL_ASSIGNED", "TASK_ASSIGNED"]);
+
+    // The assigning user does not notify themselves.
+    const own = await listNotifications(org.ctx, { page: 1, pageSize: 10, unreadOnly: true });
+    expect(own.unread).toBe(0);
+  });
+
+  it("markiert Benachrichtigungen als gelesen", async () => {
+    const { createTestOrganization, addMember } = await import("./setup/factories");
+    const { listNotifications, markAllNotificationsRead } = await import("@/server/services/notifications");
+    const org = await createTestOrganization();
+    const colleague = await addMember(org.ctx, "SALES");
+
+    await createTask(org.ctx, { title: "Zuweisung", ownerId: colleague.user.id, status: "OPEN", priority: "LOW" });
+    await markAllNotificationsRead(colleague.ctx);
+
+    const after = await listNotifications(colleague.ctx, { page: 1, pageSize: 10, unreadOnly: false });
+    expect(after.unread).toBe(0);
+    expect(after.items[0].readAt).not.toBeNull();
+  });
+});

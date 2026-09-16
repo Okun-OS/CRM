@@ -87,6 +87,26 @@ test("3 · Notiz und Aufgabe am Kontakt erfassen", async ({ page }) => {
   await expect(page.getByText("Angebot senden")).toBeVisible();
 });
 
+test("3b · Anruf protokollieren und Termin planen", async ({ page }) => {
+  await login(page);
+  await page.goto("/contacts");
+  await page.getByRole("link", { name: "Petra Prüfer" }).click();
+  await page.waitForURL(/\/contacts\/[a-z0-9]+/);
+
+  await page.getByRole("button", { name: "Aktivität" }).first().click();
+  await page.fill("#subject", "Telefonat zur Bedarfsklärung");
+  await page.fill("#durationMinutes", "20");
+  await page.getByRole("button", { name: "Aktivität protokollieren" }).last().click();
+  await expect(page.getByText("Telefonat zur Bedarfsklärung").first()).toBeVisible({ timeout: 15_000 });
+
+  await page.getByRole("button", { name: "Termin" }).first().click();
+  await page.fill("#title", "Angebotspräsentation");
+  await page.getByRole("button", { name: "Termin erstellen" }).last().click();
+
+  await page.goto("/calendar");
+  await expect(page.getByText("Angebotspräsentation").first()).toBeVisible({ timeout: 15_000 });
+});
+
 test("4 · Deal anlegen und Stage wechseln", async ({ page }) => {
   await login(page);
 
@@ -191,7 +211,51 @@ test("10 · Abmelden und erneut anmelden", async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard/);
 });
 
-test("11 · Mobile Ansicht der Kernseiten", async ({ page }) => {
+test("11 · CSV-Import mit Zuordnung und Ergebnisbericht", async ({ page }) => {
+  await login(page);
+  await page.goto("/settings/import");
+
+  const csv = ["Vorname;Nachname;E-Mail;Stadt", "Ida;Import;ida@import.test;Bremen", "Jonas;Import;jonas@import.test;Kiel"].join(
+    "\n",
+  );
+  await page.setInputFiles('input[type="file"]', {
+    name: "kontakte.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv, "utf8"),
+  });
+
+  // The wizard proposes a mapping from the German headers.
+  await expect(page.getByText("2 Zeilen erkannt")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#map-Nachname")).toHaveValue("lastName");
+
+  await page.getByRole("button", { name: /Zeilen importieren/ }).click();
+  await expect(page.getByText("Importiert")).toBeVisible({ timeout: 20_000 });
+
+  await page.goto("/contacts");
+  await page.getByPlaceholder("Kontakte durchsuchen…").fill("Import");
+  await expect(page.getByRole("link", { name: "Ida Import" })).toBeVisible({ timeout: 15_000 });
+});
+
+test("12 · Fehlerzustände werden verständlich angezeigt", async ({ page }) => {
+  // Wrong credentials: a clear message, no stack trace, no hint whether the
+  // account exists.
+  await page.goto("/login");
+  await page.fill("#email", EMAIL);
+  await page.fill("#password", "definitivFalsch123");
+  await page.getByRole("button", { name: "Anmelden" }).click();
+  await expect(page.getByText("E-Mail-Adresse oder Passwort ist falsch.")).toBeVisible();
+
+  // Validation errors are shown on the field.
+  await login(page);
+  await page.goto("/contacts");
+  await page.getByRole("button", { name: "Kontakt erstellen" }).first().click();
+  await page.fill("#firstName", "Ohne");
+  await page.fill("#email", "keine-gueltige-adresse");
+  await page.getByRole("button", { name: "Kontakt erstellen" }).last().click();
+  await expect(page.getByText("Bitte eine gültige E-Mail-Adresse angeben.")).toBeVisible({ timeout: 15_000 });
+});
+
+test("13 · Mobile und Tablet zeigen die zentralen Ansichten", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
 
@@ -203,4 +267,14 @@ test("11 · Mobile Ansicht der Kernseiten", async ({ page }) => {
 
   // The navigation collapses behind a menu button on small screens.
   await expect(page.getByRole("button", { name: "Navigation öffnen" })).toBeVisible();
+
+  // Tablet: the sidebar is back and the detail layout still works.
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.goto("/contacts");
+  await page.getByRole("link", { name: "Petra Prüfer" }).click();
+  await page.waitForURL(/\/contacts\/[a-z0-9]+/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Petra Prüfer");
+
+  await page.goto("/pipeline");
+  await expect(page.getByRole("region", { name: "Qualifiziert" })).toBeVisible();
 });
