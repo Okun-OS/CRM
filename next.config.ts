@@ -25,7 +25,6 @@ const nextConfig: NextConfig = {
   typedRoutes: false,
   poweredByHeader: false,
   serverExternalPackages: ["@prisma/adapter-pg", "pg"],
-  experimental: { optimizePackageImports: ["lucide-react", "date-fns"] },
   async headers() {
     return [
       {

@@ -5,6 +5,7 @@
   "engines": {
     "node": "^20.19 || ^22.12 || >=24.0"
   },
+  "packageManager": "pnpm@10.33.0",
   "description": "OKUN CRM - Enterprise CRM Platform by OKUN Software",
   "scripts": {
     "dev": "next dev",

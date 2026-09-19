@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.env
+.env.local
+storage
+storage-e2e
+storage-test
+test-results
+playwright-report
+coverage
+e2e
+tests
+docs
+*.log
