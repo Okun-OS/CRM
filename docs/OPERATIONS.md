@@ -54,6 +54,57 @@ Hinter einem Reverse Proxy:
   im Audit Log stimmen.
 - Upload-Limit mindestens 25 MB zulassen (`client_max_body_size`).
 
+### Build ohne Datenbank
+
+Der Build braucht **keine** Datenbankverbindung. `prisma generate` erzeugt nur
+den Client aus dem Schema, und alle Seiten sind serverseitig dynamisch, es wird
+also nichts vorgerendert. Entsprechend liest `prisma.config.ts` die
+`DATABASE_URL` direkt aus der Umgebung, statt sie beim Laden der Konfiguration
+zu erzwingen — sonst scheitert jeder Build in einer Umgebung, in der die
+Variable erst zur Laufzeit gesetzt wird.
+
+Nachgewiesen mit einem Lauf ganz ohne Umgebungsvariablen:
+
+```bash
+env -u DATABASE_URL -u SESSION_SECRET -u ENCRYPTION_KEY pnpm build   # grün
+```
+
+Zur **Laufzeit** ist die Datenbank zwingend: `DATABASE_URL`, `SESSION_SECRET`
+und `ENCRYPTION_KEY` müssen gesetzt sein, sonst bricht der erste Request mit
+„Invalid environment configuration" ab (Abschnitt 2).
+
+### Railway
+
+Im Repository liegt `railway.json`. Es baut mit `pnpm build` und startet mit
+`pnpm start:migrate` (`prisma migrate deploy && next start`), sodass jedes
+Deployment die Migrationen vorab anwendet. Healthcheck ist `/login`, weil `/`
+auf die Anmeldung umleitet (307).
+
+Damit das Deployment läuft, im Railway-Projekt:
+
+1. **PostgreSQL-Service hinzufügen** (Add Service → Database → PostgreSQL).
+2. Beim CRM-Service unter *Variables* setzen:
+
+   | Variable | Wert |
+   | --- | --- |
+   | `DATABASE_URL` | Referenz auf die Datenbank: `${{Postgres.DATABASE_URL}}` |
+   | `SESSION_SECRET` | `openssl rand -base64 32` |
+   | `ENCRYPTION_KEY` | `openssl rand -base64 32` |
+   | `APP_URL` | die öffentliche Domain des Dienstes, z. B. `https://crm.example.com` |
+   | `NODE_ENV` | `production` |
+   | `TRUST_PROXY` | `1` (Railway terminiert TLS und setzt `X-Forwarded-For`) |
+
+3. **Dateiablage beachten:** Der Container hat kein dauerhaftes Dateisystem.
+   Für Uploads ein Railway-Volume einhängen und `STORAGE_LOCAL_PATH` darauf
+   zeigen lassen — sonst gehen hochgeladene Dateien bei jedem Deployment
+   verloren. Ohne Volume bleibt der Rest des Produkts funktionsfähig.
+4. **Kein Autoscaling über eine Instanz hinaus**, solange Rate Limiting im
+   Prozessspeicher liegt und die Dateiablage lokal ist (Abschnitt 8).
+
+`prisma` und `dotenv` stehen bewusst in den `dependencies`: Der Startbefehl
+ruft die Prisma-CLI auf, und Buildsysteme entfernen `devDependencies` im
+Laufzeit-Image.
+
 ### Dateiablage
 
 Mit `STORAGE_DRIVER=local` schreibt die Anwendung nach `STORAGE_LOCAL_PATH`.

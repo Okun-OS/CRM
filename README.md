@@ -46,6 +46,7 @@ pnpm seed:demo                  # legt „OKUN Demo GmbH" mit wenigen Beispiels�
 | --- | --- |
 | `pnpm dev` | Entwicklungsserver |
 | `pnpm build` / `pnpm start` | Produktionsbuild und -server |
+| `pnpm start:migrate` | Migrationen anwenden und Server starten (Deployment-Startbefehl) |
 | `pnpm lint` | ESLint über den gesamten Quellcode |
 | `pnpm typecheck` | TypeScript für App sowie Tests und E2E |
 | `pnpm test` | Unit- und Integrationstests (Vitest, echte Datenbank) |
