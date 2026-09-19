@@ -68,11 +68,28 @@ also nichts vorgerendert. Entsprechend liest `prisma.config.ts` die
 zu erzwingen — sonst scheitert jeder Build in einer Umgebung, in der die
 Variable erst zur Laufzeit gesetzt wird.
 
-Nachgewiesen mit einem Lauf ganz ohne Umgebungsvariablen:
+Damit das trägt, wird der Prisma-Client erst beim ersten Zugriff erzeugt und
+nicht beim Import von `src/lib/db.ts`: Beim Sammeln der Seitendaten lädt Next
+jeden Route-Handler, und ein beim Import erzeugter Client würde dort eine
+Datenbank verlangen, die es in der Bauumgebung nicht gibt.
+
+### Prüfen wie das Buildsystem
+
+Ein Build im Arbeitsverzeichnis beweist wenig: Dort liegen `.env`, ein warmer
+`.next`-Cache und Dateien, die vielleicht gar nicht im Repository sind. Vor
+einem Deployment deshalb gegen einen frischen Klon prüfen — genau das, was das
+Buildsystem auscheckt:
 
 ```bash
-env -u DATABASE_URL -u SESSION_SECRET -u ENCRYPTION_KEY pnpm build   # grün
+git clone --depth 1 --branch <branch> <repo-url> /tmp/buildcheck
+cd /tmp/buildcheck
+pnpm install --frozen-lockfile
+env -u DATABASE_URL -u SESSION_SECRET -u ENCRYPTION_KEY pnpm build
 ```
+
+Dieser Lauf hat drei Fehler gefunden, die lokal unsichtbar waren: eine durch
+`.gitignore` nie eingecheckte Quelldatei, die Auswertung der Umgebung beim
+Import und eine zu alte Node-Version.
 
 Zur **Laufzeit** ist die Datenbank zwingend: `DATABASE_URL`, `SESSION_SECRET`
 und `ENCRYPTION_KEY` müssen gesetzt sein, sonst bricht der erste Request mit

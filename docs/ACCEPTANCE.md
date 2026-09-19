@@ -21,6 +21,7 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 | `pnpm test` | 126 Unit- und Integrationstests gegen eine echte PostgreSQL-Datenbank | grün |
 | `pnpm test:e2e` | 22 Playwright-Tests gegen den gebauten Server (inkl. Smoke-Test über alle 34 Seiten) | grün |
 | `pnpm build` | Produktionsbuild inkl. Typprüfung | grün |
+| Deployment-Prüfung | frischer Klon des Branches: `pnpm install --frozen-lockfile`, Build ohne jede Umgebungsvariable, `pnpm start:migrate` gegen eine leere Datenbank, anschließend die 22 E2E-Tests gegen genau diesen Server | grün |
 
 ## Abnahmepunkte
 
