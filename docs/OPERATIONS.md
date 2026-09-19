@@ -103,15 +103,16 @@ und `ENCRYPTION_KEY` müssen gesetzt sein, sonst bricht der erste Request mit
 
 ### Railway
 
-Im Repository liegt `railway.json`. Es baut mit `pnpm build` und startet mit
-`pnpm start:migrate` (`prisma migrate deploy && next start`), sodass jedes
-Deployment die Migrationen vorab anwendet. Healthcheck ist `/login`, weil `/`
-auf die Anmeldung umleitet (307).
+Im Repository liegen `Dockerfile` und `railway.json`. Gebaut wird bewusst mit
+dem eigenen Dockerfile und nicht mit Nixpacks: Node-Version, Paketmanager und
+Buildschritte stehen damit im Repository und sind dieselben wie lokal geprüft.
+Gestartet wird mit `pnpm start:migrate` (`prisma migrate deploy && next start`),
+sodass jedes Deployment die Migrationen vorab anwendet. Healthcheck ist
+`/login`, weil `/` auf die Anmeldung umleitet (307).
 
-Nixpacks liest die Node-Version aus `.nvmrc` und `engines.node`. Wählt der
-Builder dennoch eine ältere Version — erkennbar an
-`Prisma only supports Node.js versions 20.19+` während `pnpm i` —, lässt sie
-sich mit der Service-Variable `NIXPACKS_NODE_VERSION=22` erzwingen.
+`NODE_ENV` darf dabei ein beliebiger Wert sein: Die Anwendung behandelt alles
+außer `development` und `test` als Produktion, statt über ein Etikett zu
+scheitern.
 
 Damit das Deployment läuft, im Railway-Projekt:
 
