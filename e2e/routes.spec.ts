@@ -114,3 +114,13 @@ test("jede Seite rendert ohne Fehler", async ({ page }) => {
   expect(failures, `Seiten mit Fehlern:\n${failures.join("\n")}`).toHaveLength(0);
   expect(serverErrors, `Serverfehler:\n${serverErrors.join("\n")}`).toHaveLength(0);
 });
+
+test("unbekannte Adressen zeigen die eigene 404-Seite", async ({ page }) => {
+  const response = await page.goto("/gibt-es-nicht-4711");
+
+  expect(response?.status()).toBe(404);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Diese Seite gibt es nicht");
+  // Nicht die Standardseite von Next, sondern die des Produkts.
+  await expect(page.getByRole("link", { name: "Zum Action Center" })).toBeVisible();
+  await expect(page.getByText("Powered by OKUN Software")).toBeVisible();
+});
