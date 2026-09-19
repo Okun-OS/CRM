@@ -2,6 +2,9 @@
   "name": "okun-crm",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "^20.19 || ^22.12 || >=24.0"
+  },
   "description": "OKUN CRM - Enterprise CRM Platform by OKUN Software",
   "scripts": {
     "dev": "next dev",

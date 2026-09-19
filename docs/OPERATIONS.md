@@ -11,6 +11,11 @@ nötig ist.
 - **PostgreSQL 14** oder neuer
 - **pnpm** (empfohlen; `corepack enable`)
 
+Die Node-Anforderung ist keine Empfehlung, sondern eine harte Grenze: Prisma 7
+verlangt `^20.19 || ^22.12 || >=24.0` und bricht sonst schon beim Installieren
+ab. Sie steht deshalb in `package.json` unter `engines` und zusätzlich als `22`
+in `.nvmrc`, damit Buildsysteme dieselbe Version wählen.
+
 ## 2. Umgebungsvariablen
 
 Vorlage: `.env.example`.
@@ -79,6 +84,11 @@ Im Repository liegt `railway.json`. Es baut mit `pnpm build` und startet mit
 `pnpm start:migrate` (`prisma migrate deploy && next start`), sodass jedes
 Deployment die Migrationen vorab anwendet. Healthcheck ist `/login`, weil `/`
 auf die Anmeldung umleitet (307).
+
+Nixpacks liest die Node-Version aus `.nvmrc` und `engines.node`. Wählt der
+Builder dennoch eine ältere Version — erkennbar an
+`Prisma only supports Node.js versions 20.19+` während `pnpm i` —, lässt sie
+sich mit der Service-Variable `NIXPACKS_NODE_VERSION=22` erzwingen.
 
 Damit das Deployment läuft, im Railway-Projekt:
 
