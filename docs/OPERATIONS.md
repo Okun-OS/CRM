@@ -87,9 +87,15 @@ pnpm install --frozen-lockfile
 env -u DATABASE_URL -u SESSION_SECRET -u ENCRYPTION_KEY pnpm build
 ```
 
-Dieser Lauf hat drei Fehler gefunden, die lokal unsichtbar waren: eine durch
+Dieser Lauf hat vier Fehler gefunden, die lokal unsichtbar waren: eine durch
 `.gitignore` nie eingecheckte Quelldatei, die Auswertung der Umgebung beim
-Import und eine zu alte Node-Version.
+Import, eine zu alte Node-Version und die zur Bauzeit von Google Fonts
+geladene Schriftart.
+
+Der Build kommt zudem ohne Netzwerk aus: Die Schriftart liegt als woff2 im
+Repository (`src/app/fonts/`, SIL Open Font License 1.1) und wird über
+`next/font/local` eingebunden. `next/font/google` würde sie bei jedem Build
+erneut abrufen.
 
 Zur **Laufzeit** ist die Datenbank zwingend: `DATABASE_URL`, `SESSION_SECRET`
 und `ENCRYPTION_KEY` müssen gesetzt sein, sonst bricht der erste Request mit

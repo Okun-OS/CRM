@@ -122,5 +122,7 @@ test("unbekannte Adressen zeigen die eigene 404-Seite", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Diese Seite gibt es nicht");
   // Nicht die Standardseite von Next, sondern die des Produkts.
   await expect(page.getByRole("link", { name: "Zum Action Center" })).toBeVisible();
-  await expect(page.getByText("Powered by OKUN Software")).toBeVisible();
+  // Das Endorsement rendert als Text plus SVG-Wortmarke, nicht als ein Textknoten.
+  await expect(page.getByRole("main")).toContainText("Powered by");
+  await expect(page.getByRole("img", { name: "OKUN Software" })).toBeVisible();
 });

@@ -19,9 +19,9 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 | Suite | Umfang | Lauf |
 | --- | --- | --- |
 | `pnpm test` | 126 Unit- und Integrationstests gegen eine echte PostgreSQL-Datenbank | grün |
-| `pnpm test:e2e` | 22 Playwright-Tests gegen den gebauten Server (inkl. Smoke-Test über alle 34 Seiten) | grün |
+| `pnpm test:e2e` | 23 Playwright-Tests gegen den gebauten Server (inkl. Smoke-Test über alle 34 Seiten und der eigenen 404-Seite) | grün |
 | `pnpm build` | Produktionsbuild inkl. Typprüfung | grün |
-| Deployment-Prüfung | frischer Klon des Branches: `pnpm install --frozen-lockfile`, Build ohne jede Umgebungsvariable, `pnpm start:migrate` gegen eine leere Datenbank, anschließend die 22 E2E-Tests gegen genau diesen Server | grün |
+| Deployment-Prüfung | frischer Klon des Branches: `pnpm install --frozen-lockfile`, Build ohne jede Umgebungsvariable, `pnpm start:migrate` gegen eine leere Datenbank, anschließend alle E2E-Tests gegen genau diesen Server | grün |
 
 ## Abnahmepunkte
 
@@ -121,8 +121,8 @@ dargestellt:
 
 ## Während der Abnahme gefundene und behobene Fehler
 
-Die Testsuiten haben sechs echte Fehler aufgedeckt, die vor der Abgabe behoben
-wurden:
+Die Testsuiten und die Deployment-Prüfung haben acht echte Fehler aufgedeckt,
+die behoben wurden:
 
 1. `deal.stage_changed` trug nur Stage-Namen – stage-spezifische Workflow-Trigger
    lösten nie aus.
@@ -135,7 +135,13 @@ wurden:
    und zwar je Konto.
 5. Die Timeline eines Datensatzes aktualisierte sich nach einer Stage-Änderung
    nicht.
-6. Zwei im selben Minutentakt erfasste Aktivitäten trugen denselben Zeitstempel;
+6. Der Build lud die Schriftart zur Bauzeit von Google Fonts. Jeder Build hing
+   damit an einer Netzwerkverbindung des Build-Containers; schlägt der Abruf
+   fehl, meldet Next das irreführend als Fehler der Pages-Router-Fehlerseite.
+   Inter wird jetzt selbst ausgeliefert.
+7. Es gab keine eigene 404-Seite: Eine falsche Adresse landete auf der
+   Standardseite von Next, ohne Marke und ohne Weg zurück.
+8. Zwei im selben Minutentakt erfasste Aktivitäten trugen denselben Zeitstempel;
    damit ließ sich nicht mehr bestimmen, wer am Zug ist, und ein Deal blieb nach
    einer Kundenantwort auf „Warten auf Kunden" stehen. Der Zustand wird jetzt
    zusätzlich über die Reihenfolge der aufgezeichneten Ereignisse entschieden.
