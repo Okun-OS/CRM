@@ -90,7 +90,7 @@ export function route<P = Record<string, string>>(
  * Requests without an Origin header (server-to-server API clients) are allowed
  * through — those carry no ambient cookies to abuse.
  */
-function assertSameOrigin(req: NextRequest): void {
+export function assertSameOrigin(req: NextRequest): void {
   const origin = req.headers.get("origin");
   if (!origin) return;
 
@@ -114,7 +114,7 @@ function assertSameOrigin(req: NextRequest): void {
 }
 
 /** Double-submit CSRF check: header must match both cookie and stored token. */
-async function assertCsrf(req: NextRequest): Promise<void> {
+export async function assertCsrf(req: NextRequest): Promise<void> {
   const headerToken = req.headers.get(CSRF_HEADER);
   const cookieToken = (await cookies()).get(CSRF_COOKIE)?.value;
   if (!headerToken || !cookieToken || headerToken !== cookieToken) {

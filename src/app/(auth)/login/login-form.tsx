@@ -20,11 +20,13 @@ export function LoginForm() {
 
     const form = new FormData(event.currentTarget);
     try {
-      await api.post("/api/v1/auth/login", {
+      const result = await api.post<{ redirectTo?: string }>("/api/v1/auth/login", {
         email: String(form.get("email") ?? ""),
         password: String(form.get("password") ?? ""),
       });
-      router.replace("/dashboard");
+      // Der Server entscheidet das Ziel: Betreiber haben keine Mitgliedschaft
+      // und damit kein Dashboard.
+      router.replace(result?.redirectTo ?? "/dashboard");
       router.refresh();
     } catch (cause) {
       if (cause instanceof ApiError) {

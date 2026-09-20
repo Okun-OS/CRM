@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { ActorContext } from "@/lib/context";
 import { scope } from "@/lib/tenant";
 import { findIntegration } from "./registry";
+import { createSmtpTransport, parseSmtpConfig } from "./smtp";
 
 /**
  * E-mail transport adapter contract.
@@ -31,10 +32,18 @@ export type TransportResolution =
   | { ok: true; transport: EmailTransport; connectionId: string; fromAddress: string }
   | { ok: false; reason: string };
 
-/** Adapters register here once implemented; the map is intentionally empty. */
+/**
+ * Hier registrieren sich die umgesetzten Adapter. Was nicht eingetragen ist,
+ * meldet sich als „noch nicht implementiert" — statt Versand vorzutäuschen.
+ */
 const TRANSPORT_FACTORIES: Partial<
-  Record<IntegrationProvider, (config: Record<string, unknown>, secret: string) => EmailTransport>
-> = {};
+  Record<IntegrationProvider, (config: Record<string, unknown>, secret: string) => EmailTransport | null>
+> = {
+  SMTP: (config, secret) => {
+    const parsed = parseSmtpConfig(config);
+    return parsed ? createSmtpTransport(parsed, secret) : null;
+  },
+};
 
 export async function resolveEmailTransport(ctx: ActorContext): Promise<TransportResolution> {
   const connection = await prisma.integrationConnection.findFirst({
@@ -69,7 +78,15 @@ export async function resolveEmailTransport(ctx: ActorContext): Promise<Transpor
   const { decryptSecret } = await import("@/lib/crypto");
   const secret = connection.secretCipher ? decryptSecret(connection.secretCipher) : "";
 
-  return { ok: true, transport: factory(config, secret), connectionId: connection.id, fromAddress };
+  const transport = factory(config, secret);
+  if (!transport) {
+    return {
+      ok: false,
+      reason: "Die Verbindungsdaten des Postausgangs sind unvollständig. Bitte die Integration neu einrichten.",
+    };
+  }
+
+  return { ok: true, transport, connectionId: connection.id, fromAddress };
 }
 
 /** True when this organization can actually send mail today. */

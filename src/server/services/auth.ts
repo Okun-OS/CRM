@@ -18,7 +18,18 @@ import { createOrganizationSlug, provisionOrganization } from "./organizations";
 const MAX_FAILED_ATTEMPTS = 8;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
 
-export type AuthenticatedUser = { userId: string; organizationId: string | null; email: string; name: string };
+export type AuthenticatedUser = {
+  userId: string;
+  organizationId: string | null;
+  email: string;
+  name: string;
+  /**
+   * Wohin nach der Anmeldung. Ein Betreiber hat bewusst keine Mitgliedschaft
+   * und gehört deshalb nicht aufs Dashboard eines Mandanten — ohne diese
+   * Angabe landete er in einer Schleife zwischen Anmeldung und Dashboard.
+   */
+  redirectTo: string;
+};
 
 /** Registration creates the user, the organization and the owner membership. */
 export async function register(input: z.input<typeof registerSchema>): Promise<AuthenticatedUser> {
@@ -61,6 +72,7 @@ export async function register(input: z.input<typeof registerSchema>): Promise<A
     organizationId: result.organization.id,
     email: result.user.email,
     name: result.user.name,
+    redirectTo: "/dashboard",
   };
 }
 
@@ -77,6 +89,7 @@ export async function login(input: z.input<typeof loginSchema>): Promise<Authent
       passwordHash: true,
       failedLoginCount: true,
       lockedUntil: true,
+      isPlatformAdmin: true,
     },
   });
 
@@ -105,10 +118,27 @@ export async function login(input: z.input<typeof loginSchema>): Promise<Authent
   }
 
   const membership = await prisma.membership.findFirst({
-    where: { userId: user.id, status: "ACTIVE", organization: { deletedAt: null } },
+    where: { userId: user.id, status: "ACTIVE", organization: { deletedAt: null, suspendedAt: null } },
     orderBy: { createdAt: "asc" },
     select: { organizationId: true },
   });
+
+  // Ohne verwendbare Mitgliedschaft gibt es zwei Fälle, die sich für die
+  // Person völlig unterschiedlich anfühlen: Betreiber haben bewusst keine —
+  // sie arbeiten in keinem Mandanten. Ein Mitglied einer stillgelegten
+  // Organisation soll dagegen erfahren, warum es nicht weitergeht, statt
+  // nach erfolgreicher Anmeldung wortlos wieder auf der Anmeldeseite zu landen.
+  if (!membership) {
+    const suspended = await prisma.membership.findFirst({
+      where: { userId: user.id, status: "ACTIVE", organization: { deletedAt: null, suspendedAt: { not: null } } },
+      select: { id: true },
+    });
+    if (suspended) {
+      throw Unauthenticated(
+        "Der Zugang dieser Organisation ist derzeit stillgelegt. Bitte wenden Sie sich an OKUN Software.",
+      );
+    }
+  }
 
   await prisma.user.update({
     where: { id: user.id },
@@ -128,12 +158,16 @@ export async function login(input: z.input<typeof loginSchema>): Promise<Authent
     });
   }
 
+  const platformAdmin = user.isPlatformAdmin;
   logInfo("auth.login", { userId: user.id });
   return {
     userId: user.id,
     organizationId: membership?.organizationId ?? null,
     email: user.email,
     name: user.name,
+    // Ohne Mitgliedschaft gibt es kein Dashboard. Für Betreiber ist das der
+    // Normalfall, nicht der Ausnahmefall.
+    redirectTo: membership ? "/dashboard" : platformAdmin ? "/admin" : "/dashboard",
   };
 }
 

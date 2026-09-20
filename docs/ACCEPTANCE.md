@@ -18,8 +18,8 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 
 | Suite | Umfang | Lauf |
 | --- | --- | --- |
-| `pnpm test` | 126 Unit- und Integrationstests gegen eine echte PostgreSQL-Datenbank | grün |
-| `pnpm test:e2e` | 23 Playwright-Tests gegen den gebauten Server (inkl. Smoke-Test über alle 34 Seiten und der eigenen 404-Seite) | grün |
+| `pnpm test` | 137 Unit- und Integrationstests gegen eine echte PostgreSQL-Datenbank | grün |
+| `pnpm test:e2e` | 28 Playwright-Tests gegen den gebauten Server (inkl. Smoke-Test über alle Seiten, der eigenen 404-Seite und des Betreiber-Backoffice) | grün |
 | `pnpm build` | Produktionsbuild inkl. Typprüfung | grün |
 | Deployment-Prüfung | frischer Klon des Branches: `pnpm install --frozen-lockfile`, Build ohne jede Umgebungsvariable, `pnpm start:migrate` gegen eine leere Datenbank, anschließend alle E2E-Tests gegen genau diesen Server | grün |
 
@@ -87,6 +87,22 @@ jenseits dieser Reihenfolge sind nicht vorweggenommen.
 | A14 | Momentum ohne erfundene Kennzahlen | VERIFIZIERT | Tests „begründet jeden Wert mit sichtbaren Signalen" und zur Stagnation; die Oberfläche zeigt alle Signale mit Gewicht und nennt ausdrücklich, dass es keine Abschlusswahrscheinlichkeit ist |
 | A15 | Mandantentrennung der neuen Ebene | VERIFIZIERT | Test „zeigt keine Aktionen, Ereignisse oder Automationen fremder Organisationen" |
 
+## Abnahme des Betreiber-Backoffice
+
+| # | Punkt | Status | Nachweis |
+| --- | --- | --- | --- |
+| B1 | Betreiber-Ebene getrennt von Mandantenrollen | VERIFIZIERT | Tests „macht eine Mitgliedschaft nicht zum Betreiber" und „gibt dem Betreiber keine Mitgliedschaft in einem Mandanten" |
+| B2 | Kunde anlegen erzeugt Mandant mit Standardkonfiguration | VERIFIZIERT | Test prüft Pipeline, Stages und Lead-Status; E2E 3 |
+| B3 | Einladung statt gesetztem Passwort | VERIFIZIERT | Test: nach dem Anlegen existiert kein Benutzerkonto; der Kunde setzt das Passwort über den Link |
+| B4 | Einladung führt zur Super-Administration | VERIFIZIERT | Test „führt die Einladung bis zur Super-Administration des Mandanten" inkl. anschließender Anmeldung |
+| B5 | **Keine Kundendaten im Backoffice** | VERIFIZIERT | Test legt einen Kontakt an und sucht dessen Namen in der gesamten Rückgabe des Backoffice — er kommt nicht vor; E2E 4 |
+| B6 | Stilllegen wirkt sofort und erklärt sich | VERIFIZIERT | Test: Sitzungen beendet, Anmeldung meldet „stillgelegt"; E2E 5 |
+| B7 | Reaktivieren stellt den Zugang her | VERIFIZIERT | Test: Anmeldung gelingt danach wieder |
+| B8 | Jede Betreiberhandlung protokolliert | VERIFIZIERT | Test prüft `customer.suspended` und `customer.reactivated`; E2E 5 prüft die Protokollseite |
+| B9 | Kein Zugang für gewöhnliche Konten | VERIFIZIERT | E2E 1: `/admin` wird nicht erreicht, die API antwortet mit 401 |
+| B10 | SMTP-Versand tatsächlich umgesetzt | VERIFIZIERT | Adapter implementiert, Zugangsdaten werden vor dem Speichern geprüft; im Katalog als umgesetzt gekennzeichnet |
+| B11 | Abrechnung, Tarife, Löschen von Mandanten | OFFEN | Bewusst nicht gebaut und nirgends angedeutet (siehe docs/PLATFORM.md, Abschnitt 7) |
+
 ## Offene Punkte
 
 Diese Punkte sind bewusst nicht umgesetzt und werden nirgends als fertig
@@ -94,7 +110,7 @@ dargestellt:
 
 | Thema | Zustand | Auswirkung in der Oberfläche |
 | --- | --- | --- |
-| E-Mail-Versand | Adapter-Vertrag steht, kein Transport implementiert | Versand meldet „kein Postausgang verbunden", die Nachricht wird als Entwurf gespeichert |
+| E-Mail-Versand | SMTP umgesetzt; Google, Microsoft und die übrigen Anbieter offen | Ohne verbundenen Postausgang meldet der Versand den Grund, die Nachricht wird als Entwurf gespeichert |
 | Google / Microsoft / Slack / Stripe / Calendly | Katalog und Verbindungsmodell vorhanden, Adapter offen | Im Integrationskatalog als „Adapter noch nicht implementiert" mit Voraussetzungen gekennzeichnet |
 | Zwei-Faktor-Authentifizierung | Datenmodell und Sitzungsprüfung vorbereitet | Profilseite nennt den Stand ausdrücklich |
 | Hintergrund-Queue | Import, Workflows und Webhook-Erstzustellung laufen inline | Import auf 5.000 Zeilen begrenzt und im Assistenten benannt |

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { hashToken, randomToken } from "@/lib/crypto";
 import { env, isProduction, trustProxy } from "@/lib/env";
 import { buildContext, type ActorContext } from "@/lib/context";
+import type { PlatformActor } from "@/lib/platform";
 
 export const SESSION_COOKIE = "okun_session";
 /** Readable by the browser on purpose: double-submit CSRF token. */
@@ -137,7 +138,9 @@ export async function getActor(): Promise<ActorContext | null> {
     where: {
       userId: user.id,
       status: "ACTIVE",
-      organization: { deletedAt: null },
+      // Eine vom Betreiber stillgelegte Organisation liefert keinen Kontext
+      // mehr — damit greift die Stilllegung überall, nicht nur an der Anmeldung.
+      organization: { deletedAt: null, suspendedAt: null },
       ...(session.activeOrganizationId ? { organizationId: session.activeOrganizationId } : {}),
     },
     select: {
@@ -161,6 +164,26 @@ export async function getActor(): Promise<ActorContext | null> {
     ip: meta.ip,
     userAgent: meta.userAgent,
   });
+}
+
+/**
+ * Der Betreiber hinter der aktuellen Sitzung — oder null.
+ *
+ * Bewusst unabhängig von einer Organisation: Ein Betreiber braucht keine
+ * Mitgliedschaft, und eine Mitgliedschaft macht niemanden zum Betreiber.
+ */
+export async function getPlatformActor(): Promise<PlatformActor | null> {
+  const session = await loadSession();
+  if (!session) return null;
+
+  const user = await prisma.user.findFirst({
+    where: { id: session.userId, deletedAt: null, isPlatformAdmin: true },
+    select: { id: true, email: true, name: true },
+  });
+  if (!user) return null;
+
+  const meta = await requestMeta();
+  return { userId: user.id, email: user.email, name: user.name, ip: meta.ip, userAgent: meta.userAgent };
 }
 
 /** Switches the active organization of the current session. */

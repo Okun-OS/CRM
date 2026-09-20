@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getActor } from "@/lib/auth/session";
+import { getActor, getPlatformActor } from "@/lib/auth/session";
 import { AppShell } from "@/components/app/app-shell";
 
 /**
@@ -8,7 +8,12 @@ import { AppShell } from "@/components/app/app-shell";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const actor = await getActor();
-  if (!actor) redirect("/login");
+  if (!actor) {
+    // Ein Betreiber gehört keinem Mandanten an — ihn auf die Anmeldung zu
+    // schicken, während er angemeldet ist, ergäbe eine Schleife.
+    if (await getPlatformActor()) redirect("/admin");
+    redirect("/login");
+  }
 
   return (
     <AppShell

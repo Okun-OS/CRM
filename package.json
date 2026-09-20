@@ -24,7 +24,8 @@
     "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts",
     "backfill:active-crm": "tsx --conditions=react-server scripts/backfill-active-crm.ts",
     "start:migrate": "sh scripts/start-production.sh",
-    "admin:set-email": "tsx --conditions=react-server scripts/set-user-email.ts"
+    "admin:set-email": "tsx --conditions=react-server scripts/set-user-email.ts",
+    "platform:admin": "tsx --conditions=react-server scripts/platform-admin.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -39,6 +40,7 @@
     "dotenv": "^17.4.2",
     "lucide-react": "^1.46.0",
     "next": "^15.5.25",
+    "nodemailer": "^10.0.10",
     "pg": "^8.23.0",
     "prisma": "7.10.0",
     "react": "^19.3.0",
@@ -53,6 +55,7 @@
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

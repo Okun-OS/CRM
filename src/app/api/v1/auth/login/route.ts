@@ -22,7 +22,13 @@ export const POST = route(
       const user = await login(body);
       clearRateLimit(rule.key);
       await createSession(user.userId, user.organizationId, await requestMeta());
-      return { userId: user.userId, email: user.email, name: user.name, organizationId: user.organizationId };
+      return {
+        userId: user.userId,
+        email: user.email,
+        name: user.name,
+        organizationId: user.organizationId,
+        redirectTo: user.redirectTo,
+      };
     } catch (error) {
       recordRateLimitFailure(rule);
       throw error;

@@ -10,6 +10,7 @@ import { assignableRoles, permissionsForRole } from "@/lib/rbac";
 import { emailField } from "@/lib/schemas/crm";
 import { acceptInvitationSchema } from "@/lib/schemas/auth";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/logger";
 
 /**
  * Members, roles, teams and invitations.
@@ -120,13 +121,25 @@ export async function inviteMember(ctx: ActorContext, input: z.input<typeof invi
     after: { email: data.email, role: data.role },
   });
 
+  const inviteUrl = new URL(`/invite/${token}`, env().APP_URL).toString();
+
+  // Ist ein Postausgang verbunden, geht die Einladung direkt raus. Sonst wird
+  // der Link angezeigt — mit dem Grund, warum nichts verschickt wurde.
+  const delivery = await deliverInvitation(ctx, {
+    to: invitation.email,
+    inviteUrl,
+    expiresAt: invitation.expiresAt,
+  });
+
   return {
     id: invitation.id,
     email: invitation.email,
     role: invitation.role,
     expiresAt: invitation.expiresAt.toISOString(),
-    /** Shown once — e-mail delivery requires a connected e-mail integration. */
-    inviteUrl: new URL(`/invite/${token}`, env().APP_URL).toString(),
+    /** Einmalig angezeigt — für den Fall, dass kein Versand möglich war. */
+    inviteUrl,
+    emailSent: delivery.sent,
+    emailSkippedReason: delivery.reason ?? null,
   };
 }
 
@@ -321,4 +334,47 @@ export async function deleteTeam(ctx: ActorContext, id: string) {
 export function roleMatrix() {
   const roles: Role[] = ["SUPER_ADMIN", "ADMIN", "MANAGER", "SALES", "USER"];
   return roles.map((role) => ({ role, permissions: permissionsForRole(role) }));
+}
+
+
+/**
+ * Zustellung einer Einladung über den Postausgang der Organisation.
+ *
+ * Scheitert der Versand, scheitert nicht die Einladung: Der Link existiert und
+ * bleibt gültig, der Grund wird zurückgegeben und angezeigt.
+ */
+async function deliverInvitation(
+  ctx: ActorContext,
+  input: { to: string; inviteUrl: string; expiresAt: Date },
+): Promise<{ sent: boolean; reason?: string }> {
+  try {
+    const { resolveEmailTransport } = await import("@/server/integrations/email");
+    const resolution = await resolveEmailTransport(ctx);
+    if (!resolution.ok) return { sent: false, reason: resolution.reason };
+
+    const until = input.expiresAt.toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
+    await resolution.transport.send({
+      from: resolution.fromAddress,
+      to: [input.to],
+      subject: `Einladung zu OKUN CRM — ${ctx.organizationName}`,
+      html: `<p>Guten Tag,</p><p>${escapeForEmail(ctx.name)} lädt Sie zu <strong>${escapeForEmail(ctx.organizationName)}</strong> in OKUN CRM ein.</p><p><a href="${input.inviteUrl}">Zugang einrichten</a></p><p style="color:#6B7280;font-size:12px;">Der Link gilt bis zum ${until} und kann nur einmal verwendet werden.</p><p style="color:#6B7280;font-size:11px;">Powered by OKUN Software</p>`,
+      text: [
+        "Guten Tag,",
+        "",
+        `${ctx.name} lädt Sie zu ${ctx.organizationName} in OKUN CRM ein.`,
+        "",
+        input.inviteUrl,
+        "",
+        `Der Link gilt bis zum ${until} und kann nur einmal verwendet werden.`,
+      ].join("\n"),
+    });
+    return { sent: true };
+  } catch (error) {
+    logError("invitation.mail_failed", error, { to: input.to });
+    return { sent: false, reason: "Der Versand ist fehlgeschlagen — bitte den Link von Hand weitergeben." };
+  }
+}
+
+function escapeForEmail(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

@@ -202,6 +202,25 @@ DATABASE_URL=… pnpm backfill:active-crm
 Das Skript gleicht ausschließlich ab — es führt keine Automation aus und
 versendet nichts. Es ist gefahrlos wiederholbar.
 
+### Betreiberzugang und Postausgang
+
+Der erste Betreiberzugang entsteht über die Konsole — siehe
+[docs/PLATFORM.md](PLATFORM.md). Für den automatischen Versand von Einladungen
+an künftige Kunden zusätzlich diese Variablen setzen:
+
+| Variable | Bedeutung |
+| --- | --- |
+| `SMTP_HOST` | Host des Postausgangs |
+| `SMTP_PORT` | Standard 587 (STARTTLS); 465 für implizites TLS |
+| `SMTP_SECURE` | `1` für implizites TLS, sonst weglassen |
+| `SMTP_USER` / `SMTP_PASSWORD` | Zugangsdaten |
+| `SMTP_FROM` | Absenderadresse |
+| `SMTP_FROM_NAME` | Optionaler Absendername |
+
+Ohne diese Variablen funktioniert das Backoffice unverändert — der
+Einladungslink wird dann angezeigt statt verschickt. Postausgänge der
+einzelnen Mandanten werden davon unabhängig in deren Einstellungen verbunden.
+
 ### Anmelde-E-Mail eines Kontos ändern
 
 Die Oberfläche kann das bewusst nicht: Die E-Mail ist die Anmeldeidentität,

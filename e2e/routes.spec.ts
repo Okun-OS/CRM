@@ -39,6 +39,7 @@ const ROUTES = [
   "/settings/webhooks",
   "/settings/active-crm",
   "/settings/api-keys",
+  "/settings/integrations",
   "/settings/import",
   "/settings/duplicates",
   "/settings/audit",

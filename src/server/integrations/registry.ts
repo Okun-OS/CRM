@@ -27,9 +27,9 @@ export const INTEGRATIONS: IntegrationDescriptor[] = [
     name: "SMTP-Postausgang",
     category: "E-Mail",
     summary: "Versendet CRM-E-Mails über einen eigenen SMTP-Server.",
-    capabilities: ["E-Mails aus dem CRM senden", "Versand als Aktivität protokollieren"],
+    capabilities: ["E-Mails aus dem CRM senden", "Versand als Aktivität protokollieren", "Einladungen zustellen"],
     requires: ["SMTP-Host, Port, Benutzername und Passwort", "Absenderadresse"],
-    implemented: false,
+    implemented: true,
     perUser: false,
   },
   {

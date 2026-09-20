@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import { getActor } from "@/lib/auth/session";
+import { getActor, getPlatformActor } from "@/lib/auth/session";
 
 export default async function RootPage() {
   const actor = await getActor();
-  redirect(actor ? "/dashboard" : "/login");
+  if (actor) redirect("/dashboard");
+  redirect((await getPlatformActor()) ? "/admin" : "/login");
 }

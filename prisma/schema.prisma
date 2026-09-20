@@ -291,6 +291,10 @@ model Organization {
   /// White-label preparation: brand overrides resolved on top of the OKUN defaults.
   brandConfig           Json?
   onboardingCompletedAt DateTime?
+  /// Betreiber-Backoffice: stillgelegte Organisationen bleiben vollständig
+  /// erhalten, ihre Mitglieder können sich aber nicht mehr anmelden.
+  suspendedAt           DateTime?
+  suspendedReason       String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   deletedAt             DateTime?
@@ -354,12 +358,17 @@ model User {
   lastLoginAt       DateTime?
   failedLoginCount  Int       @default(0)
   lockedUntil       DateTime?
+  /// Betreiber-Ebene (OKUN Software), bewusst getrennt von den Rollen
+  /// innerhalb einer Organisation: Sie erlaubt die Verwaltung von Mandanten,
+  /// aber keinen Zugriff auf deren CRM-Daten.
+  isPlatformAdmin   Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
   memberships       Membership[]
   sessions          Session[]
+  platformAuditLogs PlatformAuditLog[] @relation("PlatformAuditActor")
   ownedContacts     Contact[]      @relation("ContactOwner")
   createdContacts   Contact[]      @relation("ContactCreator")
   ownedCompanies    Company[]      @relation("CompanyOwner")
@@ -1462,6 +1471,27 @@ model ActiveCrmRuleSetting {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, ruleKey])
+}
+
+/// Protokoll der Betreiber-Ebene. Bewusst getrennt vom AuditLog der
+/// Organisationen: Dessen Einträge gehören dem jeweiligen Mandanten, diese
+/// hier gehören dem Betreiber und überdauern eine gelöschte Organisation.
+model PlatformAuditLog {
+  id             String   @id @default(cuid())
+  actorId        String?
+  actorEmail     String
+  action         String
+  /// Betroffene Organisation, sofern die Aktion eine betrifft.
+  organizationId String?
+  organizationName String?
+  details        Json?
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  actor          User?    @relation("PlatformAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([organizationId, createdAt])
 }
 
 model DomainEventRecord {

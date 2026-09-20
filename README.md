@@ -57,6 +57,7 @@ pnpm seed:demo                  # legt „OKUN Demo GmbH" mit wenigen Beispiels�
 | `pnpm seed:demo` | Demo-Organisation für lokale Entwicklung |
 | `pnpm backfill:active-crm` | Bestandsdaten einmalig mit der Next Action Engine abgleichen |
 | `pnpm admin:set-email <alt> <neu>` | Anmelde-E-Mail eines Kontos ändern (Betrieb, siehe OPERATIONS) |
+| `pnpm platform:admin <befehl>` | Betreiberzugänge verwalten (siehe docs/PLATFORM.md) |
 
 ## Tech-Stack
 
@@ -73,6 +74,7 @@ pnpm seed:demo                  # legt „OKUN Demo GmbH" mit wenigen Beispiels�
 | --- | --- |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architektur, Datenmodell, Auth, Mandanten, Workflows, Grenzen |
 | [docs/ACTIVE-CRM.md](docs/ACTIVE-CRM.md) | Next Action Engine: Ereignisse, Regeln, Zustände, Automationen, Anbindung |
+| [docs/PLATFORM.md](docs/PLATFORM.md) | Betreiber-Backoffice: Kunden anlegen, stilllegen, die Grenze zu deren Daten |
 | [docs/DATA-MODEL.md](docs/DATA-MODEL.md) | Beziehungen der Objekte und die Entscheidungen dahinter |
 | [docs/BRANDING.md](docs/BRANDING.md) | Marke, Design-Tokens, Assets, White-Label-Vorbereitung |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Betrieb, Umgebungsvariablen, Deployment, Backups |
@@ -82,10 +84,11 @@ pnpm seed:demo                  # legt „OKUN Demo GmbH" mit wenigen Beispiels�
 
 Dieses Produkt zeigt nichts an, was es nicht tut:
 
-- **E-Mail-Versand** braucht einen verbundenen Anbieter. Solange keiner
-  verbunden ist, wird die E-Mail als Entwurf gespeichert und die Oberfläche
-  nennt den Grund – es gibt keinen Senden-Button, der ins Leere läuft.
-- **Integrationen** (Google, Microsoft, Slack, Stripe, Calendly) sind als
+- **E-Mail-Versand** läuft über SMTP, sobald ein Postausgang verbunden ist
+  (*Einstellungen → Integrationen*). Die Zugangsdaten werden vor dem Speichern
+  geprüft. Ohne Verbindung wird die E-Mail als Entwurf gespeichert und die
+  Oberfläche nennt den Grund – es gibt keinen Senden-Button, der ins Leere läuft.
+- **Weitere Integrationen** (Google, Microsoft, Slack, Stripe, Calendly) sind als
   Adapter-Architektur vorbereitet und im Katalog ausdrücklich als „noch nicht
   implementiert" gekennzeichnet. Ausgehende **Webhooks** sind vollständig
   implementiert.

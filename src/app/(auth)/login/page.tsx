@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getActor } from "@/lib/auth/session";
+import { getActor, getPlatformActor } from "@/lib/auth/session";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Anmelden" };
 
 export default async function LoginPage() {
   if (await getActor()) redirect("/dashboard");
+  // Betreiber haben keine Mitgliedschaft, aber eine gültige Sitzung.
+  if (await getPlatformActor()) redirect("/admin");
 
   return (
     <div>
