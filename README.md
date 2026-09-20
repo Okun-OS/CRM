@@ -56,6 +56,7 @@ pnpm seed:demo                  # legt „OKUN Demo GmbH" mit wenigen Beispiels�
 | `pnpm brand:build` | Brand-Assets aus den Marken-Komponenten erzeugen |
 | `pnpm seed:demo` | Demo-Organisation für lokale Entwicklung |
 | `pnpm backfill:active-crm` | Bestandsdaten einmalig mit der Next Action Engine abgleichen |
+| `pnpm admin:set-email <alt> <neu>` | Anmelde-E-Mail eines Kontos ändern (Betrieb, siehe OPERATIONS) |
 
 ## Tech-Stack
 

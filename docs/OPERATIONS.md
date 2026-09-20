@@ -202,6 +202,23 @@ DATABASE_URL=… pnpm backfill:active-crm
 Das Skript gleicht ausschließlich ab — es führt keine Automation aus und
 versendet nichts. Es ist gefahrlos wiederholbar.
 
+### Anmelde-E-Mail eines Kontos ändern
+
+Die Oberfläche kann das bewusst nicht: Die E-Mail ist die Anmeldeidentität,
+und ohne Bestätigungsmail wäre eine Selbstbedienung ein Weg zur
+Kontoübernahme. Für den Betrieb — etwa den ersten Administrator auf eine
+echte Adresse umstellen — gibt es ein Skript. Auf Railway im Reiter
+*Console* des CRM-Dienstes:
+
+```bash
+pnpm admin:set-email alt@beispiel.de kontakt@example.com
+```
+
+Es prüft, ob die neue Adresse frei ist, schreibt einen Audit-Eintrag in jede
+Organisation des Kontos und beendet alle Sitzungen — danach ist eine
+Neuanmeldung mit der neuen Adresse und dem **bisherigen Passwort** nötig.
+Existiert die alte Adresse nicht, listet das Skript die vorhandenen Konten.
+
 ## 6. Backups
 
 - **Datenbank**: regelmäßige Dumps (`pg_dump`), Wiederherstellung testen.

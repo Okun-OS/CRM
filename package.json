@@ -23,7 +23,8 @@
     "brand:build": "tsx scripts/build-brand-assets.tsx",
     "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts",
     "backfill:active-crm": "tsx --conditions=react-server scripts/backfill-active-crm.ts",
-    "start:migrate": "sh scripts/start-production.sh"
+    "start:migrate": "sh scripts/start-production.sh",
+    "admin:set-email": "tsx --conditions=react-server scripts/set-user-email.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
