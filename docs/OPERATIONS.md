@@ -122,8 +122,8 @@ Damit das Deployment läuft, im Railway-Projekt:
    | Variable | Wert |
    | --- | --- |
    | `DATABASE_URL` | **Referenz** auf die Datenbank, wörtlich `${{Postgres.DATABASE_URL}}` — keine abgetippte Verbindung. Ein Wert mit `localhost` ist in einem Container immer falsch: Dort ist `localhost` die Anwendung selbst, die Datenbank läuft als eigener Dienst. Der Start bricht in diesem Fall mit einer erklärenden Meldung ab statt mit einem rohen Prisma-Fehler — unabhängig von `NODE_ENV`, weil Plattformen dort eigene Werte setzen. Wer lokal bewusst gegen localhost starten will, setzt `NODE_ENV=development` oder `ALLOW_LOCALHOST_DB=1`. |
-   | `SESSION_SECRET` | `openssl rand -base64 32` |
-   | `ENCRYPTION_KEY` | `openssl rand -base64 32` |
+   | `SESSION_SECRET` | `openssl rand -base64 32` — **zwingend**. Fehlt er, startet der Container gar nicht erst; ein späterer Wechsel meldet alle Sitzungen ab. |
+   | `ENCRYPTION_KEY` | `openssl rand -base64 32`, ein **anderer** Wert — ebenfalls zwingend. Ein späterer Wechsel macht gespeicherte Integrationsgeheimnisse unlesbar. |
    | `APP_URL` | die öffentliche Domain des Dienstes, z. B. `https://crm.example.com` |
    | `NODE_ENV` | `production` |
    | `TRUST_PROXY` | `1` (Railway terminiert TLS und setzt `X-Forwarded-For`) |

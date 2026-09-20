@@ -37,6 +37,31 @@ case "${localhost_allowed}:${DATABASE_URL}" in
     ;;
 esac
 
+# Geheimnisse: ohne sie startet die Anwendung zwar, aber jede Anfrage, die
+# die Datenbank berührt, scheitert — ein Zustand, der von außen wie ein
+# Anwendungsfehler aussieht. Lieber gar nicht erst starten.
+missing=""
+for name in SESSION_SECRET ENCRYPTION_KEY; do
+  eval "value=\${$name:-}"
+  if [ -z "$value" ]; then
+    missing="$missing $name (fehlt)"
+  elif [ "${#value}" -lt 16 ]; then
+    missing="$missing $name (zu kurz, mindestens 16 Zeichen)"
+  fi
+done
+
+if [ -n "$missing" ]; then
+  echo "FEHLER: Unvollständige Konfiguration:$missing" >&2
+  echo "" >&2
+  echo "Beide Werte einmalig erzeugen und als Variablen setzen:" >&2
+  echo "  openssl rand -base64 32" >&2
+  echo "" >&2
+  echo "SESSION_SECRET signiert Sitzungen — ein Wechsel meldet alle ab." >&2
+  echo "ENCRYPTION_KEY verschlüsselt Integrationsgeheimnisse — ein Wechsel" >&2
+  echo "macht bereits gespeicherte unlesbar. Jetzt setzen, später nicht mehr." >&2
+  exit 1
+fi
+
 # Das private Netz mancher Plattformen steht erst wenige Sekunden nach dem
 # Containerstart bereit. Ein sofortiger Verbindungsversuch scheitert dann,
 # obwohl alles richtig konfiguriert ist.
