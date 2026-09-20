@@ -23,7 +23,7 @@
     "brand:build": "tsx scripts/build-brand-assets.tsx",
     "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts",
     "backfill:active-crm": "tsx --conditions=react-server scripts/backfill-active-crm.ts",
-    "start:migrate": "prisma migrate deploy && next start"
+    "start:migrate": "sh scripts/start-production.sh"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

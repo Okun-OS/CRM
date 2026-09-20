@@ -121,7 +121,7 @@ Damit das Deployment läuft, im Railway-Projekt:
 
    | Variable | Wert |
    | --- | --- |
-   | `DATABASE_URL` | Referenz auf die Datenbank: `${{Postgres.DATABASE_URL}}` |
+   | `DATABASE_URL` | **Referenz** auf die Datenbank, wörtlich `${{Postgres.DATABASE_URL}}` — keine abgetippte Verbindung. Ein Wert mit `localhost` ist in einem Container immer falsch: Dort ist `localhost` die Anwendung selbst, die Datenbank läuft als eigener Dienst. Der Start bricht in diesem Fall mit einer erklärenden Meldung ab statt mit einem rohen Prisma-Fehler. |
    | `SESSION_SECRET` | `openssl rand -base64 32` |
    | `ENCRYPTION_KEY` | `openssl rand -base64 32` |
    | `APP_URL` | die öffentliche Domain des Dienstes, z. B. `https://crm.example.com` |
