@@ -128,11 +128,16 @@ Damit das Deployment läuft, im Railway-Projekt:
    | `NODE_ENV` | `production` |
    | `TRUST_PROXY` | `1` (Railway terminiert TLS und setzt `X-Forwarded-For`) |
 
-3. **Dateiablage beachten:** Der Container hat kein dauerhaftes Dateisystem.
+3. **Domain erzeugen:** Unter *Settings → Networking → Generate Service Domain*
+   fragt Railway nach dem Zielport. Dort **3000** eintragen — der Port, auf dem
+   der Container lauscht (`ENV PORT=3000` im Dockerfile). Gibt die Plattform
+   über die Variable `PORT` einen anderen Wert vor, folgt die Anwendung diesem;
+   der Startbefehl bindet ausdrücklich an `0.0.0.0` und an `${PORT:-3000}`.
+4. **Dateiablage beachten:** Der Container hat kein dauerhaftes Dateisystem.
    Für Uploads ein Railway-Volume einhängen und `STORAGE_LOCAL_PATH` darauf
    zeigen lassen — sonst gehen hochgeladene Dateien bei jedem Deployment
    verloren. Ohne Volume bleibt der Rest des Produkts funktionsfähig.
-4. **Kein Autoscaling über eine Instanz hinaus**, solange Rate Limiting im
+5. **Kein Autoscaling über eine Instanz hinaus**, solange Rate Limiting im
    Prozessspeicher liegt und die Dateiablage lokal ist (Abschnitt 8).
 
 `prisma` und `dotenv` stehen bewusst in den `dependencies`: Der Startbefehl

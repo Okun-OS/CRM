@@ -43,4 +43,8 @@ until pnpm exec prisma migrate deploy; do
   attempt=$((attempt + 1))
 done
 
-exec pnpm exec next start
+# An 0.0.0.0 binden, damit die Plattform den Container erreicht, und an den
+# Port, den sie vorgibt — fällt sie darauf zurück, ist es 3000 (siehe
+# Dockerfile). Beides explizit, damit der Port nicht davon abhängt, welche
+# Variable die Plattform gerade setzt.
+exec pnpm exec next start --hostname 0.0.0.0 --port "${PORT:-3000}"

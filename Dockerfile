@@ -29,6 +29,10 @@ COPY . .
 # prisma generate && next build
 RUN pnpm build
 
+# Der Port, auf dem die Anwendung lauscht, wenn die Plattform keinen vorgibt.
+# Derselbe Wert gehört in Railway unter Settings → Networking → Generate
+# Service Domain als Zielport.
+ENV PORT=3000
 EXPOSE 3000
 # Migrationen vor dem Start anwenden; beides braucht DATABASE_URL zur Laufzeit.
 CMD ["pnpm", "start:migrate"]
