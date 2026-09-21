@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { getPlatformActor } from "@/lib/auth/session";
-import { OkunWordmark, PoweredByOkunSoftware } from "@/components/brand/marks";
+import { OkunCrmIcon, PoweredByOkunSoftware } from "@/components/brand/marks";
 
 export const metadata: Metadata = { title: { default: "Betreiberverwaltung", template: "%s · Betreiberverwaltung" } };
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-6">
           <div className="flex items-center gap-3">
             <Link href="/admin" className="flex items-center gap-2.5">
-              <OkunWordmark className="h-4 w-auto text-white" title="OKUN Software" />
+              <OkunCrmIcon className="h-7 w-7" />
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-2xs font-medium tracking-wide text-white/80">
                 Betreiberverwaltung
               </span>

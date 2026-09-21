@@ -13,21 +13,22 @@ export const BRAND = {
   claim: "Mehr als Kontakte. Echte Möglichkeiten.",
   poweredBy: "Powered by OKUN Software",
   /**
-   * Generated from `src/components/brand/marks.tsx` via `pnpm brand:build`.
-   * Replace these files with the final brand package when it is available.
+   * Die Originaldateien aus dem Markenpaket von OKUN Software. Die
+   * Icon-Größen entstehen durch Verkleinern des Originals, die `-plain`-
+   * Fassungen durch Freistellen des eingebrannten Claims (`pnpm brand:build`)
+   * — nicht durch Nachzeichnen.
    */
   assets: {
-    icon: "/brand/okun-crm/icon.svg",
-    iconDark: "/brand/okun-crm/icon-dark.svg",
-    iconLight: "/brand/okun-crm/icon-light.svg",
-    logoHorizontal: "/brand/okun-crm/logo-horizontal.svg",
-    logoHorizontalInverse: "/brand/okun-crm/logo-horizontal-inverse.svg",
-    logoVertical: "/brand/okun-crm/logo-vertical.svg",
-    logoVerticalInverse: "/brand/okun-crm/logo-vertical-inverse.svg",
-    vendorWordmark: "/brand/okun-software/wordmark.svg",
-    vendorWordmarkInverse: "/brand/okun-software/wordmark-inverse.svg",
-    poweredBy: "/brand/okun-software/powered-by.svg",
-    poweredByInverse: "/brand/okun-software/powered-by-inverse.svg",
+    icon: "/brand/okun-crm/icon-192.png",
+    iconLarge: "/brand/okun-crm/icon-512.png",
+    iconApple: "/brand/okun-crm/icon-180.png",
+    iconSmall: "/brand/okun-crm/icon-32.png",
+    logoHorizontalInverse: "/brand/okun-crm/logo-horizontal-inverse-plain.png",
+    logoHorizontalInverseWithClaim: "/brand/okun-crm/logo-horizontal-inverse.png",
+    logoOnBlack: "/brand/okun-crm/logo-on-black.png",
+    vendorIcon: "/brand/okun-software/icon.png",
+    vendorLogo: "/brand/okun-software/logo-plain.png",
+    vendorLogoWithClaim: "/brand/okun-software/logo.png",
   },
   colors: {
     primaryDark: "#0D1117",

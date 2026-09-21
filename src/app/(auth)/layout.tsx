@@ -11,7 +11,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-dvh flex-col lg:flex-row">
       <aside className="okun-surface-dark relative flex flex-col justify-between overflow-hidden px-8 py-10 text-white lg:w-[46%] lg:px-14 lg:py-14">
         <Link href="/" className="relative z-10 inline-flex">
-          <OkunCrmLogo tone="inverse" />
+          <OkunCrmLogo tone="inverse" className="h-12 lg:h-14" />
         </Link>
 
         <div className="relative z-10 my-12 max-w-lg lg:my-0">

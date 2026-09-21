@@ -70,30 +70,52 @@ Markenidentität und darf nie entfallen.
 
 ### Assets
 
-Quelle der Wahrheit sind Vektorkomponenten:
+Quelle der Wahrheit sind die **Originaldateien aus dem Markenpaket**. In der
+Anwendung wird kein Markenzeichen gezeichnet, nachgebaut oder umgefärbt.
 
 ```
-src/components/brand/marks.tsx     OkunCrmIcon, OkunWordmark, CrmWordmark,
-                                   OkunCrmLogo, PoweredByOkunSoftware
+public/brand/original/              die gelieferten Dateien, unverändert
+public/brand/okun-crm/
+  icon.png                          Produktzeichen, transparent
+  icon-{512,192,180,32}.png         verkleinert
+  logo-horizontal-inverse.png       Logo mit Claim, helle Wortmarke
+  logo-horizontal-inverse-plain.png dasselbe ohne Claim
+  logo-on-black.png                 Logo auf schwarzer Fläche
+public/brand/okun-software/
+  icon.png                          Unternehmenszeichen, transparent
+  logo.png                          Logo mit Claim, weißer Grund
+  logo-plain.png                    dasselbe ohne Claim
 ```
 
-Daraus erzeugt `pnpm brand:build` die statischen Dateien für Favicon, E-Mail,
-OG-Bilder und Dokumentation:
+`src/components/brand/marks.tsx` entscheidet nur noch, welche Datei in welcher
+Größe auf welchem Untergrund steht; die Pfade stehen in
+`src/lib/brand/config.ts`.
 
-```
-public/brand/okun-crm/         icon.svg · icon-dark.svg · icon-light.svg
-                               logo-horizontal(-inverse).svg
-                               logo-vertical(-inverse).svg
-public/brand/okun-software/    wordmark(-inverse).svg
-                               powered-by(-inverse).svg
-```
+`pnpm brand:build` leitet aus den Originalen ab — und zwar ausschließlich durch
+Verkleinern und Freistellen (`scripts/build-brand-assets.ts`):
 
-> **Status der Assets:** Die Zeichen sind aus der Markenreferenz rekonstruiert,
-> damit das Produkt vollständig gebrandet ausgeliefert werden kann. Sobald die
-> finalen Vektordateien aus dem Markenpaket vorliegen, ersetzen sie die Dateien
-> in `public/brand/` und die Pfade in `src/lib/brand/config.ts`. Kein anderer
-> Teil der Anwendung zeichnet ein Logo – der Austausch ist damit eine
-> Dateiablösung, kein Refactoring.
+- die Icon-Größen für Favicon, App-Icon und Kacheln,
+- die `-plain`-Fassungen, also dieselben Logos ohne den eingebrannten Claim.
+
+Warum die `-plain`-Fassungen nötig sind: Der Claim ist im gelieferten Logo rund
+3 % der Bildhöhe hoch. Damit er lesbar wäre, müsste das Logo etwa 240 px hoch
+stehen. In der Navigation (56 px Leiste) und auf der Anmeldeseite wären das
+1–3 px — ein grauer Streifen. Der Claim steht dort stattdessen als echter Text
+(`BRAND.tagline`) und ist dadurch lesbar, auswählbar und übersetzbar.
+
+> **Zwei Fassungen fehlen im Markenpaket** und werden bewusst **nicht**
+> ersatzweise erzeugt:
+>
+> 1. ein CRM-Logo mit **dunkler** Wortmarke für helle Flächen,
+> 2. ein Logo von **OKUN Software für dunkle Flächen**.
+>
+> Bis sie vorliegen, steht das jeweilige Original auf einer Platte in der
+> Gegenfarbe — sichtbar beabsichtigt. Das Endorsement „Powered by OKUN
+> Software" liegt deshalb auf der dunklen Navigation auf einer weißen Platte.
+> Die Alternative wäre, ein fremdes Markenzeichen umzufärben; das passiert
+> hier nicht. Sobald die Dateien vorliegen, genügt es, sie in
+> `public/brand/` abzulegen und die Pfade in `src/lib/brand/config.ts` zu
+> setzen — die Platte entfällt dann in `marks.tsx`.
 
 ## 5. Marke in der Oberfläche
 

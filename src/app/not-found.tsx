@@ -14,7 +14,7 @@ export const metadata = { title: "Seite nicht gefunden" };
 export default function NotFound() {
   return (
     <main className="okun-surface-dark flex min-h-dvh flex-col items-center justify-center px-6 text-center text-white">
-      <OkunCrmLogo tone="inverse" />
+      <OkunCrmLogo tone="inverse" className="h-12" />
 
       <p className="mt-10 text-5xl font-semibold tracking-tight tabular-nums text-white/25">404</p>
       <h1 className="mt-3 text-xl font-semibold tracking-tight">Diese Seite gibt es nicht</h1>

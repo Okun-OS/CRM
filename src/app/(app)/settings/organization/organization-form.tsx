@@ -10,6 +10,7 @@ import { FormError } from "@/components/crm/forms/form-kit";
 import { api, ApiError } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
 import { BRAND } from "@/lib/brand/config";
+import { PoweredByOkunSoftware } from "@/components/brand/marks";
 
 type Organization = {
   id: string;
@@ -135,11 +136,12 @@ export function OrganizationForm({ organization }: { organization: Organization 
 
       <Card>
         <CardHeader title="Produkt & Marke" />
-        <CardBody className="space-y-2 text-xs leading-relaxed text-ink-600">
+        <CardBody className="space-y-3 text-xs leading-relaxed text-ink-600">
           <p>
             Dieses CRM ist <span className="font-medium text-ink-900">{BRAND.productName}</span> – ein Produkt von{" "}
             <span className="font-medium text-ink-900">{BRAND.vendorName}</span>.
           </p>
+          <PoweredByOkunSoftware />
           <p>
             Die Markenführung (Farben, Logos, Typografie) liegt zentral in{" "}
             <code className="rounded bg-ink-100 px-1 py-0.5 font-mono">src/lib/brand/config.ts</code> und den Brand-Assets unter{" "}

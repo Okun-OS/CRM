@@ -103,7 +103,7 @@ export function Sidebar({
     >
       <div className={cn("flex h-14 shrink-0 items-center border-b border-white/5", collapsed ? "justify-center px-2" : "px-4")}>
         <Link href="/dashboard" onClick={onNavigate} className="flex min-w-0 items-center">
-          {collapsed ? <OkunCrmIcon className="h-8 w-8" /> : <OkunCrmLogo tone="inverse" />}
+          {collapsed ? <OkunCrmIcon className="h-8 w-8" /> : <OkunCrmLogo tone="inverse" className="h-9" />}
         </Link>
       </div>
 

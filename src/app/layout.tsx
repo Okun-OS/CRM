@@ -32,7 +32,13 @@ export const metadata: Metadata = {
   },
   description: `${BRAND.productName} verbindet Menschen, Prozesse und Chancen in einer Plattform. ${BRAND.poweredBy}.`,
   applicationName: BRAND.productName,
-  icons: { icon: BRAND.assets.icon },
+  icons: {
+    icon: [
+      { url: BRAND.assets.iconSmall, sizes: "32x32", type: "image/png" },
+      { url: BRAND.assets.icon, sizes: "192x192", type: "image/png" },
+    ],
+    apple: BRAND.assets.iconApple,
+  },
   robots: { index: false, follow: false },
 };
 

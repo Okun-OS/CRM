@@ -1,143 +1,93 @@
-/**
- * OKUN brand marks.
- *
- * INTERIM ASSETS — these vector marks are reconstructed from the OKUN CRM brand
- * reference sheet so the product ships fully branded. When the final vector
- * files from the brand package are available, drop them into
- * `public/brand/okun-crm/` and `public/brand/okun-software/` and point
- * `src/lib/brand/config.ts` at them; no component outside this file draws a logo.
- *
- * Geometry lives here once and is reused by `scripts/build-brand-assets.ts`,
- * which renders the static SVG files used for favicons, e-mail and OG images.
- */
-import * as React from "react";
+import Image from "next/image";
+import { cn } from "@/lib/cn";
 
+/**
+ * Markenzeichen von OKUN CRM und OKUN Software.
+ *
+ * Hier wird **nichts nachgebaut**: Alle Zeichen sind die Originaldateien aus
+ * dem Markenpaket. Die Komponenten legen nur fest, in welcher Größe und auf
+ * welchem Untergrund welche Datei verwendet wird.
+ *
+ * | Datei | Hintergrund | Wortmarke | Einsatz |
+ * | --- | --- | --- | --- |
+ * | `okun-crm/icon.png` | transparent | – | überall |
+ * | `okun-crm/logo-horizontal-inverse-plain.png` | transparent | hell | dunkle Flächen |
+ * | `okun-crm/logo-horizontal-inverse.png` | transparent | hell | nur sehr groß |
+ * | `okun-crm/logo-on-black.png` | schwarz | hell | nur auf Schwarz |
+ * | `okun-software/logo-plain.png` | weiß | dunkel | helle Flächen |
+ *
+ * Die `-plain`-Dateien sind dieselben Originale ohne den eingebrannten Claim
+ * (`pnpm brand:build` stellt ihn frei, siehe `scripts/build-brand-assets.ts`).
+ * Der Claim ist rund 3 % der Bildhöhe hoch und wäre in jeder Größe, die in
+ * einer Oberfläche vorkommt, nur noch ein grauer Streifen.
+ *
+ * Zwei Fassungen fehlen im Markenpaket und werden hier **nicht** ersatzweise
+ * erfunden:
+ *
+ * - ein CRM-Logo mit dunkler Wortmarke für helle Flächen,
+ * - ein Logo von OKUN Software für dunkle Flächen.
+ *
+ * Bis sie vorliegen, steht das jeweilige Original auf einer Platte in der
+ * Gegenfarbe. Das ist sichtbar beabsichtigt — die Alternative wäre, fremde
+ * Markenzeichen umzufärben.
+ */
 type MarkProps = {
   className?: string;
-  /** Unique id prefix — required so gradient ids never collide on one page. */
-  idPrefix?: string;
   title?: string;
 };
 
-function useMarkId(prefix?: string) {
-  const reactId = React.useId();
-  return (prefix ?? `okun${reactId}`).replace(/[^a-zA-Z0-9_-]/g, "");
-}
-
-/** Blue→cyan brand gradient used by the coloured marks. */
-function BrandGradient({ id }: { id: string }) {
+/** Produktzeichen von OKUN CRM. Transparent, funktioniert hell wie dunkel. */
+export function OkunCrmIcon({ className, title = "OKUN CRM" }: MarkProps) {
   return (
-    <defs>
-      <linearGradient id={id} x1="6" y1="58" x2="58" y2="6" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#06B6D4" />
-        <stop offset="55%" stopColor="#2563EB" />
-        <stop offset="100%" stopColor="#1D4FD8" />
-      </linearGradient>
-    </defs>
+    <Image
+      src="/brand/okun-crm/icon.png"
+      alt={title}
+      width={512}
+      height={512}
+      priority
+      className={cn("h-9 w-9 object-contain", className)}
+    />
   );
 }
 
 /**
- * OKUN CRM product icon: a person (the customer) held by an open ring (the
- * relationship) with ascending bars breaking out of it (growth).
+ * Einfarbige Variante. Das Original ist ein Verlauf und lässt sich nicht
+ * einfärben — hier steht dasselbe Zeichen, nur reduziert in der Deckkraft.
  */
-export function OkunCrmIcon({ className, idPrefix, title = "OKUN CRM" }: MarkProps) {
-  const id = useMarkId(idPrefix);
-  const gradientId = `${id}-grad`;
-  return (
-    <svg viewBox="0 0 64 64" className={className} role="img" aria-label={title} fill="none">
-      <BrandGradient id={gradientId} />
-      {/* Open ring — the gap sits at the upper right, where growth breaks out. */}
-      <circle
-        cx="32"
-        cy="32"
-        r="24.5"
-        stroke={`url(#${gradientId})`}
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeDasharray="116 38"
-        transform="rotate(-4 32 32)"
-      />
-      {/* Customer */}
-      <circle cx="23.5" cy="23" r="6.5" fill={`url(#${gradientId})`} />
-      <path
-        d="M14 44.5c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5v.5a2 2 0 0 1-2 2H16a2 2 0 0 1-2-2z"
-        fill={`url(#${gradientId})`}
-      />
-      {/* Growth */}
-      <rect x="36" y="36.5" width="5" height="10.5" rx="2" fill={`url(#${gradientId})`} />
-      <rect x="43.5" y="29.5" width="5" height="17.5" rx="2" fill={`url(#${gradientId})`} />
-      <rect x="51" y="21" width="5" height="26" rx="2" fill={`url(#${gradientId})`} />
-    </svg>
-  );
-}
-
-/** Single-colour variant for dense UI, favicons and monochrome contexts. */
 export function OkunCrmIconMono({ className, title = "OKUN CRM" }: MarkProps) {
+  return <OkunCrmIcon className={cn("opacity-70", className)} title={title} />;
+}
+
+/** Logo von OKUN Software, Original ohne Claim. Weißer Grund, dunkle Schrift. */
+export function OkunWordmark({ className, title = "OKUN Software" }: MarkProps) {
   return (
-    <svg viewBox="0 0 64 64" className={className} role="img" aria-label={title} fill="none">
-      <circle
-        cx="32"
-        cy="32"
-        r="24.5"
-        stroke="currentColor"
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeDasharray="116 38"
-        transform="rotate(-4 32 32)"
-      />
-      <circle cx="23.5" cy="23" r="6.5" fill="currentColor" />
-      <path
-        d="M14 44.5c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5v.5a2 2 0 0 1-2 2H16a2 2 0 0 1-2-2z"
-        fill="currentColor"
-      />
-      <rect x="36" y="36.5" width="5" height="10.5" rx="2" fill="currentColor" />
-      <rect x="43.5" y="29.5" width="5" height="17.5" rx="2" fill="currentColor" />
-      <rect x="51" y="21" width="5" height="26" rx="2" fill="currentColor" />
-    </svg>
+    <Image
+      src="/brand/okun-software/logo-plain.png"
+      alt={title}
+      width={1417}
+      height={478}
+      className={cn("h-7 w-auto object-contain", className)}
+    />
   );
 }
 
-/**
- * The OKUN wordmark. The small dot at the upper right of the "O" is part of the
- * brand identity and must never be dropped.
- */
-export function OkunWordmark({ className, title = "OKUN" }: MarkProps) {
-  return (
-    <svg viewBox="0 0 168 48" className={className} role="img" aria-label={title} fill="none">
-      <g stroke="currentColor" strokeWidth="6.5" strokeLinecap="square" fill="none">
-        {/* O */}
-        <circle cx="21.5" cy="26" r="14.5" />
-        {/* K */}
-        <path d="M52 8.5v35M52 26.5 71.5 8.5M52 25.5 72.5 43.5" />
-        {/* U */}
-        <path d="M84 8.5v20.5a11.5 11.5 0 0 0 23 0V8.5" />
-        {/* N */}
-        <path d="M120 43.5v-35l24.5 35v-35" />
-      </g>
-      {/* Identity dot — upper right of the O. */}
-      <circle cx="36.5" cy="8.5" r="4.2" fill="currentColor" />
-    </svg>
-  );
-}
-
-/** "CRM" product lockup type — wide tracking, drawn to match the wordmark. */
+/** Produktschriftzug „CRM" — Teil des Logos, nicht einzeln im Markenpaket. */
 export function CrmWordmark({ className, title = "CRM" }: MarkProps) {
   return (
-    <svg viewBox="0 0 150 40" className={className} role="img" aria-label={title} fill="none">
-      <g stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        {/* C */}
-        <path d="M33 11.5a13.5 13.5 0 1 0 0 17" />
-        {/* R */}
-        <path d="M60 36V6h11a8.5 8.5 0 0 1 0 17H60M70.5 23 82 36" />
-        {/* M */}
-        <path d="M100 36V6l12.5 18L125 6v30" />
-      </g>
-    </svg>
+    <span className={cn("text-2xs font-semibold uppercase tracking-[0.35em]", className)} aria-label={title}>
+      CRM
+    </span>
   );
 }
 
-/** "Powered by OKUN Software" endorsement, used in brand moments. */
+/**
+ * Endorsement „Powered by OKUN Software".
+ *
+ * `tone="inverse"` steht auf dunklen Flächen: Dort liegt das Originallogo auf
+ * einer hellen Platte, weil es keine helle Fassung gibt. Die Größe ist so
+ * gewählt, dass „OKUN SOFTWARE" lesbar bleibt — kleiner wäre das Zeichen nur
+ * noch Dekoration.
+ */
 export function PoweredByOkunSoftware({
   className,
   tone = "muted",
@@ -146,54 +96,54 @@ export function PoweredByOkunSoftware({
   tone?: "muted" | "inverse";
 }) {
   const label = tone === "inverse" ? "text-white/55" : "text-[color:var(--text-muted)]";
-  const mark = tone === "inverse" ? "text-white/80" : "text-[color:var(--color-okun-850)]";
+
   return (
-    <div className={`flex items-center gap-2 ${className ?? ""}`}>
-      <span className={`text-2xs font-medium tracking-wide ${label}`}>Powered by</span>
-      <span className={`flex items-baseline gap-1.5 ${mark}`}>
-        <OkunWordmark className="h-3 w-auto" title="OKUN Software" />
-        <span className="text-2xs font-semibold tracking-[0.28em] uppercase opacity-70">Software</span>
+    <div className={cn("flex items-center gap-2", className)}>
+      <span className={cn("shrink-0 text-2xs font-medium tracking-wide", label)}>Powered by</span>
+      <span className={cn("inline-flex items-center", tone === "inverse" ? "rounded-md bg-white px-2 py-1.5" : "")}>
+        <OkunWordmark className={tone === "inverse" ? "h-6" : "h-7"} />
       </span>
     </div>
   );
 }
 
-/** Full product lockup used in the sidebar, login and brand surfaces. */
+/**
+ * Vollständiges Produktlogo.
+ *
+ * Eine vertikale Fassung gibt es im Markenpaket nicht und wird hier nicht
+ * konstruiert; `compact` zeigt deshalb das Bildzeichen allein.
+ */
 export function OkunCrmLogo({
   className,
   variant = "horizontal",
-  tone = "default",
+  tone = "inverse",
 }: {
   className?: string;
-  variant?: "horizontal" | "vertical" | "compact";
+  variant?: "horizontal" | "compact";
   tone?: "default" | "inverse";
 }) {
-  const wordTone = tone === "inverse" ? "text-white" : "text-[color:var(--color-okun-950)]";
-  const crmTone = tone === "inverse" ? "text-accent-400" : "text-brand-500";
-
   if (variant === "compact") {
     return <OkunCrmIcon className={className} />;
   }
 
-  if (variant === "vertical") {
-    return (
-      <div className={`flex flex-col items-center gap-3 ${className ?? ""}`}>
-        <OkunCrmIcon className="h-14 w-14" />
-        <div className="flex flex-col items-center gap-1">
-          <OkunWordmark className={`h-6 w-auto ${wordTone}`} title="OKUN CRM" />
-          <CrmWordmark className={`h-3 w-auto ${crmTone}`} />
-        </div>
-      </div>
-    );
-  }
+  const logo = (
+    <Image
+      src="/brand/okun-crm/logo-horizontal-inverse-plain.png"
+      alt="OKUN CRM"
+      width={1524}
+      height={437}
+      priority
+      className={cn("h-10 w-auto object-contain", tone === "inverse" && className)}
+    />
+  );
 
+  if (tone === "inverse") return logo;
+
+  // Auf hellen Flächen fehlt eine Datei mit dunkler Wortmarke. Statt das
+  // Zeichen umzufärben, steht das Original auf einer dunklen Platte.
   return (
-    <div className={`flex items-center gap-3 ${className ?? ""}`}>
-      <OkunCrmIcon className="h-9 w-9 shrink-0" />
-      <div className="flex flex-col justify-center gap-0.5">
-        <OkunWordmark className={`h-[18px] w-auto ${wordTone}`} title="OKUN CRM" />
-        <CrmWordmark className={`h-[9px] w-auto ${crmTone}`} />
-      </div>
-    </div>
+    <span className={cn("inline-flex items-center rounded-lg bg-[color:var(--color-okun-950)] px-3 py-2", className)}>
+      {logo}
+    </span>
   );
 }
