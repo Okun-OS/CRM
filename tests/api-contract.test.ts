@@ -126,3 +126,38 @@ describe("Rate Limiting für Anmeldungen", () => {
     expect(() => assertUnderRateLimit(rule)).not.toThrow();
   });
 });
+
+describe("Origin-Prüfung schreibender Anfragen", async () => {
+  const { assertSameOrigin } = await import("@/lib/api/route");
+
+  function request(headers: Record<string, string>, url = "https://crm.example.com/api/v1/contacts") {
+    return {
+      headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+      nextUrl: new URL(url),
+    } as unknown as Parameters<typeof assertSameOrigin>[0];
+  }
+
+  it("lässt eine Anfrage von derselben Adresse durch", () => {
+    expect(() =>
+      assertSameOrigin(request({ origin: "https://crm.example.com", host: "crm.example.com" })),
+    ).not.toThrow();
+  });
+
+  it("weist eine fremde Herkunft ab", () => {
+    expect(() => assertSameOrigin(request({ origin: "https://boeswillig.test", host: "crm.example.com" }))).toThrow(
+      /fremden Herkunft/,
+    );
+  });
+
+  it("überlebt eine falsch gesetzte APP_URL", () => {
+    // APP_URL zeigt in den Tests nicht auf crm.example.com. Früher hätte das
+    // jede schreibende Anfrage blockiert; jetzt entscheidet der Host-Header.
+    expect(() =>
+      assertSameOrigin(request({ origin: "https://andere-domain.test", host: "andere-domain.test" })),
+    ).not.toThrow();
+  });
+
+  it("prüft nur, wenn der Browser eine Herkunft mitschickt", () => {
+    expect(() => assertSameOrigin(request({ host: "crm.example.com" }))).not.toThrow();
+  });
+});

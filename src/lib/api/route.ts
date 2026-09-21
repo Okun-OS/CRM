@@ -10,7 +10,7 @@ import { env, trustProxy } from "@/lib/env";
 import { CSRF_COOKIE, getActor } from "@/lib/auth/session";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import type { Permission } from "@/lib/rbac";
-import { logError } from "@/lib/logger";
+import { logError, logWarn } from "@/lib/logger";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const CSRF_HEADER = "x-okun-csrf";
@@ -90,16 +90,23 @@ export function route<P = Record<string, string>>(
  * Requests without an Origin header (server-to-server API clients) are allowed
  * through — those carry no ambient cookies to abuse.
  */
+/**
+ * Origin-Prüfung für schreibende Anfragen.
+ *
+ * Maßgeblich ist, ob die Herkunft der Anfrage zu der Adresse passt, unter der
+ * diese Anwendung gerade läuft. Der `Host`-Header ist dafür die verlässlichste
+ * Quelle: Ein Browser setzt ihn auf das Ziel, eine fremde Seite kann ihn nicht
+ * fälschen — bei einem Angriff von außen steht dort also unsere Adresse und in
+ * `Origin` die fremde, und genau das fällt auf.
+ *
+ * `APP_URL` gilt zusätzlich, ist aber bewusst nicht die einzige Quelle: Eine
+ * vergessene oder veraltete APP_URL soll nicht jede schreibende Anfrage der
+ * gesamten Anwendung blockieren. Hinter einem Reverse Proxy zählt außerdem
+ * `X-Forwarded-Host` — aber nur, wenn dem Proxy ausdrücklich vertraut wird.
+ */
 export function assertSameOrigin(req: NextRequest): void {
   const origin = req.headers.get("origin");
   if (!origin) return;
-
-  let expected: string;
-  try {
-    expected = new URL(env().APP_URL).host;
-  } catch {
-    return;
-  }
 
   let actual: string;
   try {
@@ -108,8 +115,28 @@ export function assertSameOrigin(req: NextRequest): void {
     throw Forbidden("Ungültiger Origin-Header.");
   }
 
-  if (actual !== expected && actual !== req.nextUrl.host) {
-    throw Forbidden("Anfragen von einer fremden Herkunft werden abgelehnt.");
+  const allowed = new Set<string>([req.nextUrl.host]);
+
+  const host = req.headers.get("host");
+  if (host) allowed.add(host);
+
+  try {
+    allowed.add(new URL(env().APP_URL).host);
+  } catch {
+    // Unbrauchbare APP_URL: Die übrigen Quellen entscheiden weiterhin.
+  }
+
+  if (trustProxy()) {
+    const forwarded = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    if (forwarded) allowed.add(forwarded);
+  }
+
+  if (!allowed.has(actual)) {
+    // Ohne diese Zeile ist eine Fehlkonfiguration von außen nicht zu erkennen.
+    logWarn("security.origin_rejected", { origin: actual, allowed: Array.from(allowed) });
+    throw Forbidden(
+      "Anfragen von einer fremden Herkunft werden abgelehnt. Prüfen Sie, ob APP_URL zur aufgerufenen Adresse passt.",
+    );
   }
 }
 
