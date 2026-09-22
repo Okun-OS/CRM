@@ -27,8 +27,10 @@ export const BRAND = {
     logoHorizontalInverseWithClaim: "/brand/okun-crm/logo-horizontal-inverse.png",
     logoOnBlack: "/brand/okun-crm/logo-on-black.png",
     vendorIcon: "/brand/okun-software/icon.png",
-    vendorLogo: "/brand/okun-software/logo-plain.png",
-    vendorLogoWithClaim: "/brand/okun-software/logo.png",
+    vendorLogo: "/brand/okun-software/logo-cutout-plain.png",
+    vendorLogoInverse: "/brand/okun-software/logo-inverse-plain.png",
+    vendorLogoOnWhite: "/brand/okun-software/logo-plain.png",
+    vendorLogoWithClaim: "/brand/okun-software/logo-cutout.png",
   },
   colors: {
     primaryDark: "#0D1117",

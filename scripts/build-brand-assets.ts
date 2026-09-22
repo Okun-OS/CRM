@@ -62,6 +62,20 @@ const CLAIM_CUTS: ClaimCut[] = [
     fromY: 370,
     fill: "white",
   },
+  {
+    source: "public/brand/okun-software/logo-cutout.png",
+    target: "public/brand/okun-software/logo-cutout-plain.png",
+    fromX: 640,
+    fromY: 555,
+    fill: "transparent",
+  },
+  {
+    source: "public/brand/okun-software/logo-inverse.png",
+    target: "public/brand/okun-software/logo-inverse-plain.png",
+    fromX: 620,
+    fromY: 575,
+    fill: "transparent",
+  },
 ];
 
 async function buildIconSizes(sharp: typeof import("sharp").default) {

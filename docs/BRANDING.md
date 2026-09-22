@@ -85,6 +85,10 @@ public/brand/okun-software/
   icon.png                          Unternehmenszeichen, transparent
   logo.png                          Logo mit Claim, weißer Grund
   logo-plain.png                    dasselbe ohne Claim
+  logo-cutout.png                   freigestellt, dunkle Tinte
+  logo-cutout-plain.png             dasselbe ohne Claim → helle Flächen
+  logo-inverse.png                  freigestellt, helle Tinte
+  logo-inverse-plain.png            dasselbe ohne Claim → dunkle Flächen
 ```
 
 `src/components/brand/marks.tsx` entscheidet nur noch, welche Datei in welcher
@@ -103,19 +107,22 @@ stehen. In der Navigation (56 px Leiste) und auf der Anmeldeseite wären das
 1–3 px — ein grauer Streifen. Der Claim steht dort stattdessen als echter Text
 (`BRAND.tagline`) und ist dadurch lesbar, auswählbar und übersetzbar.
 
-> **Zwei Fassungen fehlen im Markenpaket** und werden bewusst **nicht**
-> ersatzweise erzeugt:
->
-> 1. ein CRM-Logo mit **dunkler** Wortmarke für helle Flächen,
-> 2. ein Logo von **OKUN Software für dunkle Flächen**.
->
-> Bis sie vorliegen, steht das jeweilige Original auf einer Platte in der
-> Gegenfarbe — sichtbar beabsichtigt. Das Endorsement „Powered by OKUN
-> Software" liegt deshalb auf der dunklen Navigation auf einer weißen Platte.
-> Die Alternative wäre, ein fremdes Markenzeichen umzufärben; das passiert
-> hier nicht. Sobald die Dateien vorliegen, genügt es, sie in
-> `public/brand/` abzulegen und die Pfade in `src/lib/brand/config.ts` zu
-> setzen — die Platte entfällt dann in `marks.tsx`.
+Von OKUN Software liegen beide Untergründe vor: `logo-cutout` mit dunkler
+Tinte für helle Flächen, `logo-inverse` mit heller Tinte für dunkle. Das
+Endorsement „Powered by OKUN Software" steht deshalb überall frei — keine
+Platte, kein Rahmen.
+
+Freigestellt allein genügt dafür nicht: Die Datei mit dunkler Tinte hat zwar
+keinen weißen Grund mehr, verschwindet auf `--color-okun-950` (#0D1117) aber
+trotzdem — Kontrast rund 1,1:1. Deshalb zwei Dateien statt einer.
+
+> **Eine Fassung fehlt noch** und wird bewusst **nicht** ersatzweise erzeugt:
+> ein **CRM-Logo mit dunkler Wortmarke** für helle Flächen. Bis es vorliegt,
+> steht das Original dort auf einer dunklen Platte — sichtbar beabsichtigt.
+> Die Alternative wäre, ein Markenzeichen umzufärben; das passiert hier nicht.
+> Sobald die Datei vorliegt, genügt es, sie in `public/brand/` abzulegen und
+> den Pfad in `src/lib/brand/config.ts` zu setzen — die Platte entfällt dann
+> in `marks.tsx`.
 
 ## 5. Marke in der Oberfläche
 

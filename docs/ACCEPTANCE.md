@@ -60,8 +60,8 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 | 31 | Mobile/Tablet | VERIFIZIERT | E2E 13: 390 px (Liste, Aufgaben, Navigationsmenü) und 820 px (Detailseite, Pipeline) |
 | 32 | Fehlerzustände | VERIFIZIERT | E2E 12 (falsche Anmeldung, Feldvalidierung); Tests zu Fehlerhülle, Validierungsdetails und neutraler 500-Meldung |
 | 33 | Branding | VERIFIZIERT | E2E 1 prüft das Endorsement in der Navigation; visuelle Prüfung von Login, Dashboard, Listen, Detail, Pipeline, Reports |
-| 34 | OKUN CRM Logo | VERIFIZIERT (mit Hinweis) | Es werden ausschließlich die Originaldateien des Markenpakets verwendet (`public/brand/original/` unverändert); abgeleitet wird nur durch Verkleinern und Freistellen des eingebrannten Claims. **Hinweis:** Im Paket fehlen ein CRM-Logo mit dunkler Wortmarke für helle Flächen und ein Logo von OKUN Software für dunkle Flächen. Beide werden nicht ersatzweise erzeugt; die Originale stehen dort auf einer Platte in der Gegenfarbe (siehe docs/BRANDING.md) |
-| 35 | „Powered by OKUN Software" | VERIFIZIERT | E2E 1; sichtbar in Login, Sidebar-Footer, Einstellungen und Betreiberverwaltung — mit dem Originallogo von OKUN Software, nicht als nachgesetzter Text |
+| 34 | OKUN CRM Logo | VERIFIZIERT (mit Hinweis) | Es werden ausschließlich die Originaldateien des Markenpakets verwendet (`public/brand/original/` unverändert); abgeleitet wird nur durch Verkleinern und Freistellen des eingebrannten Claims. **Hinweis:** Es fehlt noch ein CRM-Logo mit dunkler Wortmarke für helle Flächen; es wird nicht ersatzweise erzeugt, das Original steht dort auf einer dunklen Platte (siehe docs/BRANDING.md) |
+| 35 | „Powered by OKUN Software" | VERIFIZIERT | E2E 1; sichtbar in Login, Sidebar-Footer, Einstellungen und Betreiberverwaltung — mit dem Originallogo von OKUN Software, freigestellt und ohne Platte — je Untergrund die passende Originaldatei |
 
 ## Abnahme des aktiven CRM
 
