@@ -20,6 +20,25 @@ describe("API-Vertrag", () => {
     expect(body.error).toMatchObject({ code: "NOT_FOUND", message: "Nicht gefunden" });
   });
 
+  it("bildet einen Zod-Fehler auf 422 mit Feldnamen ab", async () => {
+    const parsed = z.object({ organizationName: z.string() }).safeParse({});
+    const response = toErrorResponse(parsed.success ? new Error("unerwartet") : parsed.error);
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    expect(Object.keys(body.error.details.fields)).toContain("organizationName");
+  });
+
+  it("meldet ein ungültiges Datum auf Deutsch", async () => {
+    const parsed = dealInputSchema.safeParse({
+      name: "Probe", pipelineId: "p1", stageId: "s1", amount: 10, expectedCloseDate: "kein Datum",
+    });
+    expect(parsed.success).toBe(false);
+    const response = toErrorResponse(parsed.success ? new Error("unerwartet") : parsed.error);
+    const body = await response.json();
+    expect(body.error.details.fields.expectedCloseDate).toBe("Bitte ein gültiges Datum angeben.");
+  });
+
   it("gibt Validierungsfehler feldbezogen zurück", async () => {
     const parsed = z.object({ email: z.string().email() }).safeParse({ email: "keine-mail" });
     const response = toErrorResponse(parsed.success ? new Error("unerwartet") : parsed.error);

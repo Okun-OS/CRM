@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dateValue } from "@/lib/schemas/crm";
 import type { NextActionType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { assertPermission, can, type ActorContext } from "@/lib/context";
@@ -31,7 +32,7 @@ export const manualNextActionSchema = z.object({
   ]),
   title: z.string().trim().min(1, "Titel ist erforderlich.").max(160),
   reason: z.string().trim().min(1, "Eine Begründung ist erforderlich.").max(500),
-  dueAt: z.coerce.date().nullable().optional(),
+  dueAt: dateValue.nullable().optional(),
   priority: z.coerce.number().int().min(0).max(100).default(PRIORITY.NORMAL),
   ownerId: z.string().max(30).nullable().optional(),
 });

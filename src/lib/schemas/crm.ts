@@ -43,10 +43,42 @@ export const optionalUrl = z
   .nullish()
   .transform((value) => (value ? value : null));
 
+/**
+ * Ein Datumsfeld mit einer Meldung, die man einem Menschen zeigen kann.
+ *
+ * `z.coerce.date()` macht aus einer unbrauchbaren Eingabe erst ein „Invalid
+ * Date" und meldet dann „expected date, received Date" — englischer
+ * Bibliothekstext in einer deutschen Oberfläche. Deshalb wird hier selbst
+ * umgewandelt und geprüft.
+ */
+export const dateValue = z
+  .union([z.string(), z.number(), z.date()])
+  .transform((value, ctx) => {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      ctx.addIssue({ code: "custom", message: "Bitte ein gültiges Datum angeben." });
+      return z.NEVER;
+    }
+    return date;
+  });
+
+/**
+ * Dasselbe für optionale Felder — bewusst nicht als Union mit `dateValue`
+ * gebaut: Schlägt jeder Zweig einer Union fehl, meldet zod nur „Invalid input"
+ * und die eigentliche Begründung verschwindet in der Verschachtelung.
+ */
 const optionalDate = z
-  .union([z.coerce.date(), z.literal(""), z.null()])
-  .nullish()
-  .transform((value) => (value === "" || value === null ? null : value));
+  .union([z.string(), z.number(), z.date(), z.null()])
+  .optional()
+  .transform((value, ctx) => {
+    if (value === "" || value === null || value === undefined) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      ctx.addIssue({ code: "custom", message: "Bitte ein gültiges Datum angeben." });
+      return z.NEVER;
+    }
+    return date;
+  });
 
 export const propertiesInput = z.record(z.string().max(48), z.unknown()).optional();
 
@@ -166,7 +198,7 @@ export const activityInputSchema = z.object({
   direction: z.enum(["INBOUND", "OUTBOUND"]).optional(),
   outcome: optionalString(120),
   durationMinutes: optionalNumber(0, 24 * 60),
-  occurredAt: z.coerce.date().optional(),
+  occurredAt: dateValue.optional(),
   contactId: optionalString(30),
   companyId: optionalString(30),
   dealId: optionalString(30),
@@ -185,8 +217,8 @@ export const meetingInputSchema = z
   .object({
     title: z.string().trim().min(1, "Titel ist erforderlich.").max(200),
     description: optionalString(5000),
-    startAt: z.coerce.date(),
-    endAt: z.coerce.date(),
+    startAt: dateValue,
+    endAt: dateValue,
     location: optionalString(200),
     meetingUrl: optionalUrl,
     status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED"]).default("SCHEDULED"),
@@ -205,8 +237,8 @@ export const meetingInputSchema = z
 export const meetingUpdateSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   description: optionalString(5000),
-  startAt: z.coerce.date().optional(),
-  endAt: z.coerce.date().optional(),
+  startAt: dateValue.optional(),
+  endAt: dateValue.optional(),
   location: optionalString(200),
   meetingUrl: optionalUrl,
   status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED"]).optional(),

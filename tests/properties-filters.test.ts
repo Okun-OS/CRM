@@ -122,6 +122,36 @@ describe("Eigene Eigenschaften", () => {
       createDefinition(ctx, { objectType: "DEAL", key: "kategorie", label: "Kategorie", type: "SELECT", isRequired: false }),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
   });
+
+  it("lässt ein Auswahlfeld ändern, ohne die Optionen erneut zu senden", async () => {
+    const { ctx } = await createTestOrganization();
+    const definition = await createDefinition(ctx, {
+      objectType: "CONTACT",
+      key: "betreuungsstufe",
+      label: "Betreuungsstufe",
+      type: "SELECT",
+      isRequired: false,
+      options: [
+        { value: "basis", label: "Basis" },
+        { value: "key_account", label: "Key Account" },
+      ],
+    });
+
+    // Ein Teil-Update ohne `options` darf nicht daran scheitern, dass es die
+    // vorhandenen Optionen nicht mitschickt — und es darf sie nicht löschen.
+    const renamed = await updateDefinition(ctx, definition.id, { label: "Betreuungsstufe (intern)", isRequired: false });
+    expect(renamed.label).toBe("Betreuungsstufe (intern)");
+    expect(renamed.options.map((option) => option.value)).toEqual(["basis", "key_account"]);
+
+    const archived = await updateDefinition(ctx, definition.id, { label: renamed.label, isRequired: false, isArchived: true });
+    expect(archived.isArchived).toBe(true);
+    expect(archived.options).toHaveLength(2);
+
+    // Ausdrücklich leere Optionen bleiben ein Fehler.
+    await expect(
+      updateDefinition(ctx, definition.id, { label: renamed.label, isRequired: false, options: [] }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
 });
 
 describe("Filter-Engine", () => {

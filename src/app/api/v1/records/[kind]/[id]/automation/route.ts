@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dateValue } from "@/lib/schemas/crm";
 import { route, readBody } from "@/lib/api/route";
 import {
   cancelRecordAutomation,
@@ -9,7 +10,7 @@ import {
 import { parseRecordRef } from "@/lib/api/record-ref";
 
 const actionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("pause"), until: z.coerce.date(), reason: z.string().trim().min(1).max(300) }),
+  z.object({ action: z.literal("pause"), until: dateValue, reason: z.string().trim().min(1).max(300) }),
   z.object({ action: z.literal("resume") }),
   z.object({ action: z.literal("cancel"), automationId: z.string().min(1).max(30), reason: z.string().trim().max(300).default("") }),
 ]);

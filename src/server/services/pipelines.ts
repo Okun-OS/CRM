@@ -129,7 +129,18 @@ export async function updatePipeline(ctx: ActorContext, id: string, input: z.inp
     "Die Pipeline wurde nicht gefunden.",
   );
 
-  const keptIds = new Set(data.stages.map((stage) => stage.id).filter(Boolean) as string[]);
+  // Eine übergebene Stage wird über ihre id erkannt und, wenn keine mitkommt,
+  // über ihren Schlüssel — der ist je Pipeline eindeutig. Ohne den zweiten Weg
+  // gälte ein Aufruf ohne ids als „alle Stages entfernt, alle neu angelegt",
+  // und das Neuanlegen scheitert dann an genau dieser Eindeutigkeit.
+  const byId = new Map(pipeline.stages.map((stage) => [stage.id, stage]));
+  const byKey = new Map(pipeline.stages.map((stage) => [stage.key, stage]));
+  const matched = data.stages.map((stage) => ({
+    stage,
+    existing: (stage.id ? byId.get(stage.id) : undefined) ?? byKey.get(stage.key),
+  }));
+
+  const keptIds = new Set(matched.map((entry) => entry.existing?.id).filter(Boolean) as string[]);
   const removed = pipeline.stages.filter((stage) => !keptIds.has(stage.id));
 
   if (removed.length > 0) {
@@ -149,10 +160,16 @@ export async function updatePipeline(ctx: ActorContext, id: string, input: z.inp
       data: { name: data.name, isDefault: data.isDefault },
     });
 
-    for (const [index, stage] of data.stages.entries()) {
-      if (stage.id && pipeline.stages.some((existing) => existing.id === stage.id)) {
+    // Erst entfernen, dann schreiben: Sonst kollidiert eine Stage, die den
+    // Schlüssel einer gerade entfernten übernimmt, mit deren Eindeutigkeit.
+    if (removed.length > 0) {
+      await tx.pipelineStage.deleteMany({ where: { id: { in: removed.map((stage) => stage.id) } } });
+    }
+
+    for (const [index, { stage, existing }] of matched.entries()) {
+      if (existing) {
         await tx.pipelineStage.update({
-          where: { id: stage.id },
+          where: { id: existing.id },
           data: { key: stage.key, name: stage.name, position: index, probability: stage.probability, type: stage.type },
         });
       } else {
@@ -168,10 +185,6 @@ export async function updatePipeline(ctx: ActorContext, id: string, input: z.inp
           },
         });
       }
-    }
-
-    if (removed.length > 0) {
-      await tx.pipelineStage.deleteMany({ where: { id: { in: removed.map((stage) => stage.id) } } });
     }
   });
 

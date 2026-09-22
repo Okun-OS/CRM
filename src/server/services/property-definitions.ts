@@ -90,7 +90,11 @@ export async function updateDefinition(ctx: ActorContext, id: string, input: z.i
     "Die Eigenschaft wurde nicht gefunden.",
   );
   if (existing.isSystem) throw ValidationError("Systemeigenschaften können nicht verändert werden.");
-  assertOptionsMatchType(existing.type, data.options);
+  // Ein Teil-Update darf die Optionen weglassen. Geprüft wird deshalb der
+  // Stand, der nach dem Schreiben gilt — sonst liesse sich ein Auswahlfeld
+  // weder umbenennen noch archivieren, ohne die ganze Optionsliste erneut zu
+  // schicken.
+  assertOptionsMatchType(existing.type, data.options ?? mapDefinition(existing).options);
 
   const definition = await prisma.propertyDefinition.update({
     where: { id: existing.id },

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dateValue } from "@/lib/schemas/crm";
 import { prisma } from "@/lib/db";
 import { assertPermission, buildContext, type ActorContext } from "@/lib/context";
 import { scope, assertFound } from "@/lib/tenant";
@@ -20,7 +21,7 @@ const PREFIX = "okun_ck";
 export const apiKeyInputSchema = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich.").max(80),
   scopes: z.array(z.enum(API_KEY_SCOPES)).min(1, "Mindestens ein Scope ist erforderlich."),
-  expiresAt: z.coerce.date().nullable().optional(),
+  expiresAt: dateValue.nullable().optional(),
 });
 
 export async function listApiKeys(ctx: ActorContext) {

@@ -1,13 +1,12 @@
 import "server-only";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { AppError, Forbidden, Unauthenticated } from "./errors";
+import { Forbidden, Unauthenticated } from "./errors";
 import { serialize } from "./json";
 import { consumeRateLimit } from "./rate-limit";
-import { assertCsrf, assertSameOrigin } from "./route";
+import { assertCsrf, assertSameOrigin, toErrorResponse } from "./route";
 import { getPlatformActor } from "@/lib/auth/session";
 import type { PlatformActor } from "@/lib/platform";
-import { logError } from "@/lib/logger";
 
 /**
  * Route-Hülle der Betreiber-Ebene.
@@ -52,17 +51,10 @@ export function platformRoute<P = Record<string, string>>(
       if (result === undefined) return new NextResponse(null, { status: 204 });
       return NextResponse.json(serialize({ data: result }) as object);
     } catch (error) {
-      if (error instanceof AppError) {
-        return NextResponse.json(
-          { error: { code: error.code, message: error.message, details: error.details } },
-          { status: error.status },
-        );
-      }
-      logError("platform_route.failed", error, { path: new URL(req.url).pathname });
-      return NextResponse.json(
-        { error: { code: "INTERNAL_ERROR", message: "Es ist ein unerwarteter Fehler aufgetreten." } },
-        { status: 500 },
-      );
+      // Dieselbe Fehlerabbildung wie im Mandanten-API: Eine eigene Kopie hier
+      // hatte den Validierungsfall nicht abgedeckt, sodass eine unvollständige
+      // Eingabe als Serverfehler zurückkam statt als 422 mit Feldhinweisen.
+      return toErrorResponse(error, req);
     }
   };
 }
