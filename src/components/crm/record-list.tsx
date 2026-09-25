@@ -224,7 +224,7 @@ export function RecordList(props: RecordListProps) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[14rem] flex-1">
+        <div className="relative min-w-[14rem] flex-1" data-tour="list-search">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
           <Input
             value={search}
@@ -244,6 +244,7 @@ export function RecordList(props: RecordListProps) {
             <Button
               variant={activeFilterCount > 0 ? "outline" : "secondary"}
               icon={<FilterIcon className="h-4 w-4" />}
+              data-tour="list-filter"
             >
               Filter
               {activeFilterCount > 0 ? (
@@ -268,7 +269,7 @@ export function RecordList(props: RecordListProps) {
 
         <Dropdown
           trigger={
-            <Button variant="secondary" icon={<Bookmark className="h-4 w-4" />}>
+            <Button variant="secondary" icon={<Bookmark className="h-4 w-4" />} data-tour="list-views">
               {activeView ? views.find((view) => view.id === activeView)?.name ?? "Ansicht" : "Ansichten"}
             </Button>
           }
@@ -364,13 +365,13 @@ export function RecordList(props: RecordListProps) {
         {extraActions}
 
         {canExport ? (
-          <Button variant="secondary" icon={<Download className="h-4 w-4" />} onClick={exportCsv}>
+          <Button variant="secondary" icon={<Download className="h-4 w-4" />} onClick={exportCsv} data-tour="list-export">
             <span className="hidden sm:inline">Export</span>
           </Button>
         ) : null}
 
         {canCreate ? (
-          <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
+          <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)} data-tour="list-create">
             {createLabel}
           </Button>
         ) : null}
@@ -392,7 +393,7 @@ export function RecordList(props: RecordListProps) {
         </div>
       ) : null}
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden" data-tour="list-table">
         {loading && !result ? (
           <SkeletonTable />
         ) : error ? (

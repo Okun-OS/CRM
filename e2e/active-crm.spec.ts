@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { dismissTour } from "./helpers";
 
 /**
  * The Active CRM promise, driven through the real UI: a deal always shows what
@@ -18,6 +19,7 @@ async function login(page: Page) {
   await page.fill("#password", PASSWORD);
   await page.getByRole("button", { name: "Anmelden" }).click();
   await page.waitForURL("**/dashboard");
+  await dismissTour(page);
 }
 
 async function openDeal(page: Page) {
@@ -34,6 +36,7 @@ test("1 · Organisation und Deal anlegen", async ({ page }) => {
   await page.fill("#password", PASSWORD);
   await page.getByRole("button", { name: "Organisation anlegen" }).click();
   await page.waitForURL("**/dashboard");
+  await dismissTour(page);
 
   await page.goto("/deals");
   await page.getByRole("button", { name: "Deal erstellen" }).first().click();

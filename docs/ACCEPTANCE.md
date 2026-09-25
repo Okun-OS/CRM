@@ -63,6 +63,18 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 | 34 | OKUN CRM Logo | VERIFIZIERT (mit Hinweis) | Es werden ausschließlich die Originaldateien des Markenpakets verwendet (`public/brand/original/` unverändert); abgeleitet wird nur durch Verkleinern und Freistellen des eingebrannten Claims. **Hinweis:** Es fehlt noch ein CRM-Logo mit dunkler Wortmarke für helle Flächen; es wird nicht ersatzweise erzeugt, das Original steht dort auf einer dunklen Platte (siehe docs/BRANDING.md) |
 | 35 | „Powered by OKUN Software" | VERIFIZIERT | E2E 1; sichtbar in Login, Sidebar-Footer, Einstellungen und Betreiberverwaltung — mit dem Originallogo von OKUN Software, freigestellt und ohne Platte — je Untergrund die passende Originaldatei |
 
+### Produkttour
+
+| # | Anforderung | Stand | Nachweis |
+| --- | --- | --- | --- |
+| T1 | Einführung für jedes neue Konto | VERIFIZIERT | E2E Tour 1; startet selbsttätig, solange `tourSeenVersion` unter der ausgelieferten Fassung liegt |
+| T2 | Echte Bedienelemente statt Nachbildungen | VERIFIZIERT | E2E Tour 2 prüft über `document.elementFromPoint`, dass das freigestellte Element erreichbar ist |
+| T3 | Schritte warten auf die echte Handlung | VERIFIZIERT | E2E Tour 2: wartender Schritt bietet kein „Weiter“; der Klick öffnet wirklich das Formular |
+| T4 | Hält niemanden fest | VERIFIZIERT | E2E Tour 3: Seitenwechsel pausiert die Tour ohne Abdunklung |
+| T5 | Abbrechbar, ohne sich erneut aufzudrängen | VERIFIZIERT | E2E Tour 4 |
+| T6 | Jederzeit neu startbar | VERIFIZIERT | E2E Tour 5 über das Benutzermenü |
+| T7 | Zustand am Menschen, nicht an der Organisation | VERIFIZIERT | tests/tour.test.ts |
+
 ## Abnahme des aktiven CRM
 
 Die Ergänzung zum Master-Prompt gibt eine Reihenfolge vor: zuerst die

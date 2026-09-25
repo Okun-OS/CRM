@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { dismissTour } from "./helpers";
 
 /**
  * The core journey a new customer walks through on day one: register the
@@ -18,6 +19,7 @@ async function login(page: Page) {
   await page.fill("#password", PASSWORD);
   await page.getByRole("button", { name: "Anmelden" }).click();
   await page.waitForURL("**/dashboard");
+  await dismissTour(page);
 }
 
 test("1 · Organisation registrieren und Dashboard sehen", async ({ page }) => {
@@ -30,6 +32,7 @@ test("1 · Organisation registrieren und Dashboard sehen", async ({ page }) => {
   await page.getByRole("button", { name: "Organisation anlegen" }).click();
 
   await page.waitForURL("**/dashboard");
+  await dismissTour(page);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("E2E");
 
   // Branding is present in the shell, not only on the login screen.

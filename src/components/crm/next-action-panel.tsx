@@ -195,7 +195,7 @@ export function NextActionPanel({
   const settled = data.automations.filter((automation) => automation.status !== "PENDING").slice(0, 4);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-tour="next-action">
       <div
         className={cn(
           "overflow-hidden rounded-lg border bg-white",

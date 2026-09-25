@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { ReferenceProvider } from "./reference-provider";
+import { TourProvider } from "@/components/tour/tour-provider";
+import { TourOverlay } from "@/components/tour/tour-overlay";
 import type { Permission } from "@/lib/rbac";
 import type { Role } from "@/generated/prisma/enums";
 
@@ -57,6 +59,7 @@ export function AppShell({
 
   return (
     <ReferenceProvider>
+      <TourProvider permissions={permissions}>
       <div className="flex h-dvh overflow-hidden bg-[color:var(--surface-page)]">
         <div className="hidden lg:block">
           <Sidebar permissions={permissions} collapsed={collapsed} onToggle={toggle} />
@@ -91,6 +94,8 @@ export function AppShell({
           </main>
         </div>
       </div>
+      <TourOverlay />
+      </TourProvider>
     </ReferenceProvider>
   );
 }

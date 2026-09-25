@@ -127,6 +127,7 @@ export function Sidebar({
                       <Link
                         href={item.href}
                         onClick={onNavigate}
+                        data-tour={`nav${item.href.replace(/\//g, "-")}`}
                         title={collapsed ? item.label : undefined}
                         className={cn(
                           "group relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",

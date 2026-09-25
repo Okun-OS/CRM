@@ -83,6 +83,7 @@ export function Drawer({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        data-tour="drawer"
         className={cn(
           "flex h-full w-full flex-col bg-white shadow-overlay animate-okun-drawer",
           width === "lg" ? "max-w-2xl" : "max-w-lg",

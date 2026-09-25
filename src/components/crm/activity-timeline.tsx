@@ -48,7 +48,7 @@ export function ActivityTimeline({
   }
 
   return (
-    <ol className="relative space-y-0">
+    <ol className="relative space-y-0" data-tour="timeline">
       {items.map((item, index) => (
         <li key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
           {index < items.length - 1 ? (

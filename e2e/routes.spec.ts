@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { dismissTour } from "./helpers";
 
 /**
  * Smoke test over every screen of the product.
@@ -89,6 +90,7 @@ test("jede Seite rendert ohne Fehler", async ({ page }) => {
   await page.fill("#password", PASSWORD);
   await page.getByRole("button", { name: "Organisation anlegen" }).click();
   await page.waitForURL("**/dashboard");
+  await dismissTour(page);
 
   await createRecords(page);
 

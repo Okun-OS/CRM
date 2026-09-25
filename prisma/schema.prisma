@@ -362,6 +362,14 @@ model User {
   /// innerhalb einer Organisation: Sie erlaubt die Verwaltung von Mandanten,
   /// aber keinen Zugriff auf deren CRM-Daten.
   isPlatformAdmin   Boolean   @default(false)
+  /// Produkttour: Bis zu welcher Fassung der Einführung dieser Mensch sie
+  /// gesehen hat. Liegt die ausgelieferte Fassung höher, wird sie angeboten —
+  /// so lässt sich eine überarbeitete Tour erneut zeigen, ohne alle Konten
+  /// anzufassen. `tourProgress` merkt Kapitel und Schritt, damit ein
+  /// Seitenwechsel oder ein Neuladen die Tour nicht verwirft.
+  tourSeenVersion   Int       @default(0)
+  tourProgress      Json?
+  tourFinishedAt    DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?

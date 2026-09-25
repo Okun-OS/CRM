@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { dismissTour } from "./helpers";
 import { execFileSync } from "node:child_process";
 
 /**
@@ -51,6 +52,7 @@ test("1 · Ein gewöhnlicher Zugang sieht den Betreiberbereich nicht", async ({ 
   await page.fill("#password", PASSWORD);
   await page.getByRole("button", { name: "Organisation anlegen" }).click();
   await page.waitForURL("**/dashboard");
+  await dismissTour(page);
 
   // Kein Hinweis auf die Existenz des Bereichs: umgeleitet, nichts zu sehen.
   // (Die Anmeldeseite schickt eine bestehende Sitzung weiter aufs Dashboard,

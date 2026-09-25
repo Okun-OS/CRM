@@ -91,6 +91,7 @@ export function SettingsNav({ permissions }: { permissions: Permission[] }) {
                     <li key={item.href}>
                       <Link
                         href={item.href}
+                        data-tour={`settings-${item.href.split("/").pop()}`}
                         className={cn(
                           "flex items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm transition-colors",
                           active ? "bg-brand-50 font-medium text-brand-700" : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
