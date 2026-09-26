@@ -16,8 +16,12 @@ import type { ActorContext } from "@/lib/context";
  * Fassung der ausgelieferten Tour. Erhöhen, wenn die Tour so weit überarbeitet
  * wurde, dass sie auch erfahrenen Nutzern erneut angeboten werden soll — nicht
  * bei jeder Textkorrektur.
+ *
+ * 2 — Die Akquise ist dazugekommen: vier Kapitel über Prospects, Sequenzen und
+ *     die Grenzen des Versands. Wer die Tour in Fassung 1 gesehen hat, kennt
+ *     damit einen ganzen Bereich nicht und bekommt sie deshalb erneut angeboten.
  */
-export const TOUR_VERSION = 1;
+export const TOUR_VERSION = 2;
 
 export const tourProgressSchema = z.object({
   chapter: z.string().trim().min(1).max(60),

@@ -91,7 +91,13 @@ export function SendingView() {
           title="Versandkonten"
           description="Jedes Konto sendet nach eigenen Regeln: Tageslimit, Sendefenster und gestreute Abstände."
           action={
-            <Button size="sm" variant="primary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setEditing("new")}>
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() => setEditing("new")}
+              data-tour="sending-account-create"
+            >
               Konto einrichten
             </Button>
           }
@@ -160,7 +166,12 @@ export function SendingView() {
           title="Kontaktsperre"
           description="Adressen und Domains, an die nicht gesendet wird. Die Sperre überlebt den einzelnen Datensatz — auch einen erneuten Import."
           action={
-            <Button size="sm" icon={<Ban className="h-3.5 w-3.5" />} onClick={() => setAddingBlock(true)}>
+            <Button
+              size="sm"
+              icon={<Ban className="h-3.5 w-3.5" />}
+              onClick={() => setAddingBlock(true)}
+              data-tour="suppression-add"
+            >
               Sperre hinzufügen
             </Button>
           }

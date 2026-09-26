@@ -137,7 +137,11 @@ export function ProspectsView({ canWrite, canEnroll }: { canWrite: boolean; canE
 
         {canWrite ? (
           <>
-            <Button icon={<Upload className="h-4 w-4" />} onClick={() => setShowImport(true)}>
+            <Button
+              icon={<Upload className="h-4 w-4" />}
+              onClick={() => setShowImport(true)}
+              data-tour="prospect-import"
+            >
               Importieren
             </Button>
             <Button

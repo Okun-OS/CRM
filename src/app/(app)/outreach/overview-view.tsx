@@ -68,7 +68,7 @@ export function OverviewView() {
     <div className="space-y-5">
       {attention.length > 0 ? <AttentionPanel items={attention} /> : null}
 
-      <Card>
+      <Card data-tour="acquisition-funnel">
         <CardHeader
           title="Trichter"
           description="Die letzten 90 Tage. Jede Stufe zählt Prospects, die sie tatsächlich erreicht haben."
@@ -100,7 +100,7 @@ export function OverviewView() {
             </CardBody>
           </Card>
 
-          <Card>
+          <Card data-tour="acquisition-attribution">
             <CardHeader title="Herkunft" description="Woher die Prospects kamen — und was daraus wurde." />
             <CardBody className="p-0">
               {attribution.length === 0 ? (
@@ -129,7 +129,7 @@ export function OverviewView() {
 
 function AttentionPanel({ items }: { items: Attention[] }) {
   return (
-    <Card>
+    <Card data-tour="acquisition-attention">
       <CardHeader title="Braucht eine Entscheidung" description="Nicht was war — was liegen geblieben ist." />
       <CardBody className="p-0">
         <ul className="divide-y divide-ink-100">

@@ -28,7 +28,8 @@ export const TOUR_CHAPTERS: TourChapter[] = [
           "Hand, nicht nur zugesehen.",
         why:
           "Ein Rundgang, den man nur anschaut, ist nach zehn Minuten vergessen. Etwas, das man " +
-          "selbst getan hat, bleibt.",
+          "selbst getan hat, bleibt. Danach geht es weiter dorthin, wo neue Gespräche entstehen, " +
+          "und zu den Stellen, an denen das System selbst arbeitet.",
         advance: { on: "manual" },
         cta: "Los geht’s",
         offerLater: true,
@@ -132,6 +133,8 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         body: "Klicken Sie auf „Unternehmen erstellen“. Das Formular öffnet sich seitlich.",
         waitingFor: "Warte auf Ihren Klick auf „Unternehmen erstellen“",
         requires: "companies.write",
+        // Ist der Knopf nicht da, wartet die Tour nicht ewig, sondern geht weiter.
+        optional: true,
         advance: { on: "click" },
       },
       {
@@ -214,6 +217,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         body: "Klicken Sie auf „Kontakt erstellen“.",
         waitingFor: "Warte auf Ihren Klick auf „Kontakt erstellen“",
         requires: "contacts.write",
+        optional: true,
         advance: { on: "click" },
       },
       {
@@ -341,6 +345,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         body: "Name, Pipeline, Stage und Wert — mehr braucht es nicht zum Start.",
         waitingFor: "Warte auf Ihren Klick auf „Deal erstellen“",
         requires: "deals.write",
+        optional: true,
         advance: { on: "click" },
       },
       {
@@ -397,7 +402,234 @@ export const TOUR_CHAPTERS: TourChapter[] = [
     ],
   },
 
-  /* ── 7 Heute und Aufgaben ────────────────────────────────────────────── */
+  /* ── 7 Akquise ───────────────────────────────────────────────────────── */
+  {
+    id: "akquise",
+    title: "Akquise",
+    summary: "Woher neue Chancen kommen.",
+    route: "/outreach",
+    requires: "prospects.read",
+    steps: [
+      {
+        id: "was-ist-das",
+        title: "Bis hierhin ging es um Menschen, die Sie schon kennen",
+        body:
+          "Kontakte, Unternehmen, Chancen — das alles setzt voraus, dass jemand da ist. Dieser " +
+          "Bereich ist die andere Richtung: Wie kommen überhaupt neue Gespräche zustande?",
+        why:
+          "Deshalb steht die Akquise nicht als zweites Programm daneben, sondern als Abschnitt " +
+          "davor. Am Ende landet alles im selben CRM, das Sie gerade kennengelernt haben.",
+        advance: { on: "manual" },
+      },
+      {
+        id: "trichter",
+        target: '[data-tour="acquisition-funnel"]',
+        placement: "auto",
+        title: "Der Trichter zeigt, was wirklich übrig bleibt",
+        body:
+          "Alle Balken teilen eine gemeinsame Skala. Deshalb sehen Sie den Absturz von Stufe zu " +
+          "Stufe — und rechts die Übergangsquote in Prozent.",
+        why:
+          "Einzeln normierte Balken sehen nach gleichmäßigem Fortschritt aus, wo in Wahrheit neun " +
+          "Zehntel wegfallen. Am Ende des Trichters stehen Pipeline und Umsatz, nicht die Zahl " +
+          "verschickter E-Mails. Die Frage ist nicht „wie viele?“, sondern „was ist daraus geworden?“.",
+        advance: { on: "manual" },
+        optional: true,
+      },
+      {
+        id: "offene-punkte",
+        target: '[data-tour="acquisition-attention"]',
+        placement: "auto",
+        title: "Und was liegen geblieben ist",
+        body:
+          "Ungesichtete Antworten, Interessierte ohne Termin, pausierte Postfächer. Jeder Eintrag " +
+          "führt dorthin, wo er zu erledigen ist.",
+        why:
+          "Ein Bericht sagt, was war. Das hier sagt, was jetzt jemand tun muss — dieselbe Idee wie " +
+          "bei „Heute“, nur für die Akquise. Ist nichts offen, steht hier auch nichts.",
+        advance: { on: "manual" },
+        optional: true,
+      },
+    ],
+  },
+
+  /* ── 8 Prospects ─────────────────────────────────────────────────────── */
+  {
+    id: "akquise-prospects",
+    title: "Prospects",
+    summary: "Der Unterschied zum Kontakt.",
+    route: "/outreach/prospects",
+    requires: "prospects.read",
+    steps: [
+      {
+        id: "warum-getrennt",
+        target: '[data-tour="outreach-prospects"]',
+        placement: "bottom",
+        title: "Ein Prospect ist noch kein Kontakt",
+        body:
+          "Jemand, den Sie ansprechen möchten, aber der noch nie zugestimmt hat, steht hier — " +
+          "nicht zwischen Ihren Kontakten.",
+        why:
+          "Wenn kalte Adressen und echte Kundenbeziehungen in einer Liste liegen, ist nach einem " +
+          "halben Jahr niemandem mehr klar, woher eine Adresse kam und was mit ihr erlaubt ist. " +
+          "Erst die Übernahme ins CRM macht aus einem Prospect einen Kontakt.",
+        advance: { on: "manual" },
+        optional: true,
+      },
+      {
+        id: "anlegen",
+        target: '[data-tour="prospect-create"]',
+        placement: "left",
+        title: "Legen Sie einen an",
+        body: "Firmenname genügt. Alles andere kann später dazukommen.",
+        why:
+          "Ohne E-Mail-Adresse lässt sich ein Prospect recherchieren und qualifizieren, aber nicht " +
+          "ansprechen. Die Oberfläche sagt das offen, statt den Knopf ins Leere laufen zu lassen.",
+        waitingFor: "Klicken Sie auf „Prospect anlegen“",
+        advance: { on: "click" },
+        optional: true,
+        skippable: true,
+        requires: "prospects.write",
+      },
+      {
+        id: "formular",
+        target: '[data-tour="drawer"]',
+        placement: "auto",
+        title: "Hier entsteht auch der Herkunftsnachweis",
+        body:
+          "Füllen Sie aus, was Sie wissen, und speichern Sie. In der Akte steht danach je Feld, " +
+          "woher die Angabe kommt — hier: „manuell angelegt“.",
+        why:
+          "Wenn später jemand fragt, woher eine Adresse stammt, muss das System antworten können. " +
+          "Eine Herkunft, die man nachträglich rekonstruieren muss, ist keine.",
+        waitingFor: "Speichern Sie den Prospect",
+        advance: { on: "disappear", selector: '[data-tour="drawer"]' },
+        optional: true,
+        skippable: true,
+        requires: "prospects.write",
+      },
+      {
+        id: "import",
+        target: '[data-tour="prospect-import"]',
+        placement: "left",
+        title: "Oder mehrere auf einmal",
+        body:
+          "Aus einer Tabelle, oder aus Ihrem eigenen CRM-Bestand: Unternehmen ohne offene Chance. " +
+          "Sie ordnen die Spalten selbst zu.",
+        why:
+          "Das Ergebnis zählt Angelegt, Dubletten, Gesperrt und Übersprungen getrennt. Eine reine " +
+          "Erfolgsmeldung verschweigt genau das, was man wissen will.",
+        advance: { on: "manual" },
+        optional: true,
+        requires: "prospects.write",
+      },
+    ],
+  },
+
+  /* ── 9 Sequenzen ─────────────────────────────────────────────────────── */
+  {
+    id: "akquise-sequenzen",
+    title: "Sequenzen",
+    summary: "Ansprechen, ohne zu spammen.",
+    route: "/outreach/sequences",
+    requires: "outreach.sequences.read",
+    steps: [
+      {
+        id: "was-ist-eine-sequenz",
+        title: "Eine Sequenz ist eine geplante Folge von Schritten",
+        body:
+          "E-Mail, Wartezeit, Aufgabe für einen Menschen, noch eine E-Mail. Jeder Schritt hat " +
+          "einen Abstand in Tagen.",
+        why:
+          "Die Aufgabenschritte sind der eigentliche Punkt: Automatisiert wird, was sich " +
+          "automatisieren lässt — vorbereitet wird, wo ein Mensch entscheiden soll. Eine " +
+          "Aufgabe aus einer Sequenz ist eine gewöhnliche CRM-Aufgabe und erscheint dort, wo " +
+          "Sie ohnehin hinsehen.",
+        advance: { on: "manual" },
+      },
+      {
+        id: "entwurf",
+        target: '[data-tour="sequence-create"]',
+        placement: "left",
+        title: "Neu heißt Entwurf",
+        body:
+          "Eine neue Sequenz sendet nichts. Sie wird ausdrücklich aktiviert — und ohne " +
+          "eingerichtetes Postfach lässt sie sich gar nicht aktivieren.",
+        why:
+          "Eine halbfertige Sequenz darf nicht auf echte Menschen losgehen. Und eine, die aktiv " +
+          "aussieht, aber nichts tun kann, wäre eine Lüge in der Oberfläche.",
+        advance: { on: "manual" },
+        optional: true,
+      },
+      {
+        id: "anhalten",
+        title: "Sie hält an, sobald jemand antwortet",
+        body:
+          "Eine echte Antwort stoppt die Sequenz für diesen Prospect. Eine " +
+          "Abwesenheitsnachricht stoppt sie ausdrücklich nicht.",
+        why:
+          "Wer geantwortet hat, ist keine Zielgruppe mehr, sondern ein Gespräch. Eine " +
+          "Urlaubsmeldung ist dagegen keine Antwort — würde sie die Sequenz beenden, wäre jeder " +
+          "Sommer ein Datenverlust. Wo die Einordnung unklar ist, entscheidet das System nicht, " +
+          "sondern legt die Nachricht einem Menschen vor.",
+        advance: { on: "manual" },
+      },
+    ],
+  },
+
+  /* ── 10 Versand ──────────────────────────────────────────────────────── */
+  {
+    id: "akquise-versand",
+    title: "Versand",
+    summary: "Die Grenzen, die Sie selbst setzen.",
+    route: "/outreach/settings",
+    requires: "outreach.settings",
+    steps: [
+      {
+        id: "grenzen",
+        target: '[data-tour="sending-account-create"]',
+        placement: "left",
+        title: "Jedes Postfach hat Grenzen",
+        body:
+          "Tageslimit, Sendefenster mit Zeitzone, Wochentage und ein Mindestabstand zwischen zwei " +
+          "Nachrichten — mit Streuung, damit kein Takt entsteht.",
+        why:
+          "Das ist kein Werkzeug für Massenversand. Wer tausend Adressen am Tag anschreibt, " +
+          "verbrennt seine Domain und trifft niemanden. Qualität vor Menge, und zwar technisch " +
+          "erzwungen, nicht als gute Absicht.",
+        advance: { on: "manual" },
+        optional: true,
+      },
+      {
+        id: "sperrliste",
+        target: '[data-tour="suppression-add"]',
+        placement: "left",
+        title: "Die Sperrliste überlebt den Datensatz",
+        body:
+          "Eine Adresse oder eine ganze Domain sperren. Auch ein späterer Import kann die Sperre " +
+          "nicht umgehen — der Prospect wird gar nicht erst angelegt.",
+        why:
+          "Wer einmal „nein“ gesagt hat, hat das gesagt. Wäre die Sperre nur ein Feld am " +
+          "Datensatz, wäre sie beim nächsten Löschen und Neuimportieren weg.",
+        advance: { on: "manual" },
+        optional: true,
+      },
+      {
+        id: "keine-zusicherung",
+        title: "Was die Software ausdrücklich nicht behauptet",
+        body:
+          "Sie hält Herkunft, Rechtsgrundlage, Sperren und den ganzen Verlauf nachvollziehbar " +
+          "fest. Sie sagt Ihnen aber nicht, dass eine Ansprache erlaubt ist.",
+        why:
+          "Das hängt von Land, Branche und Einzelfall ab und lässt sich technisch nicht " +
+          "herstellen. Ein Haken „rechtssicher“ wäre eine Zusicherung, die kein Programm geben " +
+          "kann. Sie bekommen die Nachweise — die Bewertung bleibt bei Ihnen.",
+        advance: { on: "manual" },
+      },
+    ],
+  },
+
+  /* ── 11 Heute und Aufgaben ───────────────────────────────────────────── */
   {
     id: "heute",
     title: "Heute",
@@ -429,7 +661,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
     ],
   },
 
-  /* ── 8 Workflows ─────────────────────────────────────────────────────── */
+  /* ── 12 Workflows ─────────────────────────────────────────────────────── */
   {
     id: "workflows",
     title: "Automatisierung",
@@ -456,6 +688,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         body: "Klicken Sie auf „Workflow erstellen“.",
         waitingFor: "Warte auf Ihren Klick auf „Workflow erstellen“",
         requires: "workflows.manage",
+        optional: true,
         advance: { on: "click" },
       },
       {
@@ -500,7 +733,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
     ],
   },
 
-  /* ── 9 Auswertung ────────────────────────────────────────────────────── */
+  /* ── 13 Auswertung ────────────────────────────────────────────────────── */
   {
     id: "reports",
     title: "Auswertung",
@@ -531,7 +764,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
     ],
   },
 
-  /* ── 10 Verwaltung ───────────────────────────────────────────────────── */
+  /* ── 14 Verwaltung ───────────────────────────────────────────────────── */
   {
     id: "einstellungen",
     title: "Einrichtung",
@@ -583,7 +816,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
     ],
   },
 
-  /* ── 11 Abschluss ────────────────────────────────────────────────────── */
+  /* ── 15 Abschluss ────────────────────────────────────────────────────── */
   {
     id: "abschluss",
     title: "Fertig",
@@ -594,8 +827,9 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         id: "ende",
         title: "Das war der Rundgang",
         body:
-          "Sie haben ein Unternehmen, einen Kontakt und eine Chance angelegt und wissen, wo " +
-          "Automatisierung, Auswertung und Einrichtung sitzen.",
+          "Sie haben ein Unternehmen, einen Kontakt und eine Chance angelegt, gesehen, wie neue " +
+          "Gespräche über die Akquise entstehen, und wissen, wo Automatisierung, Auswertung und " +
+          "Einrichtung sitzen.",
         why:
           "Der sinnvollste nächste Schritt ist meist der Import Ihres Bestands — danach wird das " +
           "System sofort nützlich, statt langsam zu wachsen.",

@@ -74,6 +74,9 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 | T5 | Abbrechbar, ohne sich erneut aufzudrängen | VERIFIZIERT | E2E Tour 4 |
 | T6 | Jederzeit neu startbar | VERIFIZIERT | E2E Tour 5 über das Benutzermenü |
 | T7 | Zustand am Menschen, nicht an der Organisation | VERIFIZIERT | tests/tour.test.ts |
+| T8 | Die Tour führt durch den ganzen Umfang, auch durch die Akquise | VERIFIZIERT | Vier Kapitel unter `/outreach` (Überblick, Prospects, Sequenzen, Versand); tests/tour-chapters.test.ts prüft, dass sie vorhanden sind und ein Recht verlangen; E2E Tour 6 läuft sie ab |
+| T9 | Kein Schritt zeigt auf ein Element, das es nicht gibt | VERIFIZIERT | tests/tour-chapters.test.ts vergleicht jeden Anker der Tour mit den `data-tour`-Merkmalen im Quellcode, einschließlich der zur Laufzeit berechneten Namen beider Navigationen |
+| T10 | Kein wartender Schritt kann die Tour festsetzen | VERIFIZIERT | tests/tour-chapters.test.ts verlangt für jeden Schritt mit Handlungsbedingung `optional` oder `skippable`; der Test fand vier bestehende Schritte ohne Notausgang, die daraufhin korrigiert wurden. E2E Tour 6 zeigt einen still übersprungenen Schritt |
 
 ### Customer Acquisition Engine
 

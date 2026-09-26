@@ -22,7 +22,7 @@ angelegt.
 ```
 src/components/tour/
   types.ts           Bauteile: Kapitel, Schritt, Fortschaltbedingung
-  tour-chapters.ts   Der Inhalt — elf Kapitel, rund fünfzig Schritte
+  tour-chapters.ts   Der Inhalt — fünfzehn Kapitel, rund sechzig Schritte
   tour-provider.tsx  Ablaufsteuerung: Rechte, Fortschritt, Seitenwechsel
   tour-overlay.tsx   Darstellung: Freistellung und Erklärkarte
   use-target.ts      Verfolgt das Zielelement und seine Position
@@ -30,6 +30,21 @@ src/components/tour/
 
 Inhalt und Steuerung sind getrennt. Wer die Tour ändern will, fasst in aller
 Regel nur `tour-chapters.ts` an.
+
+Der Weg ist ein Arbeitsweg, kein Menürundgang:
+
+| # | Kapitel | Frage |
+| --- | --- | --- |
+| 1–2 | Begrüßung, Orientierung | Wo bin ich, und wo fange ich an? |
+| 3–5 | Unternehmen, Kontakte, Akte | Warum sind das getrennte Objekte? |
+| 6 | Deals und Pipeline | Was ist eine Chance, und wie bewegt sie sich? |
+| 7–10 | Akquise, Prospects, Sequenzen, Versand | Woher kommen neue Gespräche? |
+| 11 | Heute | Was muss ich jetzt tun? |
+| 12–13 | Automatisierung, Auswertung | Was macht das System selbst? |
+| 14–15 | Einrichtung, Abschluss | Was stelle ich noch ein? |
+
+Die Reihenfolge ist Absicht: Erst wenn klar ist, was ein Kontakt und eine
+Chance sind, lässt sich erklären, warum ein **Prospect** etwas anderes ist.
 
 ## 3. Wie die Freistellung funktioniert
 
@@ -98,6 +113,16 @@ list-create           Anlegen-Knopf
 list-table            die Tabelle
 drawer                ein geöffnetes seitliches Formular
 workflow-create       Workflow anlegen
+outreach-<seite>      Akquise-Navigation, etwa outreach-prospects
+prospect-create       Prospect anlegen
+prospect-import       Prospects übernehmen
+prospect-search       Suchfeld der Prospects
+sequence-create       Sequenz erstellen
+sending-account-create  Versandkonto einrichten
+suppression-add       Adresse sperren
+acquisition-funnel    die Trichterkarte
+acquisition-attention offene Punkte
+acquisition-attribution  Herkunftstabelle
 next-action           die nächste Aktion auf einer Detailseite
 timeline              der Verlauf
 settings-<bereich>    Einträge der Einstellungsnavigation
@@ -112,8 +137,27 @@ Erklärung fehlt dann.
 - **7 Unit-Tests** (`tests/tour.test.ts`): Angebot für neue Konten, Fortsetzen,
   Abschluss, Trennung pro Mensch, Neustart, Abweisung unbrauchbarer Eingaben,
   Umgang mit beschädigtem Fortschritt.
-- **5 E2E-Tests** (`e2e/tour.spec.ts`): selbsttätiger Start, Freistellung samt
+- **7 Unit-Tests** (`tests/tour-chapters.test.ts`) prüfen den Inhalt statisch:
+  Jeder Anker, auf den ein Schritt zeigt, muss in der Oberfläche wirklich
+  gesetzt sein — die festen Namen wie die berechneten aus den beiden
+  Navigationen. Dazu eindeutige Kennungen, nur existierende Rechte, ein Hinweis
+  an jedem wartenden Schritt und ein Notausgang für jeden Schritt, dessen Ziel
+  fehlen kann.
+- **6 E2E-Tests** (`e2e/tour.spec.ts`): selbsttätiger Start, Freistellung samt
   Erreichbarkeit des echten Knopfs, Warten auf den Klick, Pausieren beim
-  Seitenwechsel, Abbrechen ohne erneutes Aufdrängen, Neustart über das Menü.
+  Seitenwechsel, Abbrechen ohne erneutes Aufdrängen, Neustart über das Menü —
+  und der Weg durch die Akquise samt still übersprungenem Schritt ohne Ziel.
 - Die übrigen E2E-Tests schließen die Tour zu Beginn mit Esc (`e2e/helpers.ts`)
   — genauso, wie ein Mensch es täte, statt sie über eine Hintertür abzuschalten.
+
+### Was dieser Inhaltstest gefunden hat
+
+Beim Bauen der Tour zeigte ein Schritt auf `nav--dashboard`, während die
+Oberfläche `nav-dashboard` setzt. Aufgefallen ist das erst im Browser. Der
+Anker-Test rechnet das jetzt nach.
+
+Dazu kam ein Fund in vier bereits bestehenden Schritten: „Unternehmen
+erstellen“, „Kontakt erstellen“, „Deal erstellen“ und „Workflow erstellen“
+warteten auf einen Klick, ohne als `optional` markiert zu sein. Fehlte der
+Knopf, hätte die Tour ohne Ausweg gewartet. Sie sind jetzt `optional` — der
+Klickzwang bleibt, solange der Knopf da ist, und entfällt still, wenn nicht.
