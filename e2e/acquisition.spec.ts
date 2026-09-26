@@ -33,6 +33,10 @@ test("1 · Organisation anlegen und Akquisebereich öffnen", async ({ page }) =>
   await page.waitForURL("**/dashboard");
   await dismissTour(page);
 
+  // Ohne einen einzigen Prospect gibt es im Dashboard keinen Akquise-Kasten.
+  // Ein Kasten voller Nullen wäre kein Überblick, sondern Dekoration.
+  await expect(page.getByRole("heading", { name: "Akquise", exact: true })).toHaveCount(0);
+
   await page.locator('[data-tour="nav-outreach"]').click();
   await page.waitForURL("**/outreach");
 
@@ -146,4 +150,25 @@ test("7 · Übernahme ins CRM erzeugt den Kontakt wirklich", async ({ page }) =>
   // Der Beweis steht im CRM, nicht in der Akquise.
   await page.goto("/contacts");
   await expect(page.getByText(/Nordsee Fenster/).first()).toBeVisible({ timeout: 15_000 });
+});
+
+test("8 · Das Dashboard zeigt die Akquise mit den echten Zahlen", async ({ page }) => {
+  await login(page);
+
+  // Jetzt gibt es Prospects — also erscheint der Abschnitt, und zwar mit den
+  // Zahlen aus den vorangegangenen Schritten, nicht mit Beispielwerten.
+  await expect(page.getByRole("heading", { name: "Akquise", exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Die letzten 90 Tage", { exact: false }).first()).toBeVisible();
+
+  // Zwei Prospects wurden in dieser Testreihe angelegt: einer von Hand, einer
+  // über den Tabellenimport. Genau diese Zahl muss dort stehen.
+  const tile = page.getByText("Neue Prospects", { exact: true }).locator("..");
+  await expect(tile).toContainText("2");
+
+  await expect(page.getByText("Pipeline aus Akquise")).toBeVisible();
+  await expect(page.getByText("Umsatz aus Akquise")).toBeVisible();
+
+  await page.getByRole("link", { name: /Zur Akquise/ }).click();
+  await page.waitForURL("**/outreach");
+  await expect(page.getByRole("heading", { name: "Trichter" })).toBeVisible({ timeout: 15_000 });
 });

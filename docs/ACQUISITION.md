@@ -191,7 +191,46 @@ CRM-Aufgabe — sie erscheint dort, wo der Vertrieb ohnehin hinsieht.
 - Ein gesperrter Prospect zeigt die Sperre und den Grund; die Schaltfläche für
   die Sequenz erscheint gar nicht erst.
 
-## 10. Umsetzungsstand
+## 10. Auswertung
+
+Drei Fragen, drei Auswertungen in `src/server/services/acquisition/analytics.ts`:
+
+| Auswertung | Frage |
+| --- | --- |
+| `acquisitionFunnel` | Was ist aus der Ansprache geworden? |
+| `attributionBySource` | Woher kamen die Kunden? |
+| `needsAttention` | Was ist liegen geblieben? |
+
+Am Ende des Trichters stehen **Pipeline und Umsatz**, nicht Versandvolumen.
+Die Frage ist nicht „wie viele E-Mails", sondern „was ist daraus geworden" —
+und die Werte kommen aus den echten Deals, die aus einer Übernahme entstanden
+sind, nicht aus einer Hochrechnung. Ein gewonnener Deal zählt im Umsatz und
+nicht mehr in der Pipeline.
+
+Jede Trichterstufe zählt nur Prospects, die den jeweiligen Zeitstempel
+tatsächlich tragen (`qualifiedAt`, `firstContactedAt`, `repliedAt`,
+`interestedAt`, `meetingAt`). Es gibt keine geschätzte Stufe.
+
+### Im Haupt-Dashboard
+
+Unter „Aktives CRM" steht der Abschnitt **Akquise**: neue Prospects,
+Angesprochene, Antworten, Termine, dazu Pipeline und Umsatz aus der Akquise —
+und darunter die offenen Punkte als Verweise dorthin, wo sie zu erledigen sind.
+
+Zwei Regeln dazu:
+
+- Der Abschnitt erscheint **nur mit `prospects.read`**. Geprüft wird
+  serverseitig, bevor überhaupt Daten geladen werden — nicht durch Ausblenden
+  im Browser.
+- Der Abschnitt erscheint **nur, wenn es etwas zu zeigen gibt**: mindestens ein
+  Prospect im Zeitraum oder ein offener Punkt. Wer die Akquise nicht nutzt,
+  bekommt keinen Kasten voller Nullen.
+
+Die Übersicht unter `/outreach` bleibt der ausführliche Ort: dort stehen alle
+acht Trichterstufen mit den Übergangsquoten und die Herkunftstabelle. Das
+Dashboard zeigt den Ausschnitt, an dem ein Mensch etwas ändern kann.
+
+## 11. Umsetzungsstand
 
 Die Engine entsteht in abgeschlossenen Schritten. Dieser Abschnitt sagt
 jederzeit, was davon wirklich läuft.
@@ -201,4 +240,4 @@ jederzeit, was davon wirklich läuft.
 | 1 | Datenmodell, Rechte, Ereignisse, Provider-Abstraktion, Prospects, Listen, Sperrlisten, Konvertierung | **fertig** — 29 Tests |
 | 2 | Sequenzen, Einschreibungen, Versand, Antwortverarbeitung | **fertig** — 35 Tests |
 | 3 | Oberfläche des Outreach-Bereichs | **fertig** — 7 E2E-Tests |
-| 4 | Trichter, Herkunftsauswertung und offene Punkte | **fertig** (im Überblick) · Acquisition-Kennzahlen im Haupt-Dashboard offen |
+| 4 | Trichter, Herkunftsauswertung, offene Punkte, Kennzahlen im Haupt-Dashboard | **fertig** — 12 Tests, 1 E2E-Test |

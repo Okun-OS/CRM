@@ -91,8 +91,12 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 | A10 | Übernahme ins CRM ohne doppelte Historie | VERIFIZIERT | tests/acquisition.test.ts prüft, dass genau eine Nachricht existiert; E2E Akquise 7 prüft den Kontakt im CRM |
 | A11 | Bedingungen unmittelbar vor der Ausführung | VERIFIZIERT | tests/acquisition-sequences.test.ts: nachträgliche Sperre verhindert den Versand |
 | A12 | Mandantentrennung der Akquiseschicht | VERIFIZIERT | Eigene Tests in beiden Testdateien |
-| A13 | Trichter aus echten Daten | VERIFIZIERT | E2E Akquise 1 zeigt den Leerzustand ohne Platzhalterzahlen |
+| A13 | Trichter aus echten Daten | VERIFIZIERT | tests/acquisition-analytics.test.ts: jede Stufe zählt nur Prospects mit dem passenden Zeitstempel; Pipeline und Umsatz stammen aus den echten Deals, ein gewonnener Deal zählt nicht doppelt. E2E Akquise 1 zeigt den Leerzustand ohne Platzhalterzahlen |
 | A14 | Compliance als Funktion, nicht als Zusicherung | VERIFIZIERT (mit Hinweis) | Prüfstatus, Sperren, Herkunft, Audit sind vorhanden. **Hinweis:** Die Software trifft keine rechtliche Aussage — siehe docs/ACQUISITION.md |
+| A15 | Herkunftsauswertung — woher die Kunden kamen | VERIFIZIERT | tests/acquisition-analytics.test.ts: gruppiert nach Quelle, rechnet den Umsatz nur übernommenen Prospects zu; Tabelle in der Akquise-Übersicht |
+| A16 | Offene Punkte statt Rückschau | VERIFIZIERT | tests/acquisition-analytics.test.ts: ungesichtete Antworten, Interessierte ohne Termin (erst nach zwei Tagen), pausierte Versandkonten, Prospects ohne Ansprechpartner; leer, solange nichts liegen geblieben ist |
+| A17 | Acquisition-Kennzahlen im Haupt-Dashboard | VERIFIZIERT | E2E Akquise 8: der Abschnitt zeigt die zwei tatsächlich angelegten Prospects und führt in die Akquise; ohne Prospects ist er in E2E Akquise 1 nachweislich nicht vorhanden — kein Kasten voller Nullen |
+| A18 | Auswertung nur mit Berechtigung, serverseitig geprüft | VERIFIZIERT | tests/acquisition-analytics.test.ts: alle drei Auswertungen weisen einen Kontext ohne `prospects.read` ab; das Dashboard lädt sie erst nach der Prüfung, statt sie im Browser auszublenden |
 
 ## Abnahme des aktiven CRM
 

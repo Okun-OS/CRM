@@ -10,18 +10,22 @@ import {
   Users,
 } from "lucide-react";
 import { getActor } from "@/lib/auth/session";
+import { can } from "@/lib/context";
 import { prisma } from "@/lib/db";
 import { scope } from "@/lib/tenant";
 import { dashboardSummary, dealsOverTime, pipelineFunnel, salesForecast } from "@/server/services/reports";
 import { getOrganization, onboardingStatus } from "@/server/services/organizations";
 import { listActivities } from "@/server/services/activities";
 import { getActiveCrmSummary } from "@/server/services/next-actions";
+import { acquisitionFunnel, needsAttention } from "@/server/services/acquisition/analytics";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/misc";
 import { DealsOverTimeChart, ForecastChart, PipelineFunnelChart } from "@/components/charts/dashboard-charts";
 import { ActivityTimeline } from "@/components/crm/activity-timeline";
 import { OnboardingChecklist } from "@/components/app/onboarding-checklist";
+import { StatTile } from "@/components/ui/stat-tile";
+import { AcquisitionSection } from "./acquisition-section";
 import { formatCurrency, formatDate, formatNumber, formatRelative, formatTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -36,7 +40,24 @@ export default async function DashboardPage() {
   const actor = await getActor();
   if (!actor) return null;
 
-  const [organization, summary, active, funnel, forecast, timeline, onboarding, deals, tasks, meetings] = await Promise.all([
+  // Die Akquise-Kennzahlen werden nur geladen, wenn die Person sie sehen darf.
+  // Kein Abfragen und anschliessendes Ausblenden im Browser.
+  const seesAcquisition = can(actor, "prospects.read");
+
+  const [
+    organization,
+    summary,
+    active,
+    funnel,
+    forecast,
+    timeline,
+    onboarding,
+    deals,
+    tasks,
+    meetings,
+    acquisition,
+    acquisitionAttention,
+  ] = await Promise.all([
     getOrganization(actor),
     dashboardSummary(actor),
     getActiveCrmSummary(actor),
@@ -62,6 +83,8 @@ export default async function DashboardPage() {
         contact: { select: { id: true, firstName: true, lastName: true } },
       },
     }),
+    seesAcquisition ? acquisitionFunnel(actor, 90) : null,
+    seesAcquisition ? needsAttention(actor) : null,
   ]);
 
   const currency = organization?.currency ?? "EUR";
@@ -137,6 +160,10 @@ export default async function DashboardPage() {
           </p>
         </CardBody>
       </Card>
+
+      {acquisition && acquisitionAttention && (acquisition.prospects > 0 || acquisitionAttention.length > 0) ? (
+        <AcquisitionSection funnel={acquisition} attention={acquisitionAttention} />
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi) => (
@@ -302,25 +329,6 @@ export default async function DashboardPage() {
           </CardBody>
         </Card>
       </section>
-    </div>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "danger" | "warning";
-}) {
-  const valueTone =
-    tone === "danger" ? "text-danger-600" : tone === "warning" ? "text-warning-700" : "text-ink-900";
-  return (
-    <div className="rounded-md border border-ink-200/70 bg-ink-50/50 px-3 py-2.5">
-      <p className="text-2xs text-ink-500">{label}</p>
-      <p className={`mt-0.5 text-lg font-semibold tabular-nums ${valueTone}`}>{value}</p>
     </div>
   );
 }
