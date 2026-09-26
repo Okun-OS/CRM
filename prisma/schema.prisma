@@ -112,6 +112,8 @@ enum EmailStatus {
   SENT
   FAILED
   RECEIVED
+  /// Unzustellbar — die Adresse wird daraufhin gesperrt.
+  BOUNCED
 }
 
 enum IntegrationProvider {
@@ -271,6 +273,8 @@ enum NotificationType {
   MENTION
   WORKFLOW_FAILED
   IMPORT_COMPLETED
+  /// Eine Antwort aus der Akquise, bei der jemand entscheiden sollte.
+  REPLY_RECEIVED
 }
 
 enum WebhookDeliveryStatus {
@@ -1549,6 +1553,7 @@ model SendingAccount {
   user           User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   stepRuns       EnrollmentStepRun[]
   messages       EmailMessage[]
+  sequences      Sequence[]
 
   @@unique([organizationId, fromEmail])
   @@index([organizationId, status])
@@ -1573,6 +1578,7 @@ model Sequence {
   archivedAt     DateTime?
 
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sendingAccount SendingAccount? @relation(fields: [sendingAccountId], references: [id], onDelete: SetNull)
   owner          User?           @relation("SequenceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   createdBy      User?           @relation("SequenceCreator", fields: [createdById], references: [id], onDelete: SetNull)
   steps          SequenceStep[]

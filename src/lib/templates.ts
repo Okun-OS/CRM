@@ -18,6 +18,22 @@ export const PLACEHOLDERS = {
   "owner.name": "Name des Owners",
   "owner.email": "E-Mail des Owners",
   "organization.name": "Name der Organisation",
+
+  // ─── Akquise ──────────────────────────────────────────────────────────
+  // Ein Prospect ist noch kein Kontakt; seine Felder heißen deshalb anders.
+  // Dieselbe Vorlagensprache, erweitertes Vokabular — keine zweite Engine.
+  "prospect.firstName": "Vorname des Prospects",
+  "prospect.lastName": "Nachname des Prospects",
+  "prospect.fullName": "Vollständiger Name des Prospects",
+  "prospect.email": "E-Mail des Prospects",
+  "prospect.jobTitle": "Position des Prospects",
+  "prospect.companyName": "Unternehmen des Prospects",
+  "prospect.domain": "Domain des Prospects",
+  "prospect.city": "Ort des Prospects",
+  "prospect.industry": "Branche des Prospects",
+  "sender.name": "Name des Absenders",
+  "sender.email": "Adresse des Absenders",
+  "sender.company": "Unternehmen des Absenders",
 } as const;
 
 export type PlaceholderKey = keyof typeof PLACEHOLDERS;

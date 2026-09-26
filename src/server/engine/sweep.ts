@@ -6,6 +6,7 @@ import { reconcileSubject } from "./next-actions";
 import { runDueAutomations } from "./automations";
 import { systemContextFor } from "./system-context";
 import type { SubjectRef } from "./subject";
+import { runDueSequenceSteps, type RunnerResult } from "@/server/services/acquisition/runner";
 
 /**
  * The periodic pass.
@@ -21,6 +22,9 @@ export type SweepResult = {
   reconciled: number;
   stalled: number;
   automations: { executed: number; skipped: number; deferred: number; failed: number };
+  /// Fällige Sequenzschritte der Acquisition Engine — derselbe Lauf, keine
+  /// zweite Warteschlange daneben.
+  outreach: RunnerResult;
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -97,10 +101,21 @@ export async function runSweepForOrganization(organizationId: string, now = new 
   await warnOwners(organizationId, newlyStalled, config.thresholds.stagnationAfterDays);
 
   const outcomes = await runDueAutomations({ organizationId, now });
+
+  // Die Akquise hängt am selben Takt: Ein Sequenzschritt ist genauso eine
+  // Sache, die erst mit der Zeit fällig wird, wie eine überfällige Aufgabe.
+  let outreach: RunnerResult = { executed: 0, skipped: 0, deferred: 0, failed: 0 };
+  try {
+    outreach = await runDueSequenceSteps(organizationId, now);
+  } catch (error) {
+    logError("acquisition.sweep_failed", error, { organizationId });
+  }
+
   return {
     organizationId,
     reconciled,
     stalled,
+    outreach,
     automations: {
       executed: outcomes.filter((outcome) => outcome.status === "EXECUTED").length,
       skipped: outcomes.filter((outcome) => outcome.status === "SKIPPED" || outcome.status === "CANCELLED").length,

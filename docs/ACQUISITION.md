@@ -168,6 +168,6 @@ jederzeit, was davon wirklich läuft.
 | Schritt | Umfang | Stand |
 | --- | --- | --- |
 | 1 | Datenmodell, Rechte, Ereignisse, Provider-Abstraktion, Prospects, Listen, Sperrlisten, Konvertierung | **fertig** — 29 Tests |
-| 2 | Sequenzen, Einschreibungen, Versand, Antwortverarbeitung | in Arbeit |
-| 3 | Oberfläche des Outreach-Bereichs | offen |
+| 2 | Sequenzen, Einschreibungen, Versand, Antwortverarbeitung | **fertig** — 35 Tests |
+| 3 | Oberfläche des Outreach-Bereichs | in Arbeit |
 | 4 | Analytics, Attribution, Acquisition-Kennzahlen im Dashboard | offen |
