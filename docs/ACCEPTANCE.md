@@ -75,6 +75,25 @@ Nichts ist als verifiziert markiert, das nicht tatsächlich ausgeführt wurde.
 | T6 | Jederzeit neu startbar | VERIFIZIERT | E2E Tour 5 über das Benutzermenü |
 | T7 | Zustand am Menschen, nicht an der Organisation | VERIFIZIERT | tests/tour.test.ts |
 
+### Customer Acquisition Engine
+
+| # | Anforderung | Stand | Nachweis |
+| --- | --- | --- | --- |
+| A1 | Prospects mit eigenem Lebenszyklus | VERIFIZIERT | tests/acquisition.test.ts; Übergänge geprüft, `CONVERTED` nur über die Übernahme |
+| A2 | Dokumentierte Herkunft je Feld | VERIFIZIERT | tests/acquisition.test.ts; E2E Akquise 2 zeigt den Block in der Akte |
+| A3 | Provider-Abstraktion ohne Anbieterbindung | VERIFIZIERT | Drei umgesetzte Quellen; externe Anbieter haben Schnittstelle, aber keine Implementierung und erscheinen nicht in der Auswahl |
+| A4 | Listen statisch und dynamisch | VERIFIZIERT | tests/acquisition.test.ts; E2E Akquise 3 |
+| A5 | Kontaktsperre überlebt den Datensatz | VERIFIZIERT | tests/acquisition.test.ts |
+| A6 | Verantwortungsvoller Versand | VERIFIZIERT | tests/acquisition-sequences.test.ts prüft Fenster, Tageslimit, Abstand, Streuung; E2E Akquise 4 |
+| A7 | Sequenzen halten bei Antwort an, nicht bei Abwesenheit | VERIFIZIERT | tests/acquisition-sequences.test.ts, je ein eigener Test |
+| A8 | Kein doppelter Versand | VERIFIZIERT | Eindeutigkeit (Einschreibung, Schritt) plus Test mit zweifachem Lauf |
+| A9 | Ohne Transport wird nicht gesendet und nichts vorgetäuscht | VERIFIZIERT | tests/acquisition-sequences.test.ts: verschoben mit Begründung, keine Nachricht erzeugt |
+| A10 | Übernahme ins CRM ohne doppelte Historie | VERIFIZIERT | tests/acquisition.test.ts prüft, dass genau eine Nachricht existiert; E2E Akquise 7 prüft den Kontakt im CRM |
+| A11 | Bedingungen unmittelbar vor der Ausführung | VERIFIZIERT | tests/acquisition-sequences.test.ts: nachträgliche Sperre verhindert den Versand |
+| A12 | Mandantentrennung der Akquiseschicht | VERIFIZIERT | Eigene Tests in beiden Testdateien |
+| A13 | Trichter aus echten Daten | VERIFIZIERT | E2E Akquise 1 zeigt den Leerzustand ohne Platzhalterzahlen |
+| A14 | Compliance als Funktion, nicht als Zusicherung | VERIFIZIERT (mit Hinweis) | Prüfstatus, Sperren, Herkunft, Audit sind vorhanden. **Hinweis:** Die Software trifft keine rechtliche Aussage — siehe docs/ACQUISITION.md |
+
 ## Abnahme des aktiven CRM
 
 Die Ergänzung zum Master-Prompt gibt eine Reihenfolge vor: zuerst die

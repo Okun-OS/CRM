@@ -13,6 +13,7 @@ import {
   KanbanSquare,
   ListChecks,
   Mail,
+  Radar,
   Settings,
   Sparkles,
   Target,
@@ -47,6 +48,12 @@ const SECTIONS: NavSection[] = [
       { href: "/companies", label: "Unternehmen", icon: <Building2 className="h-4 w-4" />, permission: "companies.read" },
       { href: "/leads", label: "Leads", icon: <Sparkles className="h-4 w-4" />, permission: "leads.read" },
       { href: "/deals", label: "Deals", icon: <Target className="h-4 w-4" />, permission: "deals.read" },
+    ],
+  },
+  {
+    label: "Akquise",
+    items: [
+      { href: "/outreach", label: "Outreach", icon: <Radar className="h-4 w-4" />, permission: "prospects.read" },
     ],
   },
   {

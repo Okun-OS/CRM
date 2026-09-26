@@ -160,7 +160,38 @@ Kein Werkzeug für Massenversand. Vorgesehen sind Tageslimits je Postfach,
 Sendefenster mit Zeitzone, variable Abstände, Bounce-Behandlung, Sperrlisten
 und automatische Pausierung bei Auffälligkeiten. Menge ist kein Ziel.
 
-## 9. Umsetzungsstand
+## 9. Oberfläche
+
+Sieben Seiten unter `/outreach`, alle im bestehenden Designsystem — dieselben
+Karten, Tabellen, Formulare, Schubladen und Leerzustände wie im übrigen CRM.
+Keine zweite Designwelt.
+
+| Seite | Was sie beantwortet |
+| --- | --- |
+| Überblick | Was ist aus der Ansprache geworden — und was liegt liegen? |
+| Prospects | Wer kommt in Frage, und woher wissen wir das? |
+| Listen | Welcher Arbeitsvorrat gehört zusammen? |
+| Sequenzen | Wie sprechen wir an, und wann hält das an? |
+| Antworten | Worauf muss jemand reagieren? |
+| Versand | Unter welchen Grenzen wird gesendet, und wer ist gesperrt? |
+
+Nicht neu gebaut: **Vorlagen** und **Aufgaben**. Die Sequenz greift auf die
+vorhandenen Vorlagen zu, und ein Aufgabenschritt erzeugt eine gewöhnliche
+CRM-Aufgabe — sie erscheint dort, wo der Vertrieb ohnehin hinsieht.
+
+### Wo die Oberfläche bewusst bremst
+
+- Eine neue Sequenz ist **Entwurf** und sendet nichts. Aktiviert wird bewusst.
+- Eine Sequenz mit automatischen E-Mails lässt sich **ohne Versandkonto nicht
+  aktivieren** — sonst liefe sie sichtbar und täte nichts.
+- Der Import zeigt **Angelegt, Dubletten, Gesperrt, Übersprungen** getrennt.
+  Eine reine Erfolgsmeldung verschweigt genau das, was man wissen will.
+- Die Übernahme ins CRM zeigt **vorher**, was sie tun wird: welches Unternehmen
+  erkannt wurde, ob ein Kontakt entsteht, wie viele Nachrichten mitkommen.
+- Ein gesperrter Prospect zeigt die Sperre und den Grund; die Schaltfläche für
+  die Sequenz erscheint gar nicht erst.
+
+## 10. Umsetzungsstand
 
 Die Engine entsteht in abgeschlossenen Schritten. Dieser Abschnitt sagt
 jederzeit, was davon wirklich läuft.
@@ -169,5 +200,5 @@ jederzeit, was davon wirklich läuft.
 | --- | --- | --- |
 | 1 | Datenmodell, Rechte, Ereignisse, Provider-Abstraktion, Prospects, Listen, Sperrlisten, Konvertierung | **fertig** — 29 Tests |
 | 2 | Sequenzen, Einschreibungen, Versand, Antwortverarbeitung | **fertig** — 35 Tests |
-| 3 | Oberfläche des Outreach-Bereichs | in Arbeit |
-| 4 | Analytics, Attribution, Acquisition-Kennzahlen im Dashboard | offen |
+| 3 | Oberfläche des Outreach-Bereichs | **fertig** — 7 E2E-Tests |
+| 4 | Trichter, Herkunftsauswertung und offene Punkte | **fertig** (im Überblick) · Acquisition-Kennzahlen im Haupt-Dashboard offen |
