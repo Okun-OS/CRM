@@ -16,7 +16,7 @@ export { DOMAIN_EVENTS, type DomainEventName } from "./domain-events";
 
 export type DomainEvent = {
   name: DomainEventName;
-  entityType: "CONTACT" | "COMPANY" | "LEAD" | "DEAL" | "TASK" | "MEETING";
+  entityType: "CONTACT" | "COMPANY" | "LEAD" | "DEAL" | "TASK" | "MEETING" | "PROSPECT" | "SEQUENCE";
   entityId: string;
   payload: Record<string, unknown>;
   /** Fields that changed, for PROPERTY_CHANGED workflow triggers. */

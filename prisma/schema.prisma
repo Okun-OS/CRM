@@ -131,6 +131,123 @@ enum IntegrationStatus {
   DISABLED
 }
 
+/// ─── Customer Acquisition Engine ────────────────────────────────────────────
+
+/// Lebenszyklus eines Prospects. Bewusst eigenständig: Ein Prospect ist eine
+/// ausgehende Vermutung, ein Lead eine eingegangene Anfrage.
+enum ProspectStage {
+  NEW
+  RESEARCHING
+  QUALIFIED
+  READY
+  IN_SEQUENCE
+  REPLIED
+  INTERESTED
+  NOT_INTERESTED
+  MEETING
+  CONVERTED
+  DISQUALIFIED
+  DO_NOT_CONTACT
+}
+
+enum ProspectListKind {
+  /// Feste Mitgliedschaft; Prospects werden hinzugefügt und entfernt.
+  STATIC
+  /// Ergibt sich aus einem Filter — dieselbe Filtersprache wie die CRM-Listen.
+  DYNAMIC
+}
+
+enum SequenceStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+/// Schritttypen. Nicht alle sind von Beginn an umgesetzt; das Modell soll aber
+/// keine Sackgasse sein.
+enum SequenceStepType {
+  AUTOMATED_EMAIL
+  MANUAL_EMAIL
+  TASK
+  CALL_TASK
+  WAIT
+  CONDITION
+  CRM_ACTION
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  STOPPED
+  FAILED
+}
+
+/// Warum eine Einschreibung endete — nie stillschweigend.
+enum EnrollmentStopReason {
+  REPLIED
+  MEETING_BOOKED
+  CONVERTED
+  BOUNCED
+  UNSUBSCRIBED
+  SUPPRESSED
+  MANUAL
+  SEQUENCE_ARCHIVED
+  FINISHED
+}
+
+enum StepRunStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum SendingAccountStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+}
+
+enum SuppressionScope {
+  EMAIL
+  DOMAIN
+}
+
+enum SuppressionReason {
+  UNSUBSCRIBED
+  BOUNCED
+  COMPLAINT
+  MANUAL
+  DO_NOT_CONTACT
+}
+
+/// Einstufung einer eingegangenen Antwort. `UNKNOWN` ist kein Makel, sondern
+/// die ehrliche Auskunft, dass ein Mensch draufschauen sollte.
+enum ReplyClassification {
+  INTERESTED
+  QUESTION
+  MEETING_REQUEST
+  LATER
+  REFERRAL
+  NOT_INTERESTED
+  OUT_OF_OFFICE
+  UNSUBSCRIBE
+  UNKNOWN
+}
+
+/// Nachweisstand des Rechtsgrunds für eine Ansprache. Die Software trifft
+/// keine rechtliche Aussage — sie hält fest, wie das Unternehmen den Fall
+/// selbst eingeordnet hat.
+enum OutreachLawfulBasis {
+  UNREVIEWED
+  CLAIMED_LEGITIMATE_INTEREST
+  CLAIMED_CONSENT
+  EXISTING_CUSTOMER
+  REJECTED
+}
+
 enum WorkflowTriggerType {
   RECORD_CREATED
   PROPERTY_CHANGED
@@ -337,6 +454,16 @@ model Organization {
   domainEvents          DomainEventRecord[]
   nextActions           NextAction[]
   automations           ScheduledAutomation[]
+  prospects             Prospect[]
+  prospectLists         ProspectList[]
+  prospectListMemberships ProspectListMembership[]
+  provenanceRecords     ProvenanceRecord[]
+  suppressionEntries    SuppressionEntry[]
+  sendingAccounts       SendingAccount[]
+  sequences             Sequence[]
+  sequenceSteps         SequenceStep[]
+  sequenceEnrollments   SequenceEnrollment[]
+  enrollmentStepRuns    EnrollmentStepRun[]
   apiKeys               ApiKey[]
   activeCrmSetting      ActiveCrmSetting?
   activeCrmRules        ActiveCrmRuleSetting[]
@@ -406,6 +533,17 @@ model User {
   ownedNextActions  NextAction[]        @relation("NextActionOwner")
   completedNextActions NextAction[]     @relation("NextActionCompleter")
   ownedAutomations  ScheduledAutomation[] @relation("AutomationOwner")
+  ownedProspects    Prospect[]     @relation("ProspectOwner")
+  createdProspects  Prospect[]     @relation("ProspectCreator")
+  ownedProspectLists ProspectList[] @relation("ProspectListOwner")
+  createdProspectLists ProspectList[] @relation("ProspectListCreator")
+  prospectListAdditions ProspectListMembership[]
+  suppressionEntries SuppressionEntry[]
+  sendingAccounts   SendingAccount[]
+  ownedSequences    Sequence[]     @relation("SequenceOwner")
+  createdSequences  Sequence[]     @relation("SequenceCreator")
+  sequenceEnrollments SequenceEnrollment[]
+  reviewedEmails    EmailMessage[] @relation("EmailReviewer")
   createdAutomations ScheduledAutomation[] @relation("AutomationCreator")
   apiKeys           ApiKey[]
 }
@@ -583,6 +721,7 @@ model Company {
   @@index([organizationId, domain])
   @@index([organizationId, ownerId])
   @@index([organizationId, createdAt])
+  prospects         Prospect[]
 }
 
 model CompanyTag {
@@ -647,6 +786,7 @@ model Contact {
   @@index([organizationId, companyId])
   @@index([organizationId, createdAt])
   @@index([organizationId, lifecycleStage])
+  prospects         Prospect[]
 }
 
 model ContactTag {
@@ -833,6 +973,7 @@ model Deal {
   @@index([organizationId, ownerId])
   @@index([organizationId, expectedCloseDate])
   @@index([organizationId, createdAt])
+  prospects         Prospect[]
 }
 
 model DealTag {
@@ -975,6 +1116,7 @@ model Task {
   @@index([organizationId, ownerId, status])
   @@index([contactId])
   @@index([dealId])
+  sequenceStepRuns  EnrollmentStepRun[]
 }
 
 model Note {
@@ -1199,6 +1341,344 @@ model WorkflowExecution {
   @@index([organizationId, status])
 }
 
+/// ─── Customer Acquisition Engine ────────────────────────────────────────────
+
+/// Ein potenzieller Kunde, bevor er ein Kontakt ist.
+///
+/// Bewusst ein eigenes Objekt: ungeprüft, oft ohne Ansprechpartner, häufig
+/// ohne Rechtsgrund für eine Ansprache. Er soll den echten Bestand nicht
+/// verwässern — und er verschwindet nach der Konvertierung nicht, weil er die
+/// Herkunft des späteren Kunden trägt.
+model Prospect {
+  id             String        @id @default(cuid())
+  organizationId String
+  stage          ProspectStage @default(NEW)
+
+  /// Unternehmen
+  companyName    String
+  domain         String?
+  website        String?
+  industry       String?
+  employeeCount  Int?
+  street         String?
+  postalCode     String?
+  city           String?
+  country        String?
+  phone          String?
+
+  /// Ansprechpartner, soweit bekannt
+  firstName      String?
+  lastName       String?
+  email          String?
+  jobTitle       String?
+  linkedinUrl    String?
+
+  /// Woher der Datensatz stammt — der Schlüssel eines Providers.
+  sourceKey      String
+  /// Kennung beim Provider, für spätere Aktualisierung und Dublettenprüfung.
+  sourceRef      String?
+  /// Bewertung durch einen Menschen oder eine Regel; nie vom System erfunden.
+  score          Int?
+  scoreReason    String?
+  qualification  String?
+  disqualifiedReason String?
+
+  /// Nachweisstand des Rechtsgrunds. Die Software wertet nicht, sie hält fest.
+  lawfulBasis    OutreachLawfulBasis @default(UNREVIEWED)
+  lawfulBasisNote String?
+
+  ownerId        String?
+  createdById    String?
+
+  /// Ergebnis der Konvertierung — die Grundlage der Attribution.
+  contactId      String?
+  companyId      String?
+  dealId         String?
+  convertedAt    DateTime?
+
+  /// Zeitstempel des Werdegangs, für den Funnel.
+  qualifiedAt      DateTime?
+  firstContactedAt DateTime?
+  lastContactedAt  DateTime?
+  repliedAt        DateTime?
+  interestedAt     DateTime?
+  meetingAt        DateTime?
+
+  properties     Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner          User?        @relation("ProspectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy      User?        @relation("ProspectCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  deal           Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  listMemberships ProspectListMembership[]
+  enrollments     SequenceEnrollment[]
+  provenance      ProvenanceRecord[]
+  messages        EmailMessage[]
+
+  @@index([organizationId, stage, updatedAt])
+  @@index([organizationId, email])
+  @@index([organizationId, domain])
+  @@index([organizationId, ownerId, stage])
+  @@unique([organizationId, sourceKey, sourceRef])
+}
+
+/// Herkunft eines einzelnen Feldes.
+///
+/// Ohne sie lässt sich „woher stammt diese Telefonnummer?" nicht beantworten —
+/// und genau das ist die Frage, die bei Akquisedaten gestellt wird.
+model ProvenanceRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  prospectId     String
+  field          String
+  /// Schlüssel des Providers, der den Wert geliefert hat.
+  sourceKey      String
+  /// Kennung beim Provider oder die Fundstelle, soweit vorhanden.
+  reference      String?
+  /// Vom Provider gemeldete Verlässlichkeit, 0–100. Nur wenn er eine liefert.
+  confidence     Int?
+  observedAt     DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  prospect       Prospect     @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, prospectId, field])
+}
+
+/// Arbeitsvorrat für Recherche und Kampagnen.
+model ProspectList {
+  id             String           @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  kind           ProspectListKind @default(STATIC)
+  /// Nur für dynamische Listen: dieselbe Filtersprache wie die CRM-Listen.
+  filter         Json?
+  ownerId        String?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  archivedAt     DateTime?
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner          User?        @relation("ProspectListOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy      User?        @relation("ProspectListCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  memberships    ProspectListMembership[]
+  enrollments    SequenceEnrollment[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, archivedAt])
+}
+
+model ProspectListMembership {
+  id           String   @id @default(cuid())
+  organizationId String
+  listId       String
+  prospectId   String
+  addedById    String?
+  addedAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  list         ProspectList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  prospect     Prospect     @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  addedBy      User?        @relation(fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@unique([listId, prospectId])
+  @@index([organizationId, prospectId])
+}
+
+/// Kontaktsperre.
+///
+/// Überlebt den einzelnen Datensatz absichtlich: Wer sich abgemeldet hat, soll
+/// auch nach einem erneuten Import nicht wieder angeschrieben werden.
+model SuppressionEntry {
+  id             String            @id @default(cuid())
+  organizationId String
+  scope          SuppressionScope  @default(EMAIL)
+  /// E-Mail-Adresse oder Domain, immer klein geschrieben.
+  value          String
+  reason         SuppressionReason
+  note           String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, scope, value])
+  @@index([organizationId, createdAt])
+}
+
+/// Ein Postfach, über das Outreach versendet wird — mit seinen Versandregeln.
+model SendingAccount {
+  id             String               @id @default(cuid())
+  organizationId String
+  label          String
+  fromName       String
+  fromEmail      String
+  /// Verbindung zum Transport. Zugangsdaten liegen dort, verschlüsselt.
+  connectionId   String?
+  userId         String?
+  status         SendingAccountStatus @default(ACTIVE)
+  /// Höchstzahl ausgehender Nachrichten je Tag.
+  dailyLimit     Int                  @default(50)
+  /// Sendefenster in Ortszeit der angegebenen Zeitzone.
+  sendWindowStart Int                 @default(8)
+  sendWindowEnd   Int                 @default(18)
+  /// Nur an diesen Wochentagen senden. 1 = Montag.
+  sendDays       Int[]                @default([1, 2, 3, 4, 5])
+  timezone       String               @default("Europe/Berlin")
+  /// Mindest- und Höchstabstand zwischen zwei Nachrichten, in Sekunden.
+  minGapSeconds  Int                  @default(90)
+  maxGapSeconds  Int                  @default(600)
+  signatureHtml  String?
+  /// Warum das Konto pausiert ist — nie stillschweigend.
+  pausedReason   String?
+  pausedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connection     IntegrationConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  user           User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  stepRuns       EnrollmentStepRun[]
+  messages       EmailMessage[]
+
+  @@unique([organizationId, fromEmail])
+  @@index([organizationId, status])
+}
+
+/// Ein mehrstufiger Ansprachablauf.
+model Sequence {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  status         SequenceStatus @default(DRAFT)
+  /// Über welches Konto gesendet wird. Ohne Angabe wählt die Engine.
+  sendingAccountId String?
+  /// Bei einer Antwort anhalten. Ausschalten nur mit gutem Grund.
+  stopOnReply    Boolean @default(true)
+  stopOnMeeting  Boolean @default(true)
+  ownerId        String?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  archivedAt     DateTime?
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner          User?           @relation("SequenceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy      User?           @relation("SequenceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  steps          SequenceStep[]
+  enrollments    SequenceEnrollment[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+}
+
+model SequenceStep {
+  id             String           @id @default(cuid())
+  organizationId String
+  sequenceId     String
+  position       Int
+  type           SequenceStepType
+  /// Wartezeit in Tagen ab dem vorigen Schritt. Schritt 1 hat üblicherweise 0.
+  delayDays      Int              @default(0)
+  /// Zusätzliche Wartezeit in Stunden, für feinere Abstände.
+  delayHours     Int              @default(0)
+  templateId     String?
+  subject        String?
+  bodyHtml       String?
+  /// Aufgabentitel für TASK und CALL_TASK.
+  taskTitle      String?
+  taskDescription String?
+  /// Bedingung für CONDITION; dieselbe Filtersprache wie überall.
+  condition      Json?
+  /// Angaben für CRM_ACTION, etwa das zu setzende Feld.
+  actionConfig   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sequence       Sequence       @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  template       EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  runs           EnrollmentStepRun[]
+
+  @@unique([sequenceId, position])
+  @@index([organizationId, sequenceId])
+}
+
+/// Der Zustand eines Prospects in einer Sequenz.
+model SequenceEnrollment {
+  id             String               @id @default(cuid())
+  organizationId String
+  sequenceId     String
+  prospectId     String
+  listId         String?
+  status         EnrollmentStatus     @default(ACTIVE)
+  currentStep    Int                  @default(0)
+  /// Wann der nächste Schritt fällig ist. Null heißt: nichts geplant.
+  nextStepAt     DateTime?
+  stoppedReason  EnrollmentStopReason?
+  stoppedNote    String?
+  enrolledById   String?
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sequence       Sequence      @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  prospect       Prospect      @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  list           ProspectList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+  enrolledBy     User?         @relation(fields: [enrolledById], references: [id], onDelete: SetNull)
+  stepRuns       EnrollmentStepRun[]
+  messages       EmailMessage[]
+
+  /// Ein Prospect ist je Sequenz höchstens einmal eingeschrieben — die
+  /// Datenbank verhindert die Doppelansprache, nicht nur die Anwendung.
+  @@unique([sequenceId, prospectId])
+  @@index([organizationId, status, nextStepAt])
+  @@index([organizationId, prospectId])
+}
+
+/// Ein einzelner ausgeführter Schritt.
+///
+/// Die Eindeutigkeit über (Einschreibung, Schritt) ist der Schutz gegen
+/// doppelten Versand: Ein zweiter Lauf desselben Schritts kann nicht entstehen.
+model EnrollmentStepRun {
+  id             String        @id @default(cuid())
+  organizationId String
+  enrollmentId   String
+  stepId         String
+  status         StepRunStatus @default(PENDING)
+  scheduledFor   DateTime
+  executedAt     DateTime?
+  /// Warum übersprungen oder fehlgeschlagen.
+  outcomeReason  String?
+  sendingAccountId String?
+  taskId         String?
+  attempts       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollment     SequenceEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step           SequenceStep       @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  sendingAccount SendingAccount?    @relation(fields: [sendingAccountId], references: [id], onDelete: SetNull)
+  task           Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  messages       EmailMessage[]
+
+  @@unique([enrollmentId, stepId])
+  @@index([organizationId, status, scheduledFor])
+}
+
 model FileObject {
   id              String       @id @default(cuid())
   organizationId  String
@@ -1252,6 +1732,7 @@ model EmailTemplate {
 
   @@unique([organizationId, name])
   @@index([organizationId, isActive])
+  sequenceSteps     SequenceStep[]
 }
 
 model EmailMessage {
@@ -1275,6 +1756,25 @@ model EmailMessage {
   createdById       String?
   sentAt            DateTime?
   error             String?
+
+  /// Akquise-Bezug. Dieselbe Nachricht trägt nach der Konvertierung
+  /// zusätzlich contactId und companyId — es gibt keine zweite Chronik.
+  prospectId        String?
+  enrollmentId      String?
+  stepRunId         String?
+  sendingAccountId  String?
+  /// Fasst Hin- und Rückrichtung zusammen, für die Antworterkennung.
+  threadKey         String?
+  deliveredAt       DateTime?
+  bouncedAt         DateTime?
+  bounceReason      String?
+  /// Einstufung einer eingegangenen Antwort.
+  replyClassification ReplyClassification?
+  /// Wie sicher die Einstufung ist, 0–100. Ohne Angabe: von Hand eingestuft.
+  replyConfidence   Int?
+  /// Wurde die Antwort von einem Menschen gesichtet?
+  reviewedAt        DateTime?
+  reviewedById      String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -1285,6 +1785,11 @@ model EmailMessage {
   company           Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   deal              Deal?                  @relation(fields: [dealId], references: [id], onDelete: Cascade)
   createdBy         User?                  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  prospect          Prospect?              @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  enrollment        SequenceEnrollment?    @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  stepRun           EnrollmentStepRun?     @relation(fields: [stepRunId], references: [id], onDelete: SetNull)
+  sendingAccount    SendingAccount?        @relation(fields: [sendingAccountId], references: [id], onDelete: SetNull)
+  reviewedBy        User?                  @relation("EmailReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   activities        Activity[]
 
   @@index([organizationId, createdAt])
@@ -1315,6 +1820,7 @@ model IntegrationConnection {
 
   @@unique([organizationId, provider, userId])
   @@index([organizationId, provider])
+  sendingAccounts   SendingAccount[]
 }
 
 model WebhookEndpoint {

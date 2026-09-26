@@ -48,6 +48,21 @@ export const PERMISSIONS = [
   "users.manage",
   "audit.read",
   "organization.manage",
+
+  // ─── Customer Acquisition Engine ───────────────────────────────────────
+  // Getrennt von den CRM-Rechten: Wer Kontakte pflegen darf, darf damit noch
+  // lange nicht im Namen des Unternehmens nach außen schreiben.
+  "prospects.read",
+  "prospects.write",
+  "prospects.delete",
+  /// Prospects in eine Sequenz einschreiben — die eigentliche Ansprache.
+  "outreach.enroll",
+  "outreach.sequences.read",
+  "outreach.sequences.manage",
+  /// Eingegangene Antworten lesen und einstufen.
+  "outreach.replies",
+  /// Versandkonten, Limits, Sendefenster, Sperrlisten.
+  "outreach.settings",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -66,6 +81,8 @@ const READ_ONLY: Permission[] = [
   "templates.read",
   "views.read",
   "users.read",
+  "prospects.read",
+  "outreach.sequences.read",
 ];
 
 const SALES: Permission[] = [
@@ -84,6 +101,9 @@ const SALES: Permission[] = [
   "reports.read",
   "exports.run",
   "workflows.read",
+  "prospects.write",
+  "outreach.enroll",
+  "outreach.replies",
 ];
 
 const MANAGER: Permission[] = [
@@ -99,6 +119,8 @@ const MANAGER: Permission[] = [
   "pipelines.manage",
   "properties.manage",
   "audit.read",
+  "prospects.delete",
+  "outreach.sequences.manage",
 ];
 
 const ADMIN: Permission[] = [
@@ -107,6 +129,7 @@ const ADMIN: Permission[] = [
   "users.manage",
   "webhooks.manage",
   "organization.manage",
+  "outreach.settings",
 ];
 
 const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
