@@ -34,6 +34,18 @@ describe("Produkttour", () => {
     expect(state.finishedAt).not.toBeNull();
   });
 
+  it("behält beim Pausieren den Fortschritt, ohne sich wieder aufzudrängen", async () => {
+    const { ctx } = await createTestOrganization();
+    await updateTourState(ctx, { status: "running", progress: { chapter: "kontakte", step: 3 } });
+    const state = await updateTourState(ctx, { status: "paused", progress: { chapter: "kontakte", step: 3 } });
+
+    // Fortsetzen muss möglich sein …
+    expect(state.progress).toEqual({ chapter: "kontakte", step: 3 });
+    // … aber von selbst startet sie nicht wieder, und abgeschlossen ist sie nicht.
+    expect(state.shouldStart).toBe(false);
+    expect(state.finishedAt).toBeNull();
+  });
+
   it("hält den Zustand am Menschen, nicht an der Organisation", async () => {
     const first = await createTestOrganization();
     const second = await createTestOrganization();

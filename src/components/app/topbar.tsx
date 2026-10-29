@@ -3,14 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Compass, LogOut, Menu, Settings, User as UserIcon } from "lucide-react";
+import { LogOut, Menu, Settings, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, Dropdown, DropdownItem } from "@/components/ui/misc";
 import { CommandPalette } from "./command-palette";
 import { NotificationsMenu } from "./notifications-menu";
 import { QuickCreate } from "./quick-create";
 import { api } from "@/lib/api-client";
-import { startTour } from "@/components/tour/tour-provider";
+import { TourMenu } from "@/components/tour/tour-menu";
 import { ROLE_LABELS } from "@/lib/rbac";
 import type { Permission } from "@/lib/rbac";
 import type { Role } from "@/generated/prisma/enums";
@@ -48,6 +48,7 @@ export function Topbar({
       <div className="flex-1 md:hidden" />
 
       <div className="flex items-center gap-1.5">
+        <TourMenu />
         <span data-tour="topbar-create">
           <QuickCreate permissions={permissions} />
         </span>
@@ -83,9 +84,6 @@ export function Topbar({
                 <Link href="/settings">
                   <DropdownItem icon={<Settings className="h-4 w-4" />}>Einstellungen</DropdownItem>
                 </Link>
-                <DropdownItem icon={<Compass className="h-4 w-4" />} onClick={startTour}>
-                  Einführung starten
-                </DropdownItem>
               </div>
               <div className="border-t border-ink-200 pt-1">
                 <DropdownItem icon={<LogOut className="h-4 w-4" />} onClick={logout}>

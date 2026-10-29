@@ -36,11 +36,13 @@ export const TOUR_CHAPTERS: TourChapter[] = [
       },
       {
         id: "spielregeln",
+        target: '[data-tour="topbar-tour"]',
+        placement: "bottom",
         title: "Sie behalten die Kontrolle",
         body:
-          "Mit Esc brechen Sie jederzeit ab, Ihr Fortschritt bleibt erhalten — auch über einen " +
-          "Geräte- oder Browserwechsel hinweg. Und über das Benutzermenü oben rechts können Sie " +
-          "die Einführung jederzeit erneut starten.",
+          "Mit „Speichern & beenden“ auf dieser Karte (oder Esc) hören Sie jederzeit auf — Ihr " +
+          "Stand bleibt erhalten, auch über einen Geräte- oder Browserwechsel hinweg. Über " +
+          "„Einführung“ hier oben setzen Sie die Tour später fort oder starten sie neu.",
         advance: { on: "manual" },
         cta: "Verstanden",
       },

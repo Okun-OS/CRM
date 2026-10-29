@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, MousePointerClick, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bookmark, Check, MousePointerClick, X } from "lucide-react";
 import { useTour } from "./tour-provider";
 import { scrollIntoView, useTarget, type Rect } from "./use-target";
 import { cn } from "@/lib/cn";
@@ -181,7 +181,7 @@ export function TourOverlay() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        tour.stop("aborted");
+        tour.stop("paused");
       }
     };
     document.addEventListener("keydown", onKey);
@@ -205,10 +205,10 @@ export function TourOverlay() {
           <div className="mt-3 flex items-center justify-end gap-1.5">
             <button
               type="button"
-              onClick={() => tour.stop("aborted")}
+              onClick={() => tour.stop("paused")}
               className="rounded-md px-2 py-1.5 text-xs text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800"
             >
-              Beenden
+              Speichern &amp; beenden
             </button>
             <button
               type="button"
@@ -270,19 +270,28 @@ export function TourOverlay() {
         style={{ left: position.left, top: position.top, width: CARD_WIDTH }}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-2xs font-medium uppercase tracking-wider text-brand-600">
               {chapter.title} · Schritt {tour.stepIndex + 1} von {chapter.steps.length}
+              <span className="ml-1.5 font-normal normal-case tracking-normal text-ink-400">
+                {Math.round(tour.progress * 100)} % der Tour
+              </span>
             </p>
+            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-ink-200" aria-hidden="true">
+              <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.round(tour.progress * 100)}%` }} />
+            </div>
             <h2 id="okun-tour-title" className="mt-1 text-base font-semibold leading-snug text-ink-900">
               {step.title}
             </h2>
           </div>
+          {/* Beenden heißt hier immer: Stand sichern. Über „Einführung“ in der
+              Kopfzeile geht es später an derselben Stelle weiter. */}
           <button
             type="button"
-            onClick={() => tour.stop("aborted")}
-            className="-mr-1 -mt-1 rounded-md p-1.5 text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
-            aria-label="Tour beenden"
+            onClick={() => tour.stop("paused")}
+            className="-mr-1 -mt-1 shrink-0 rounded-md p-1.5 text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+            aria-label="Tour speichern und beenden"
+            title="Speichern und beenden"
           >
             <X className="h-4 w-4" />
           </button>
@@ -307,12 +316,18 @@ export function TourOverlay() {
         ) : null}
 
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-ink-200 pt-3">
-          <div className="flex items-center gap-1.5">
-            <div className="h-1 w-20 overflow-hidden rounded-full bg-ink-200" aria-hidden="true">
-              <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.round(tour.progress * 100)}%` }} />
-            </div>
-            <span className="text-2xs tabular-nums text-ink-400">{Math.round(tour.progress * 100)} %</span>
-          </div>
+          {step.offerLater ? (
+            <span />
+          ) : (
+            <button
+              type="button"
+              onClick={() => tour.stop("paused")}
+              className="-ml-2 inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800"
+            >
+              <Bookmark className="h-3.5 w-3.5" />
+              Speichern &amp; beenden
+            </button>
+          )}
 
           <div className="flex items-center gap-1.5">
             {tour.chapterIndex + tour.stepIndex > 0 ? (
@@ -329,7 +344,7 @@ export function TourOverlay() {
             {step.offerLater ? (
               <button
                 type="button"
-                onClick={() => tour.stop("aborted")}
+                onClick={() => tour.stop("paused")}
                 className="rounded-md px-2 py-1.5 text-xs text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800"
               >
                 Später

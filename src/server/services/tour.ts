@@ -31,6 +31,8 @@ export const tourProgressSchema = z.object({
 export const tourUpdateSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("running"), progress: tourProgressSchema }),
   z.object({ status: z.literal("finished") }),
+  /** Gespeichert und beendet: Fortschritt bleibt, die Tour drängt sich nicht wieder auf. */
+  z.object({ status: z.literal("paused"), progress: tourProgressSchema }),
   z.object({ status: z.literal("restart") }),
 ]);
 
@@ -70,11 +72,11 @@ export async function getTourState(ctx: ActorContext): Promise<TourState> {
 /**
  * Nimmt den Fortschritt entgegen.
  *
- * `finished` deckt beenden und abbrechen gleichermaßen ab: Beides bedeutet,
- * dass diese Fassung gesehen wurde und nicht erneut von selbst starten soll.
- * Ob jemand durchgegangen ist oder abgebrochen hat, ändert nichts daran, was
- * die Anwendung danach tut — und wäre nur eine Kennzahl, die wir hier nicht
- * erheben.
+ * `finished` heißt: durch, der Fortschritt ist erledigt. `paused` heißt: für
+ * jetzt beendet, später weiter — der Fortschritt bleibt stehen und wird über
+ * „Einführung → Tour fortsetzen“ wieder aufgenommen. Beides markiert die
+ * Fassung als gesehen, damit die Tour nicht beim nächsten Anmelden von selbst
+ * wieder aufspringt.
  */
 export async function updateTourState(
   ctx: ActorContext,
@@ -86,6 +88,11 @@ export async function updateTourState(
     await prisma.user.update({
       where: { id: ctx.userId },
       data: { tourProgress: data.progress },
+    });
+  } else if (data.status === "paused") {
+    await prisma.user.update({
+      where: { id: ctx.userId },
+      data: { tourSeenVersion: TOUR_VERSION, tourProgress: data.progress },
     });
   } else if (data.status === "finished") {
     await prisma.user.update({
