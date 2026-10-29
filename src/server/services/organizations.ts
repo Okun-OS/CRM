@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import { prisma } from "@/lib/db";
 import type { Tx } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
@@ -44,7 +45,7 @@ export const DEFAULT_PIPELINE = {
 };
 
 export const organizationSettingsSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
+  name: requiredString("Name ist erforderlich.", 120),
   domain: z.string().trim().max(160).optional(),
   industry: z.string().trim().max(120).optional(),
   currency: z.string().length(3).default("EUR"),

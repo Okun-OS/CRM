@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import type { CrmObjectType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
@@ -11,7 +12,7 @@ import { resolveColumns } from "./listing";
 /** Saved views: a named filter + column + sort configuration per object. */
 export const savedViewSchema = z.object({
   objectType: z.enum(["CONTACT", "COMPANY", "LEAD", "DEAL"]),
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(80),
+  name: requiredString("Name ist erforderlich.", 80),
   filter: filterGroupSchema,
   columns: z.array(z.string().max(80)).max(30),
   sort: z.object({ field: z.string().max(80), direction: z.enum(["asc", "desc"]) }).optional(),

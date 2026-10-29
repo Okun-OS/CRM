@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import type { CrmObjectType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
@@ -19,9 +20,9 @@ import { logError } from "@/lib/logger";
  * `sendEmail` refuses with an explicit reason instead of pretending to send.
  */
 export const templateInputSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
-  subject: z.string().trim().min(1, "Betreff ist erforderlich.").max(200),
-  bodyHtml: z.string().trim().min(1, "Inhalt ist erforderlich.").max(100_000),
+  name: requiredString("Name ist erforderlich.", 120),
+  subject: requiredString("Betreff ist erforderlich.", 200),
+  bodyHtml: requiredString("Inhalt ist erforderlich.", 100_000),
   bodyText: z.string().trim().max(50_000).optional(),
   category: z.string().trim().max(80).optional(),
   teamId: z.string().max(30).optional(),
@@ -29,8 +30,8 @@ export const templateInputSchema = z.object({
 });
 
 export const emailComposeSchema = z.object({
-  subject: z.string().trim().min(1, "Betreff ist erforderlich.").max(200),
-  bodyHtml: z.string().trim().min(1, "Inhalt ist erforderlich.").max(100_000),
+  subject: requiredString("Betreff ist erforderlich.", 200),
+  bodyHtml: requiredString("Inhalt ist erforderlich.", 100_000),
   to: z.array(z.string().email()).min(1, "Mindestens eine Empfängeradresse angeben.").max(25),
   cc: z.array(z.string().email()).max(25).optional(),
   bcc: z.array(z.string().email()).max(25).optional(),

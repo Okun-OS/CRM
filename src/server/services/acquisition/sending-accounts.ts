@@ -4,7 +4,7 @@ import { assertPermission, type ActorContext } from "@/lib/context";
 import { scope, assertFound } from "@/lib/tenant";
 import { writeAudit } from "@/lib/audit";
 import { Conflict, ValidationError } from "@/lib/api/errors";
-import { emailField } from "@/lib/schemas/crm";
+import { emailField, requiredString } from "@/lib/schemas/crm";
 
 /**
  * Versandkonten — und die Regeln, nach denen sie senden dürfen.
@@ -15,8 +15,8 @@ import { emailField } from "@/lib/schemas/crm";
  * Unterschied ist genau dieser Dienst.
  */
 export const sendingAccountInputSchema = z.object({
-  label: z.string().trim().min(1, "Bezeichnung ist erforderlich.").max(80),
-  fromName: z.string().trim().min(1, "Absendername ist erforderlich.").max(120),
+  label: requiredString("Bezeichnung ist erforderlich.", 80),
+  fromName: requiredString("Absendername ist erforderlich.", 120),
   fromEmail: emailField,
   connectionId: z.string().max(30).optional(),
   userId: z.string().max(30).optional(),

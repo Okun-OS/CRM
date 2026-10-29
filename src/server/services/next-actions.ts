@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateValue } from "@/lib/schemas/crm";
+import { dateValue, requiredString } from "@/lib/schemas/crm";
 import type { NextActionType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { assertPermission, can, type ActorContext } from "@/lib/context";
@@ -30,8 +30,8 @@ export const manualNextActionSchema = z.object({
     "PREPARE_MEETING", "CREATE_OFFER", "SEND_OFFER", "CHASE_OFFER", "GET_DECISION",
     "PREPARE_CONTRACT", "REACTIVATE", "DEFINE_NEXT_STEP", "CUSTOM",
   ]),
-  title: z.string().trim().min(1, "Titel ist erforderlich.").max(160),
-  reason: z.string().trim().min(1, "Eine Begründung ist erforderlich.").max(500),
+  title: requiredString("Titel ist erforderlich.", 160),
+  reason: requiredString("Eine Begründung ist erforderlich.", 500),
   dueAt: dateValue.nullable().optional(),
   priority: z.coerce.number().int().min(0).max(100).default(PRIORITY.NORMAL),
   ownerId: z.string().max(30).nullable().optional(),
@@ -43,17 +43,17 @@ export const snoozeSchema = z.object({
 });
 
 export const dismissSchema = z.object({
-  reason: z.string().trim().min(1, "Bitte kurz begründen, warum die Empfehlung nicht passt.").max(300),
+  reason: requiredString("Bitte kurz begründen, warum die Empfehlung nicht passt.", 300),
 });
 
 export const recallSchema = z.object({
   at: z.coerce.date(),
-  reason: z.string().trim().min(1, "Eine Begründung ist erforderlich.").max(300),
+  reason: requiredString("Eine Begründung ist erforderlich.", 300),
 });
 
 export const pauseSchema = z.object({
   until: z.coerce.date(),
-  reason: z.string().trim().min(1, "Eine Begründung ist erforderlich.").max(300),
+  reason: requiredString("Eine Begründung ist erforderlich.", 300),
 });
 
 function assertReadable(ctx: ActorContext, kind: "DEAL" | "LEAD") {

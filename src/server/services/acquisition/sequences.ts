@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
@@ -49,7 +50,7 @@ const stepSchema = z
   });
 
 export const sequenceInputSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
+  name: requiredString("Name ist erforderlich.", 120),
   description: z.string().trim().max(1000).optional(),
   sendingAccountId: z.string().max(30).optional(),
   stopOnReply: z.boolean().default(true),

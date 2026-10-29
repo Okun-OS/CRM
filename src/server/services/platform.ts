@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import type { PlatformActor } from "@/lib/platform";
 import { hashPassword, hashToken, randomToken } from "@/lib/crypto";
 import { Conflict, NotFound, ValidationError } from "@/lib/api/errors";
-import { emailField } from "@/lib/schemas/crm";
+import { emailField, requiredString } from "@/lib/schemas/crm";
 import { env } from "@/lib/env";
 import { logInfo } from "@/lib/logger";
 import { createOrganizationSlug, provisionOrganization } from "./organizations";
@@ -31,7 +31,7 @@ export const customerInputSchema = z.object({
 });
 
 export const suspendSchema = z.object({
-  reason: z.string().trim().min(1, "Bitte kurz begründen, warum die Organisation stillgelegt wird.").max(300),
+  reason: requiredString("Bitte kurz begründen, warum die Organisation stillgelegt wird.", 300),
 });
 
 async function writePlatformAudit(

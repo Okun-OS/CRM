@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import { scope, assertFound } from "@/lib/tenant";
@@ -23,7 +24,7 @@ export const stageInputSchema = z.object({
 });
 
 export const pipelineInputSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(80),
+  name: requiredString("Name ist erforderlich.", 80),
   isDefault: z.boolean().default(false),
   stages: z.array(stageInputSchema).min(2, "Eine Pipeline braucht mindestens zwei Stages.").max(20),
 });

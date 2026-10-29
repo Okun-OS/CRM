@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import type { CrmObjectType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
@@ -11,7 +12,7 @@ import { mapDefinition, optionSchema, propertyKeySchema } from "@/lib/properties
 export const propertyDefinitionSchema = z.object({
   objectType: z.enum(["CONTACT", "COMPANY", "LEAD", "DEAL"]),
   key: propertyKeySchema,
-  label: z.string().trim().min(1, "Bezeichnung ist erforderlich.").max(120),
+  label: requiredString("Bezeichnung ist erforderlich.", 120),
   description: z.string().trim().max(500).optional(),
   type: z.enum([
     "TEXT",

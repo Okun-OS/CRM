@@ -14,12 +14,12 @@ export const registerSchema = z.object({
   name: z.string().trim().min(2, "Bitte den vollständigen Namen angeben.").max(80),
   email: emailField,
   password: passwordSchema,
-  organizationName: z.string().trim().min(2, "Bitte den Namen der Organisation angeben.").max(120),
+  organizationName: z.string({ error: "Bitte den Namen der Organisation angeben." }).trim().min(2, "Bitte den Namen der Organisation angeben.").max(120),
 });
 
 export const loginSchema = z.object({
   email: emailField,
-  password: z.string().min(1, "Bitte das Passwort eingeben.").max(200),
+  password: z.string({ error: "Bitte das Passwort eingeben." }).min(1, "Bitte das Passwort eingeben.").max(200),
 });
 
 export const acceptInvitationSchema = z.object({

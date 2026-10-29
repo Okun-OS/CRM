@@ -8,7 +8,7 @@ import { writeAudit } from "@/lib/audit";
 import { emitDomainEvent } from "@/lib/events";
 import { paginate, paginationSchema, skipTake } from "@/lib/api/pagination";
 import { Conflict, ValidationError } from "@/lib/api/errors";
-import { optionalEmail } from "@/lib/schemas/crm";
+import { optionalEmail, requiredString } from "@/lib/schemas/crm";
 import { assertStageTransition } from "./lifecycle";
 import { checkSuppression, domainOf } from "./suppression";
 import type { ProspectCandidate } from "@/server/acquisition/providers/types";
@@ -22,7 +22,7 @@ import type { ProspectCandidate } from "@/server/acquisition/providers/types";
  */
 
 export const prospectInputSchema = z.object({
-  companyName: z.string().trim().min(1, "Firmenname ist erforderlich.").max(160),
+  companyName: requiredString("Firmenname ist erforderlich.", 160),
   domain: z.string().trim().max(160).optional(),
   website: z.string().trim().max(500).optional(),
   industry: z.string().trim().max(120).optional(),

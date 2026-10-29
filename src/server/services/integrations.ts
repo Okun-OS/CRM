@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import { scope, assertFound } from "@/lib/tenant";
@@ -16,10 +17,10 @@ import { parseSmtpConfig, verifySmtp } from "@/server/integrations/smtp";
  * Administratoren. Wer das Passwort ändern will, gibt ein neues ein.
  */
 export const smtpConnectionSchema = z.object({
-  host: z.string().trim().min(1, "Bitte den SMTP-Host angeben.").max(200),
+  host: requiredString("Bitte den SMTP-Host angeben.", 200),
   port: z.coerce.number().int().min(1).max(65535).default(587),
   secure: z.boolean().default(false),
-  user: z.string().trim().min(1, "Bitte den Benutzernamen angeben.").max(200),
+  user: requiredString("Bitte den Benutzernamen angeben.", 200),
   password: z.string().min(1, "Bitte das Passwort angeben.").max(400),
   fromAddress: z.string().trim().email("Bitte eine gültige Absenderadresse angeben.").max(254),
   fromName: z.string().trim().max(80).optional(),

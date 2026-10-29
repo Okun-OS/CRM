@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateValue } from "@/lib/schemas/crm";
+import { dateValue, requiredString } from "@/lib/schemas/crm";
 import { prisma } from "@/lib/db";
 import { assertPermission, buildContext, type ActorContext } from "@/lib/context";
 import { scope, assertFound } from "@/lib/tenant";
@@ -19,7 +19,7 @@ export { API_KEY_SCOPES, API_KEY_SCOPE_LABELS, type ApiKeyScope } from "@/lib/cr
 const PREFIX = "okun_ck";
 
 export const apiKeyInputSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(80),
+  name: requiredString("Name ist erforderlich.", 80),
   scopes: z.array(z.enum(API_KEY_SCOPES)).min(1, "Mindestens ein Scope ist erforderlich."),
   expiresAt: dateValue.nullable().optional(),
 });

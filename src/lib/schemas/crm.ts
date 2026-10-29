@@ -12,6 +12,14 @@ import { z } from "zod";
  * This is what lets an edit form remove a phone number or unlink a company
  * instead of only ever adding data.
  */
+/**
+ * Required text field. The message also covers a missing key: a form that never
+ * touched the input sends nothing, and Zod's default "expected string, received
+ * undefined" is not something a user should ever read.
+ */
+export const requiredString = (message: string, max: number) =>
+  z.string({ error: message }).trim().min(1, message).max(max);
+
 const optionalString = (max: number) =>
   z
     .string()
@@ -83,8 +91,8 @@ const optionalDate = z
 export const propertiesInput = z.record(z.string().max(48), z.unknown()).optional();
 
 export const contactInputSchema = z.object({
-  firstName: z.string().trim().min(1, "Vorname ist erforderlich.").max(80),
-  lastName: z.string().trim().min(1, "Nachname ist erforderlich.").max(80),
+  firstName: requiredString("Vorname ist erforderlich.", 80),
+  lastName: requiredString("Nachname ist erforderlich.", 80),
   email: optionalEmail,
   phone: optionalString(40),
   mobile: optionalString(40),
@@ -107,7 +115,7 @@ export const contactInputSchema = z.object({
 export const contactUpdateSchema = contactInputSchema.partial();
 
 export const companyInputSchema = z.object({
-  name: z.string().trim().min(1, "Firmenname ist erforderlich.").max(160),
+  name: requiredString("Firmenname ist erforderlich.", 160),
   domain: optionalString(160),
   industry: optionalString(120),
   employeeCount: optionalNumber(0, 10_000_000),
@@ -150,9 +158,9 @@ export const leadInputSchema = z.object({
 export const leadUpdateSchema = leadInputSchema.partial();
 
 export const dealInputSchema = z.object({
-  name: z.string().trim().min(1, "Dealname ist erforderlich.").max(160),
-  pipelineId: z.string().min(1, "Pipeline ist erforderlich.").max(30),
-  stageId: z.string().min(1, "Stage ist erforderlich.").max(30),
+  name: requiredString("Dealname ist erforderlich.", 160),
+  pipelineId: z.string({ error: "Pipeline ist erforderlich." }).min(1, "Pipeline ist erforderlich.").max(30),
+  stageId: z.string({ error: "Stage ist erforderlich." }).min(1, "Stage ist erforderlich.").max(30),
   amount: z.coerce.number().min(0).max(1_000_000_000_000).default(0),
   currency: z.string().length(3).default("EUR"),
   probability: optionalNumber(0, 100),
@@ -176,7 +184,7 @@ export const dealStageChangeSchema = z.object({
 });
 
 export const taskInputSchema = z.object({
-  title: z.string().trim().min(1, "Titel ist erforderlich.").max(200),
+  title: requiredString("Titel ist erforderlich.", 200),
   description: optionalString(5000),
   status: z.enum(["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).default("OPEN"),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
@@ -206,7 +214,7 @@ export const activityInputSchema = z.object({
 });
 
 export const noteInputSchema = z.object({
-  body: z.string().trim().min(1, "Die Notiz darf nicht leer sein.").max(20_000),
+  body: requiredString("Die Notiz darf nicht leer sein.", 20_000),
   contactId: optionalString(30),
   companyId: optionalString(30),
   dealId: optionalString(30),
@@ -215,7 +223,7 @@ export const noteInputSchema = z.object({
 
 export const meetingInputSchema = z
   .object({
-    title: z.string().trim().min(1, "Titel ist erforderlich.").max(200),
+    title: requiredString("Titel ist erforderlich.", 200),
     description: optionalString(5000),
     startAt: dateValue,
     endAt: dateValue,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
@@ -18,7 +19,7 @@ import { filterGroupSchema } from "@/lib/filters";
  */
 export const prospectListInputSchema = z
   .object({
-    name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
+    name: requiredString("Name ist erforderlich.", 120),
     description: z.string().trim().max(500).optional(),
     kind: z.enum(["STATIC", "DYNAMIC"]).default("STATIC"),
     filter: filterGroupSchema.optional(),

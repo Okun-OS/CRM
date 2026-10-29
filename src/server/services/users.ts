@@ -7,7 +7,7 @@ import { hashPassword, hashToken, randomToken } from "@/lib/crypto";
 import { writeAudit } from "@/lib/audit";
 import { Conflict, Forbidden, NotFound, ValidationError } from "@/lib/api/errors";
 import { assignableRoles, permissionsForRole } from "@/lib/rbac";
-import { emailField } from "@/lib/schemas/crm";
+import { emailField, requiredString } from "@/lib/schemas/crm";
 import { acceptInvitationSchema } from "@/lib/schemas/auth";
 import { env } from "@/lib/env";
 import { logError } from "@/lib/logger";
@@ -34,7 +34,7 @@ export const memberUpdateSchema = z.object({
 });
 
 export const teamSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(80),
+  name: requiredString("Name ist erforderlich.", 80),
   parentTeamId: z.string().max(30).nullable().optional(),
 });
 

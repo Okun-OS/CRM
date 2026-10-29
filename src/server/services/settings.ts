@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import { scope, assertFound } from "@/lib/tenant";
@@ -18,13 +19,13 @@ export const optionSchema = z.object({
     .min(2)
     .max(48)
     .regex(/^[a-z][a-z0-9_]*$/, "Nur Kleinbuchstaben, Zahlen und Unterstriche."),
-  label: z.string().trim().min(1, "Bezeichnung ist erforderlich.").max(80),
+  label: requiredString("Bezeichnung ist erforderlich.", 80),
   position: z.coerce.number().int().min(0).max(999).default(0),
   isTerminal: z.boolean().optional(),
 });
 
 export const tagSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(60),
+  name: requiredString("Name ist erforderlich.", 60),
   color: z
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, "Bitte eine Hex-Farbe angeben.")

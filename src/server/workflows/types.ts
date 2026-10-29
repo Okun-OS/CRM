@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredString } from "@/lib/schemas/crm";
 import { filterGroupSchema } from "@/lib/filters";
 
 /**
@@ -63,7 +64,7 @@ export const actionSchema = z.discriminatedUnion("type", [
 export type WorkflowAction = z.infer<typeof actionSchema>;
 
 export const workflowInputSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
+  name: requiredString("Name ist erforderlich.", 120),
   description: z.string().trim().max(1000).optional(),
   objectType: z.enum(["CONTACT", "COMPANY", "LEAD", "DEAL"]),
   triggerType: z.enum([
