@@ -126,6 +126,30 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         advance: { on: "manual" },
       },
       {
+        id: "liste",
+        target: '[data-tour="list-table"]',
+        placement: "top",
+        title: "Die Liste, und was sie kann",
+        body:
+          "Bevor wir etwas anlegen: Jede Liste im System funktioniert gleich: Volltextsuche, Filter über jedes Feld, " +
+          "Spaltenauswahl, Sortierung und CSV-Export der *aktuellen* Abfrage.",
+        why:
+          "Ein Export, der immer alles ausgibt, ist wertlos. Hier bekommen Sie genau das, was Sie " +
+          "gerade auf dem Schirm haben.",
+        advance: { on: "manual" },
+      },
+      {
+        id: "ansichten",
+        target: '[data-tour="list-views"]',
+        placement: "bottom",
+        title: "Gespeicherte Ansichten",
+        body:
+          "Filter, Spalten und Sortierung lassen sich als benannte Ansicht sichern — und fürs Team " +
+          "freigeben. „Kunden ohne Aktivität seit 60 Tagen“ ist dann ein Klick, keine Fleißarbeit.",
+        optional: true,
+        advance: { on: "manual" },
+      },
+      {
         id: "erstellen-zeigen",
         target: '[data-tour="list-create"]',
         placement: "bottom",
@@ -170,35 +194,14 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="drawer"] button[type="submit"]',
         placement: "top",
         title: "Speichern",
-        body: "Der Name steht, das reicht. Speichern Sie, danach geht es weiter.",
-        waitingFor: "Warte darauf, dass das Formular gespeichert und geschlossen wird",
+        body: "Der Name steht, das reicht. Speichern Sie — die neue Firmenakte öffnet sich, und es geht weiter.",
+        waitingFor: "Warte darauf, dass das Unternehmen gespeichert ist",
         optional: true,
         skippable: true,
-        advance: { on: "disappear", selector: '[data-tour="drawer"]' },
-      },
-      {
-        id: "liste",
-        target: '[data-tour="list-table"]',
-        placement: "top",
-        title: "Die Liste, und was sie kann",
-        body:
-          "Jede Liste im System funktioniert gleich: Volltextsuche, Filter über jedes Feld, " +
-          "Spaltenauswahl, Sortierung und CSV-Export der *aktuellen* Abfrage.",
-        why:
-          "Ein Export, der immer alles ausgibt, ist wertlos. Hier bekommen Sie genau das, was Sie " +
-          "gerade auf dem Schirm haben.",
-        advance: { on: "manual" },
-      },
-      {
-        id: "ansichten",
-        target: '[data-tour="list-views"]',
-        placement: "bottom",
-        title: "Gespeicherte Ansichten",
-        body:
-          "Filter, Spalten und Sortierung lassen sich als benannte Ansicht sichern — und fürs Team " +
-          "freigeben. „Kunden ohne Aktivität seit 60 Tagen“ ist dann ein Klick, keine Fleißarbeit.",
-        optional: true,
-        advance: { on: "manual" },
+        // Nach dem Speichern öffnet die Anwendung selbst die neue Akte. Darauf
+        // wartet der Schritt, statt auf das Schließen des Formulars: Sonst
+        // hielte die Tour den Seitenwechsel für „umgesehen“.
+        advance: { on: "navigate", match: "/companies/" },
       },
     ],
   },
@@ -238,8 +241,24 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: "#lastName",
         placement: "left",
         title: "Und der Nachname",
-        body: "Danach zeigen wir Ihnen die beiden Felder, die einen Kontakt erst nützlich machen.",
+        body: "Damit ist der Kontakt speicherbar. Gleich danach kommt das Feld, das ihn erreichbar macht.",
         waitingFor: "Tragen Sie den Nachnamen ein",
+        optional: true,
+        skippable: true,
+        advance: { on: "filled" },
+      },
+      {
+        id: "email",
+        target: "#email",
+        placement: "left",
+        title: "Die E-Mail-Adresse: kein Pflichtfeld, aber wichtig",
+        body:
+          "Tragen Sie die Adresse ein, wenn Sie sie haben. Ohne sie können Sie diesem Kontakt aus " +
+          "dem CRM keine E-Mail schicken.",
+        why:
+          "Außerdem erkennt das System Dubletten über die E-Mail-Adresse: Derselbe Mensch wird beim " +
+          "nächsten Import nicht ein zweites Mal angelegt.",
+        waitingFor: "Tragen Sie eine E-Mail-Adresse ein — oder überspringen Sie, wenn Sie keine haben",
         optional: true,
         skippable: true,
         advance: { on: "filled" },
@@ -274,21 +293,12 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="drawer"] button[type="submit"]',
         placement: "top",
         title: "Speichern und weiter",
-        body: "Mehr braucht es nicht. Speichern Sie, dann sehen wir uns die Kontaktakte an.",
+        body: "Mehr braucht es nicht. Speichern Sie — die Kontaktakte öffnet sich, und dort geht es weiter.",
         waitingFor: "Warte darauf, dass der Kontakt gespeichert ist",
         optional: true,
         skippable: true,
-        advance: { on: "disappear", selector: '[data-tour="drawer"]' },
-      },
-      {
-        id: "oeffnen",
-        target: '[data-tour="list-table"] tbody tr:first-child a',
-        placement: "bottom",
-        title: "Öffnen Sie den Kontakt",
-        body: "Ein Klick auf den Namen führt zur Akte — dort steckt der eigentliche Wert.",
-        waitingFor: "Warte darauf, dass Sie einen Kontakt öffnen",
-        optional: true,
-        skippable: true,
+        // Die Anwendung öffnet nach dem Speichern die Akte — genau dort spielt
+        // das nächste Kapitel.
         advance: { on: "navigate", match: "/contacts/" },
       },
     ],
@@ -427,7 +437,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         waitingFor: "Warte darauf, dass der Deal gespeichert ist",
         optional: true,
         skippable: true,
-        advance: { on: "disappear", selector: '[data-tour="drawer"]' },
+        advance: { on: "navigate", match: "/deals/" },
       },
     ],
   },
@@ -536,14 +546,26 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         optional: true,
       },
       {
+        id: "import",
+        target: '[data-tour="prospect-import"]',
+        placement: "left",
+        title: "Viele auf einmal",
+        body:
+          "Aus einer Tabelle, oder aus Ihrem eigenen CRM-Bestand: Unternehmen ohne offene Chance. " +
+          "Sie ordnen die Spalten selbst zu. Für den Anfang legen wir aber einen einzelnen an.",
+        why:
+          "Das Ergebnis zählt Angelegt, Dubletten, Gesperrt und Übersprungen getrennt. Eine reine " +
+          "Erfolgsmeldung verschweigt genau das, was man wissen will.",
+        advance: { on: "manual" },
+        optional: true,
+        requires: "prospects.write",
+      },
+      {
         id: "anlegen",
         target: '[data-tour="prospect-create"]',
         placement: "left",
         title: "Legen Sie einen an",
-        body: "Firmenname genügt. Alles andere kann später dazukommen.",
-        why:
-          "Ohne E-Mail-Adresse lässt sich ein Prospect recherchieren und qualifizieren, aber nicht " +
-          "ansprechen. Die Oberfläche sagt das offen, statt den Knopf ins Leere laufen zu lassen.",
+        body: "Zum Anlegen genügt der Firmenname. Zum Anschreiben braucht es mehr — dazu gleich.",
         waitingFor: "Klicken Sie auf „Prospect anlegen“",
         advance: { on: "click" },
         optional: true,
@@ -563,6 +585,23 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         advance: { on: "filled" },
       },
       {
+        id: "email",
+        target: "#email",
+        placement: "left",
+        title: "Ohne E-Mail-Adresse kein Anschreiben",
+        body:
+          "Tragen Sie die Adresse des Ansprechpartners ein. Nur ein Prospect mit E-Mail-Adresse " +
+          "lässt sich in eine Sequenz aufnehmen — sonst lehnt das System die Aufnahme ab.",
+        why:
+          "Ohne Adresse lässt sich ein Prospect recherchieren und qualifizieren, aber nicht " +
+          "ansprechen. Die Oberfläche sagt das offen, statt den Knopf ins Leere laufen zu lassen.",
+        waitingFor: "Tragen Sie eine E-Mail-Adresse ein — oder überspringen Sie, wenn Sie keine haben",
+        optional: true,
+        skippable: true,
+        requires: "prospects.write",
+        advance: { on: "filled" },
+      },
+      {
         id: "formular",
         target: '[data-tour="drawer"]',
         placement: "auto",
@@ -574,24 +613,9 @@ export const TOUR_CHAPTERS: TourChapter[] = [
           "Wenn später jemand fragt, woher eine Adresse stammt, muss das System antworten können. " +
           "Eine Herkunft, die man nachträglich rekonstruieren muss, ist keine.",
         waitingFor: "Speichern Sie den Prospect",
-        advance: { on: "disappear", selector: '[data-tour="drawer"]' },
+        advance: { on: "navigate", match: "/outreach/prospects/" },
         optional: true,
         skippable: true,
-        requires: "prospects.write",
-      },
-      {
-        id: "import",
-        target: '[data-tour="prospect-import"]',
-        placement: "left",
-        title: "Oder mehrere auf einmal",
-        body:
-          "Aus einer Tabelle, oder aus Ihrem eigenen CRM-Bestand: Unternehmen ohne offene Chance. " +
-          "Sie ordnen die Spalten selbst zu.",
-        why:
-          "Das Ergebnis zählt Angelegt, Dubletten, Gesperrt und Übersprungen getrennt. Eine reine " +
-          "Erfolgsmeldung verschweigt genau das, was man wissen will.",
-        advance: { on: "manual" },
-        optional: true,
         requires: "prospects.write",
       },
     ],
@@ -841,6 +865,10 @@ export const TOUR_CHAPTERS: TourChapter[] = [
     title: "Einrichtung",
     summary: "Was Sie selbst anpassen können.",
     route: "/settings",
+    // /settings leitet auf den ersten erlaubten Bereich weiter. Ohne diese
+    // Regel hielte die Tour die Weiterleitung für „umgesehen“ und schickte
+    // immer wieder auf /settings — eine Schleife, aus der sie nicht herauskam.
+    matches: (pathname) => pathname === "/settings" || pathname.startsWith("/settings/"),
     steps: [
       {
         id: "konfiguration",

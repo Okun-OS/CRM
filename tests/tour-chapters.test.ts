@@ -88,7 +88,7 @@ describe("Inhalt der Produkttour", () => {
 
     for (const chapter of TOUR_CHAPTERS) {
       const saveIndex = chapter.steps.findIndex(
-        (step) => step.advance.on === "disappear" && step.advance.selector === '[data-tour="drawer"]',
+        (step) => step.advance.on !== "manual" && step.advance.on !== "filled" && step.target?.includes('[data-tour="drawer"]'),
       );
       if (saveIndex === -1) continue;
 
@@ -109,6 +109,20 @@ describe("Inhalt der Produkttour", () => {
       );
       const missing = required.filter((id) => !filledBeforeSave.has(`#${id}`));
       expect(missing, `Kapitel ${chapter.id}`).toEqual([]);
+    }
+  });
+
+  it("wartet nach dem Speichern auf die Akte, die die Anwendung öffnet", () => {
+    // Nach dem Anlegen öffnet jede Liste selbst die neue Akte. Wartet die Tour
+    // stattdessen nur auf das Schließen des Formulars, schaltet sie ein Kapitel
+    // weiter und navigiert gleichzeitig mit der Anwendung — und landet auf der
+    // falschen Seite, mit „Einführung pausiert“ oder ganz festgefahren.
+    for (const chapter of TOUR_CHAPTERS) {
+      for (const step of chapter.steps) {
+        if (step.advance.on === "disappear") {
+          expect(step.advance.selector, `${chapter.id}/${step.id}`).not.toBe('[data-tour="drawer"]');
+        }
+      }
     }
   });
 

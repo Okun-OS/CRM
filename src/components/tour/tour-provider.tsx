@@ -31,6 +31,8 @@ type TourContextValue = {
   stop: (reason: "finished" | "aborted") => void;
   /** Ob die aktuelle Seite zum laufenden Kapitel gehört. */
   onRoute: boolean;
+  /** Die Tour wechselt gerade selbst die Seite; bis dahin zeigt sie nichts. */
+  navigating: boolean;
   /** Zurück auf die Seite, auf der das Kapitel spielt. */
   returnToChapter: () => void;
   /** Ob die Tour überhaupt angeboten werden kann. */
@@ -38,6 +40,11 @@ type TourContextValue = {
 };
 
 const TourContext = React.createContext<TourContextValue | null>(null);
+
+/** Kann die Tour selbst auf die Seite des Kapitels führen? */
+function reachable(chapter: TourChapter): boolean {
+  return chapter.matches ? chapter.matches(chapter.route) : true;
+}
 
 export function useTour() {
   const value = React.useContext(TourContext);
@@ -137,21 +144,69 @@ export function TourProvider({
    * Nicht beim Fortsetzen und nicht, wenn jemand sich umsieht: Beides würde
    * den Menschen von der Seite reißen, die er gerade sehen wollte. Ist die
    * Tour auf der falschen Seite, wartet sie sichtbar, statt zu greifen.
+   *
+   * Gemerkt wird das *Ziel*kapitel, nicht nur „bitte navigieren“: Zwischen
+   * `next()` und dem Rendern des neuen Kapitels kann sich die Adresse ändern —
+   * etwa weil die Anwendung nach dem Speichern die neue Akte öffnet. Ein
+   * bloßes Ja/Nein ließe den Effekt dann noch mit dem *alten* Kapitel laufen,
+   * und die Tour führte zurück auf dessen Liste.
    */
-  const wantsNavigation = React.useRef(false);
+  const navigateTo = React.useRef<number | null>(null);
+  const [navigating, setNavigating] = React.useState(false);
 
   React.useEffect(() => {
-    if (!active || !chapter || onRoute) return;
-    if (!wantsNavigation.current) return;
-    wantsNavigation.current = false;
+    if (!active || !chapter || navigateTo.current !== chapterIndex) return;
+    if (onRoute) {
+      navigateTo.current = null;
+      return;
+    }
+    if (!reachable(chapter)) {
+      // Ein Kapitel auf einer Detailseite lässt sich nicht anspringen — etwa
+      // „Die Akte“, wenn das Speichern übersprungen wurde. Statt auf eine
+      // Seite zu führen, auf der es nie weitergeht, folgt das nächste Kapitel.
+      if (chapterIndex + 1 < chapters.length) {
+        navigateTo.current = chapterIndex + 1;
+        setChapterIndex(chapterIndex + 1);
+        setStepIndex(0);
+      } else {
+        navigateTo.current = null;
+      }
+      return;
+    }
+    navigateTo.current = null;
+    setNavigating(true);
     router.push(chapter.route);
-  }, [active, chapter, onRoute, router]);
+  }, [active, chapter, chapterIndex, chapters.length, onRoute, router]);
+
+  // Angekommen. Bis hierhin sähe die Tour die alte Seite und hielte das für
+  // „umgesehen" — oder würde die Schritte des neuen Kapitels überspringen,
+  // weil ihre Ziele auf der alten Seite fehlen.
+  React.useEffect(() => {
+    if (onRoute) setNavigating(false);
+  }, [onRoute]);
+
+  // Kommt die Seite nie an — umgeleitet, abgebrochen —, darf die Tour nicht
+  // unsichtbar bleiben. Dann zeigt sie wieder, wo sie steht.
+  React.useEffect(() => {
+    if (!navigating) return;
+    const timer = window.setTimeout(() => setNavigating(false), 8000);
+    return () => window.clearTimeout(timer);
+  }, [navigating]);
 
   const returnToChapter = React.useCallback(() => {
-    if (chapter) router.push(chapter.route);
-  }, [chapter, router]);
+    if (!chapter) return;
+    // Wohin, wenn das Kapitel nur auf einer Detailseite spielt? Dann weiter
+    // zum nächsten Kapitel, statt auf die Liste, wo die Tour wieder wartet.
+    if (reachable(chapter)) {
+      router.push(chapter.route);
+    } else if (chapterIndex + 1 < chapters.length) {
+      navigateTo.current = chapterIndex + 1;
+      setChapterIndex(chapterIndex + 1);
+      setStepIndex(0);
+    }
+  }, [chapter, chapterIndex, chapters.length, router]);
 
-  /* `next` und `back` werden weiter unten erklärt; sie setzen `wantsNavigation`,
+  /* `next` und `back` werden weiter unten erklärt; sie setzen `navigateTo`,
      bevor sie das Kapitel wechseln. */
 
   const stop = React.useCallback((reason: "finished" | "aborted") => {
@@ -171,7 +226,7 @@ export function TourProvider({
       return;
     }
     if (chapterIndex + 1 < chapters.length) {
-      wantsNavigation.current = true;
+      navigateTo.current = chapterIndex + 1;
       setChapterIndex(chapterIndex + 1);
       setStepIndex(0);
       return;
@@ -186,14 +241,14 @@ export function TourProvider({
     }
     if (chapterIndex > 0) {
       const previous = chapters[chapterIndex - 1];
-      wantsNavigation.current = true;
+      navigateTo.current = chapterIndex - 1;
       setChapterIndex(chapterIndex - 1);
       setStepIndex(Math.max(0, previous.steps.length - 1));
     }
   }, [chapterIndex, chapters, stepIndex]);
 
   const start = React.useCallback(() => {
-    wantsNavigation.current = true;
+    navigateTo.current = 0;
     setChapterIndex(0);
     setStepIndex(0);
     setActive(true);
@@ -231,11 +286,12 @@ export function TourProvider({
       back,
       stop,
       onRoute,
+      navigating: navigating || (!onRoute && navigateTo.current === chapterIndex),
       returnToChapter,
       available: chapters.length > 0,
     }),
     [
-      active, back, chapter, chapterIndex, chapters.length, doneSteps, next, onRoute,
+      active, back, chapter, chapterIndex, chapters.length, doneSteps, navigating, next, onRoute,
       returnToChapter, start, step, stepIndex, stop, totalSteps,
     ],
   );

@@ -82,7 +82,9 @@ export function TourOverlay() {
   React.useEffect(() => {
     if (!cardRef.current) return;
     const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) setCardHeight(entry.contentRect.height);
+      // Die äußere Höhe, nicht `contentRect`: Ohne Innenabstand gerechnet
+      // landet die Karte zu tief und deckt genau den Knopf ab, den sie zeigt.
+      for (const entry of entries) setCardHeight(entry.target.getBoundingClientRect().height);
     });
     observer.observe(cardRef.current);
     return () => observer.disconnect();
@@ -91,14 +93,26 @@ export function TourOverlay() {
   /* ── Fehlt das Ziel dauerhaft, überspringen wir den Schritt ──────────── */
   React.useEffect(() => {
     setWaited(false);
-    if (!active || !step?.target) return;
+    if (!active || !step?.target || tour.navigating) return;
     const timer = window.setTimeout(() => setWaited(true), 1400);
     return () => window.clearTimeout(timer);
-  }, [active, step?.id, step?.target]);
+  }, [active, step?.id, step?.target, tour.navigating]);
+
+  // Nur ein Ziel, das nie da war, gilt als fehlend. Verschwindet es, nachdem
+  // es zu sehen war, hat meist der Mensch gehandelt — etwa gespeichert, und
+  // das Formular schließt sich, während die neue Seite noch lädt. Dann wird
+  // gewartet, nicht übersprungen.
+  const seen = React.useRef(false);
+  React.useEffect(() => {
+    seen.current = false;
+  }, [step?.id]);
+  React.useEffect(() => {
+    if (found) seen.current = true;
+  }, [found, step?.id]);
 
   React.useEffect(() => {
-    if (!active || !step || !step.target || found || !waited) return;
-    if (step.optional) tour.next();
+    if (!active || !step || !step.target || found || !waited || tour.navigating) return;
+    if (step.optional && !seen.current) tour.next();
   }, [active, found, step, tour, waited]);
 
   /* ── Auf echte Handlungen warten ─────────────────────────────────────── */
@@ -174,7 +188,7 @@ export function TourOverlay() {
     return () => document.removeEventListener("keydown", onKey);
   }, [active, tour]);
 
-  if (!active || !step || !chapter) return null;
+  if (!active || !step || !chapter || tour.navigating) return null;
 
   /* Der Mensch hat sich umgesehen. Statt ihn zurückzuzerren, bietet die Karte
      die Rückkehr an — und bleibt ansonsten aus dem Weg. */
