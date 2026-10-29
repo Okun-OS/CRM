@@ -73,6 +73,45 @@ describe("Inhalt der Produkttour", () => {
     expect(missing).toEqual([]);
   });
 
+  it("lässt in jedem Formular, das sie speichern lässt, alle Pflichtfelder ausfüllen", () => {
+    // Die Tour hat einmal vom Knopf direkt zum Feld „Unternehmen" geführt und
+    // Vor- und Nachname weggescrollt. Wer ihr folgte, speicherte ein leeres
+    // Formular und bekam einen Fehler. Jedes Kapitel, das auf das Schließen
+    // eines Formulars wartet, muss deshalb vorher jedes Pflichtfeld dieses
+    // Formulars mit einem `filled`-Schritt abholen.
+    const forms: Record<string, string> = {
+      unternehmen: "src/components/crm/forms/company-form.tsx",
+      kontakte: "src/components/crm/forms/contact-form.tsx",
+      deals: "src/components/crm/forms/deal-form.tsx",
+      "akquise-prospects": "src/app/(app)/outreach/prospects/prospects-view.tsx",
+    };
+
+    for (const chapter of TOUR_CHAPTERS) {
+      const saveIndex = chapter.steps.findIndex(
+        (step) => step.advance.on === "disappear" && step.advance.selector === '[data-tour="drawer"]',
+      );
+      if (saveIndex === -1) continue;
+
+      const file = forms[chapter.id];
+      expect(file, `Kapitel ${chapter.id} speichert ein Formular, das hier nicht eingetragen ist`).toBeTruthy();
+
+      const source = readFileSync(file, "utf-8");
+      const required = Array.from(source.matchAll(/<Field\b[^>]*\bhtmlFor="([^"]+)"[^>]*\brequired\b/g)).map(
+        (match) => match[1],
+      );
+      expect(required.length, file).toBeGreaterThan(0);
+
+      const filledBeforeSave = new Set(
+        chapter.steps
+          .slice(0, saveIndex)
+          .filter((step) => step.advance.on === "filled" && step.target)
+          .map((step) => step.target),
+      );
+      const missing = required.filter((id) => !filledBeforeSave.has(`#${id}`));
+      expect(missing, `Kapitel ${chapter.id}`).toEqual([]);
+    }
+  });
+
   it("vergibt jede Kennung nur einmal", () => {
     const chapterIds = TOUR_CHAPTERS.map((chapter) => chapter.id);
     expect(new Set(chapterIds).size).toBe(chapterIds.length);

@@ -24,7 +24,13 @@ export type TourAdvance =
   /** Erst weiter, wenn ein Element verschwindet — etwa ein geschlossenes Formular. */
   | { on: "disappear"; selector: string }
   /** Erst weiter, wenn die Adresse passt. Für Schritte, die eine Seite wechseln. */
-  | { on: "navigate"; match: string };
+  | { on: "navigate"; match: string }
+  /**
+   * Für Pflichtfelder: „Weiter" wird erst freigegeben, wenn das freigestellte
+   * Feld einen Wert hat. Nicht beim ersten Tastendruck weiter, sonst springt
+   * die Tour mitten im Tippen fort.
+   */
+  | { on: "filled" };
 
 export type TourStep = {
   id: string;

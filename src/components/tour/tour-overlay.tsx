@@ -69,6 +69,7 @@ export function TourOverlay() {
   const [cardHeight, setCardHeight] = React.useState(220);
   const cardRef = React.useRef<HTMLDivElement | null>(null);
   const [waited, setWaited] = React.useState(false);
+  const [filled, setFilled] = React.useState(false);
 
   /* ── Ziel in den Blick holen ─────────────────────────────────────────── */
   React.useEffect(() => {
@@ -137,6 +138,23 @@ export function TourOverlay() {
     return undefined;
   }, [active, element, step, tour]);
 
+  /* ── Pflichtfelder: „Weiter" erst, wenn etwas drinsteht ─────────────── */
+  React.useEffect(() => {
+    setFilled(false);
+    if (!active || !step || step.advance.on !== "filled") return;
+    const check = () => {
+      const field = element.current;
+      const value =
+        field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement
+          ? field.value
+          : "";
+      setFilled(value.trim() !== "");
+    };
+    check();
+    const timer = window.setInterval(check, 220);
+    return () => window.clearInterval(timer);
+  }, [active, element, step]);
+
   /* ── Schritte, die einen Seitenwechsel erwarten ──────────────────────── */
   React.useEffect(() => {
     if (!active || !step || step.advance.on !== "navigate") return;
@@ -192,7 +210,9 @@ export function TourOverlay() {
     );
   }
 
-  const waiting = step.advance.on !== "manual";
+  // Ein Pflichtfeld-Schritt wartet nur, solange das Feld leer ist; danach ist
+  // er ein gewöhnlicher Schritt mit „Weiter".
+  const waiting = step.advance.on === "filled" ? !filled : step.advance.on !== "manual";
   const hasSpot = Boolean(step.target) && found && rect !== null;
   const placement = hasSpot ? choosePlacement(rect!, step.placement, cardHeight) : "bottom";
   const position = hasSpot

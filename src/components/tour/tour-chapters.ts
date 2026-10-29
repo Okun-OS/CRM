@@ -148,8 +148,10 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         why:
           "Formulare, die zwanzig Pflichtfelder verlangen, werden umgangen. Dann steht der Kunde " +
           "am Ende in einer Tabelle auf dem Desktop statt im CRM.",
+        waitingFor: "Tragen Sie den Firmennamen ein",
         optional: true,
-        advance: { on: "manual" },
+        skippable: true,
+        advance: { on: "filled" },
       },
       {
         id: "domain",
@@ -168,7 +170,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="drawer"] button[type="submit"]',
         placement: "top",
         title: "Speichern",
-        body: "Tragen Sie einen Namen ein und speichern Sie. Danach geht es weiter.",
+        body: "Der Name steht, das reicht. Speichern Sie, danach geht es weiter.",
         waitingFor: "Warte darauf, dass das Formular gespeichert und geschlossen wird",
         optional: true,
         skippable: true,
@@ -221,6 +223,28 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         advance: { on: "click" },
       },
       {
+        id: "vorname",
+        target: "#firstName",
+        placement: "left",
+        title: "Zuerst der Mensch",
+        body: "Tragen Sie einen Vornamen ein. Vor- und Nachname sind die einzigen Pflichtfelder.",
+        waitingFor: "Tragen Sie den Vornamen ein",
+        optional: true,
+        skippable: true,
+        advance: { on: "filled" },
+      },
+      {
+        id: "nachname",
+        target: "#lastName",
+        placement: "left",
+        title: "Und der Nachname",
+        body: "Danach zeigen wir Ihnen die beiden Felder, die einen Kontakt erst nützlich machen.",
+        waitingFor: "Tragen Sie den Nachnamen ein",
+        optional: true,
+        skippable: true,
+        advance: { on: "filled" },
+      },
+      {
         id: "unternehmen-feld",
         target: "#companyId",
         placement: "left",
@@ -250,7 +274,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="drawer"] button[type="submit"]',
         placement: "top",
         title: "Speichern und weiter",
-        body: "Vor- und Nachname genügen. Speichern Sie, dann sehen wir uns die Kontaktakte an.",
+        body: "Mehr braucht es nicht. Speichern Sie, dann sehen wir uns die Kontaktakte an.",
         waitingFor: "Warte darauf, dass der Kontakt gespeichert ist",
         optional: true,
         skippable: true,
@@ -347,6 +371,41 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         requires: "deals.write",
         optional: true,
         advance: { on: "click" },
+      },
+      {
+        id: "dealname",
+        target: "#name",
+        placement: "left",
+        title: "Ein Name, den man wiedererkennt",
+        body: "Zum Beispiel „Muster GmbH – Rahmenvertrag 2027“. So steht der Deal auch auf dem Board.",
+        waitingFor: "Tragen Sie einen Dealnamen ein",
+        optional: true,
+        skippable: true,
+        advance: { on: "filled" },
+      },
+      {
+        id: "pipeline-feld",
+        target: "#pipelineId",
+        placement: "left",
+        title: "Pipeline und Stage",
+        body:
+          "Beides ist Pflicht und schon vorbelegt: die Standard-Pipeline und ihre erste Stage. " +
+          "Für den Anfang passt das.",
+        waitingFor: "Wählen Sie eine Pipeline",
+        optional: true,
+        skippable: true,
+        advance: { on: "filled" },
+      },
+      {
+        id: "stage-feld",
+        target: "#stageId",
+        placement: "left",
+        title: "Die Stage sagt, wo der Deal steht",
+        body: "Später ziehen Sie den Deal auf dem Board einfach in die nächste Spalte.",
+        waitingFor: "Wählen Sie eine Stage",
+        optional: true,
+        skippable: true,
+        advance: { on: "filled" },
       },
       {
         id: "betrag",
@@ -492,12 +551,24 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         requires: "prospects.write",
       },
       {
+        id: "firmenname",
+        target: "#companyName",
+        placement: "left",
+        title: "Der Firmenname ist Pflicht",
+        body: "Tragen Sie ihn ein. Alles andere ist freiwillig.",
+        waitingFor: "Tragen Sie den Firmennamen ein",
+        optional: true,
+        skippable: true,
+        requires: "prospects.write",
+        advance: { on: "filled" },
+      },
+      {
         id: "formular",
         target: '[data-tour="drawer"]',
         placement: "auto",
         title: "Hier entsteht auch der Herkunftsnachweis",
         body:
-          "Füllen Sie aus, was Sie wissen, und speichern Sie. In der Akte steht danach je Feld, " +
+          "Ergänzen Sie, was Sie sonst noch wissen, und speichern Sie. In der Akte steht danach je Feld, " +
           "woher die Angabe kommt — hier: „manuell angelegt“.",
         why:
           "Wenn später jemand fragt, woher eine Adresse stammt, muss das System antworten können. " +
