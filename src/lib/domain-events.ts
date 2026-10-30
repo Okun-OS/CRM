@@ -9,6 +9,7 @@ export const DOMAIN_EVENTS = [
   "contact.created",
   "contact.updated",
   "contact.deleted",
+  "contact.merged",
   "company.created",
   "company.updated",
   "company.deleted",

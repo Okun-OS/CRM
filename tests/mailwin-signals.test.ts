@@ -89,7 +89,7 @@ describe("Signale — Angebot", () => {
     expect(timeline.body).toContain("anbei unser Angebot");
   });
 
-  it("geht nur vorwärts und überschreibt einen bestehenden Wert nicht", async () => {
+  it("geht nur vorwärts und überschreibt einen bestehenden Wert nicht still", async () => {
     const { ctx, key, leadId, stage } = await setup();
     await changeDealStage(ctx, leadId, { stageId: stage("negotiation").id });
     await prisma.deal.update({ where: { id: leadId }, data: { amount: 5000 } });
@@ -97,7 +97,10 @@ describe("Signale — Angebot", () => {
     const response = await signal(leadId, key, { signal: "offer_sent", externalId: "msg_3", data: { valueCents: 999_00 } });
     expect(response.json.lead.stage.id).toBe(stage("negotiation").id);
     expect(response.json.lead.valueCents).toBe(500_000);
-    expect(response.json.ignored).toEqual(expect.arrayContaining([expect.stringMatching(/^stage:/), expect.stringMatching(/^value:/)]));
+    expect(response.json.ignored).toEqual(expect.arrayContaining([expect.stringMatching(/^stage:/)]));
+    expect(response.json.proposed).toEqual([
+      expect.objectContaining({ kind: "deal.update_value", title: expect.stringMatching(/^Wert auf 999\s€ aktualisieren\?$/) }),
+    ]);
   });
 
   it("ist über signal + externalId idempotent", async () => {
@@ -140,7 +143,17 @@ describe("Signale — Angebot", () => {
     expect(unsure.json.proposed).toHaveLength(1);
     expect(unsure.json.lead.status).toBe("open");
 
-    const sure = await signal(leadId, key, { signal: "offer_accepted", externalId: "msg_7", evidence: { confidence: 0.95 } });
+    // Ohne wörtliches Zitat bleibt es trotz hoher Verlässlichkeit ein Vorschlag.
+    const noQuote = await signal(leadId, key, { signal: "offer_accepted", externalId: "msg_6b", evidence: { confidence: 0.95 } });
+    expect(noQuote.json.proposed).toHaveLength(1);
+    expect(noQuote.json.ignored).toEqual([expect.stringContaining("ohne wörtliches Zitat")]);
+    expect(noQuote.json.lead.status).toBe("open");
+
+    const sure = await signal(leadId, key, {
+      signal: "offer_accepted",
+      externalId: "msg_7",
+      evidence: { confidence: 0.95, quote: "Hiermit nehmen wir Ihr Angebot an." },
+    });
     expect(sure.json.applied).toContain("won");
     expect(sure.json.lead.status).toBe("won");
   });

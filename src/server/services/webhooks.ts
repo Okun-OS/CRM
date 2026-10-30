@@ -239,6 +239,7 @@ export async function attemptDelivery(deliveryId: string, options: { final?: boo
         "x-okun-delivery": delivery.id,
         "x-okun-timestamp": timestamp,
         "x-okun-signature": `sha256=${signature}`,
+        ...(delivery.endpoint.format === "MAILWIN" ? { "x-okun-workspace": delivery.organizationId } : {}),
       },
       body,
       signal: controller.signal,

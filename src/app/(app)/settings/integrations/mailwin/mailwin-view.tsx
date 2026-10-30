@@ -43,7 +43,7 @@ type SignalSettings = {
   acceptance: "suggest" | "auto";
   decline: "suggest" | "auto";
   autoMinConfidence: number;
-  offerValue: "fill" | "overwrite";
+  offerValue: "suggest" | "fill";
   pipelines: {
     id: string;
     name: string;
@@ -571,16 +571,16 @@ function SignalsCard({ settings, onChanged }: { settings: SignalSettings; onChan
           <Field label="Angebot oder Vertrag angenommen" htmlFor="mailwin-acceptance" hint="Eine falsch erkannte Zusage soll keinen Umsatz in den Forecast schreiben.">
             <Select id="mailwin-acceptance" value={acceptance} onChange={(event) => setAcceptance(event.target.value as "suggest" | "auto")}>
               <option value="suggest">Vorschlag „Als gewonnen markieren?“ (empfohlen)</option>
-              <option value="auto">Automatisch gewonnen ab Mindest-Verlässlichkeit</option>
+              <option value="auto">Automatisch gewonnen ab Mindest-Verlässlichkeit und mit Zitat</option>
             </Select>
           </Field>
           <Field label="Angebot abgelehnt" htmlFor="mailwin-decline">
             <Select id="mailwin-decline" value={decline} onChange={(event) => setDecline(event.target.value as "suggest" | "auto")}>
               <option value="suggest">Vorschlag „Als verloren markieren?“ (empfohlen)</option>
-              <option value="auto">Automatisch verloren ab Mindest-Verlässlichkeit</option>
+              <option value="auto">Automatisch verloren ab Mindest-Verlässlichkeit und mit Zitat</option>
             </Select>
           </Field>
-          <Field label="Mindest-Verlässlichkeit für „automatisch“" htmlFor="mailwin-threshold" hint="Darunter bleibt es ein Vorschlag.">
+          <Field label="Mindest-Verlässlichkeit für „automatisch“" htmlFor="mailwin-threshold" hint="Darunter — oder ohne wörtliches Zitat aus der Nachricht — bleibt es ein Vorschlag.">
             <div className="flex items-center gap-2">
               <Input
                 id="mailwin-threshold"
@@ -595,10 +595,10 @@ function SignalsCard({ settings, onChanged }: { settings: SignalSettings; onChan
               <span className="text-sm text-ink-600">%</span>
             </div>
           </Field>
-          <Field label="Wert aus dem Angebot" htmlFor="mailwin-offer-value">
-            <Select id="mailwin-offer-value" value={offerValue} onChange={(event) => setOfferValue(event.target.value as "fill" | "overwrite")}>
-              <option value="fill">Nur übernehmen, wenn der Lead noch keinen Wert hat</option>
-              <option value="overwrite">Immer übernehmen</option>
+          <Field label="Wert aus dem Angebot" htmlFor="mailwin-offer-value" hint="Ein eingetragener Wert wird nie still überschrieben.">
+            <Select id="mailwin-offer-value" value={offerValue} onChange={(event) => setOfferValue(event.target.value as "suggest" | "fill")}>
+              <option value="suggest">Leer übernehmen, sonst Vorschlag (empfohlen)</option>
+              <option value="fill">Nur leere Werte übernehmen</option>
             </Select>
           </Field>
         </div>

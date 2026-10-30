@@ -3,11 +3,12 @@ import { assertPermission, type ActorContext } from "@/lib/context";
 import { assertFound, liveScope, scope } from "@/lib/tenant";
 import { writeAudit } from "@/lib/audit";
 import { Conflict, ValidationError } from "@/lib/api/errors";
-import { changeDealStage } from "./deals";
+import { changeDealStage, updateDeal } from "./deals";
 import { updateContact } from "./contacts";
 import { setManualNextAction } from "./next-actions";
 import { logSystemActivity } from "./activities";
 import { notify } from "./notifications";
+import { logError } from "@/lib/logger";
 
 /**
  * Vorschläge zur Bestätigung.
@@ -18,9 +19,17 @@ import { notify } from "./notifications";
  * Ein Vorschlag an einem Deal wird zugleich dessen nächste Aktion, damit er in
  * „Heute“ auftaucht und nicht in einer Akte versandet.
  */
-export type SuggestionKind = "deal.mark_won" | "deal.mark_lost" | "contact.update";
+export type SuggestionKind = "deal.mark_won" | "deal.mark_lost" | "deal.update_value" | "contact.update";
 
-export type SuggestionEvidence = { quote?: string; confidence?: number; url?: string };
+/** `signal` und `externalId` verknüpfen den Vorschlag mit dem Signal, aus dem er entstand (Rückmeldung an Mailwin). */
+export type SuggestionEvidence = { quote?: string; confidence?: number; url?: string; signal?: string; externalId?: string };
+
+/**
+ * Vorschläge, die über den Abschluss entscheiden, werden zur nächsten Aktion
+ * des Deals. Ein neuer Wert ist eine Nebensache und darf „Angebot nachfassen“
+ * nicht verdrängen — er erscheint am Deal und als Benachrichtigung.
+ */
+const DECISION_KINDS: SuggestionKind[] = ["deal.mark_won", "deal.mark_lost"];
 
 export type SuggestionDTO = {
   id: string;
@@ -82,7 +91,20 @@ export async function createSuggestion(
     },
   });
 
-  if (input.dealId) {
+  if (input.dealId && !DECISION_KINDS.includes(input.kind)) {
+    const deal = await prisma.deal.findFirst({ where: { id: input.dealId, ...scope(ctx) }, select: { ownerId: true } });
+    if (deal?.ownerId) {
+      await notify(ctx, {
+        userId: deal.ownerId,
+        type: "MENTION",
+        title: input.title,
+        body: input.reason,
+        link: `/deals/${input.dealId}`,
+        entityType: "Deal",
+        entityId: input.dealId,
+      });
+    }
+  } else if (input.dealId) {
     const deal = await prisma.deal.findFirst({ where: { id: input.dealId, ...scope(ctx) }, select: { ownerId: true, name: true } });
     const state = await setManualNextAction(
       ctx,
@@ -164,6 +186,10 @@ export async function acceptSuggestion(ctx: ActorContext, id: string): Promise<{
         lostReason: type === "LOST" && typeof payload.lostReason === "string" ? payload.lostReason : undefined,
       });
     }
+  } else if (suggestion.kind === "deal.update_value") {
+    const valueCents = typeof payload.valueCents === "number" ? payload.valueCents : null;
+    if (valueCents === null) throw ValidationError("Der Vorschlag enthält keinen Wert.");
+    await updateDeal(ctx, suggestion.dealId ?? "", { amount: valueCents / 100 });
   } else if (suggestion.kind === "contact.update") {
     const fields = (payload.fields ?? {}) as Record<string, string>;
     await updateContact(ctx, suggestion.contactId ?? "", fields);
@@ -189,7 +215,7 @@ export async function rejectSuggestion(ctx: ActorContext, id: string): Promise<{
 
 async function decide(
   ctx: ActorContext,
-  suggestion: { id: string; dealId: string | null; nextActionId: string | null; title: string },
+  suggestion: { id: string; source: string; kind: string; dealId: string | null; contactId: string | null; nextActionId: string | null; title: string; evidence: unknown },
   status: "ACCEPTED" | "REJECTED",
 ) {
   await prisma.recordSuggestion.update({
@@ -215,4 +241,14 @@ async function decide(
     entityId: suggestion.id,
     after: { title: suggestion.title },
   });
+  // Rückkanal: Mailwin lernt, welche seiner Vorschläge übernommen werden.
+  // Kein Echo-Schutz — hier hat ein Mensch im CRM entschieden.
+  if (suggestion.source === "mailwin") {
+    try {
+      const { queueProposalResolved } = await import("@/server/mailwin/webhooks");
+      await queueProposalResolved(ctx, suggestion, status === "ACCEPTED");
+    } catch (error) {
+      logError("suggestion.mailwin_feedback_failed", error, { suggestionId: suggestion.id });
+    }
+  }
 }

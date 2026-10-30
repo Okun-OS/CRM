@@ -501,7 +501,7 @@ describe("Mailwin Connect API — Aktivitäten", () => {
 describe("Webhooks an Mailwin", () => {
   let server: Server;
   let url: string;
-  const received: { headers: IncomingMessage["headers"]; body: string }[] = [];
+  const received: { headers: IncomingMessage["headers"]; body: string; path: string }[] = [];
   let respondWith = 200;
 
   beforeAll(async () => {
@@ -509,7 +509,7 @@ describe("Webhooks an Mailwin", () => {
       let body = "";
       req.on("data", (chunk) => (body += chunk));
       req.on("end", () => {
-        received.push({ headers: req.headers, body });
+        received.push({ headers: req.headers, body, path: req.url ?? "" });
         res.statusCode = respondWith;
         res.end("ok");
       });
@@ -527,8 +527,9 @@ describe("Webhooks an Mailwin", () => {
   const SECRET = "mailwin-test-geheimnis-0123456789";
 
   it("meldet einen Phasenwechsel signiert als lead.stage_changed", async () => {
-    const { ctx, key } = await workspace();
-    await saveMailwinWebhook(ctx, { url, secret: SECRET, events: ["lead.stage_changed", "lead.won"], isActive: true });
+    const { ctx, organization, key } = await workspace();
+    // Mailwin hängt seine Integrations-ID als Query-Parameter an; sie muss erhalten bleiben.
+    await saveMailwinWebhook(ctx, { url: `${url}?i=int_42`, secret: SECRET, events: ["lead.stage_changed", "lead.won"], isActive: true });
     const lead = await call(postLeads, "POST", "/api/mailwin/v1/leads", { key, body: leadBody("hook@kunde.de") });
     const pipeline = await defaultPipeline(ctx);
 
@@ -536,15 +537,18 @@ describe("Webhooks an Mailwin", () => {
     await processDueWebhookDeliveries();
 
     expect(received).toHaveLength(1);
-    const [{ headers, body }] = received;
+    const [{ headers, body, path }] = received;
+    expect(path).toBe("/webhook?i=int_42");
+    expect(headers["x-okun-workspace"]).toBe(organization.id);
     const timestamp = String(headers["x-okun-timestamp"]);
     const expected = `sha256=${createHmac("sha256", SECRET).update(`${timestamp}.${body}`).digest("hex")}`;
     expect(headers["x-okun-signature"]).toBe(expected);
     expect(headers["x-okun-event"]).toBe("lead.stage_changed");
 
     const envelope = JSON.parse(body);
-    expect(Object.keys(envelope).sort()).toEqual(["data", "id", "occurredAt", "type"]);
+    expect(Object.keys(envelope).sort()).toEqual(["data", "id", "occurredAt", "type", "workspaceId"]);
     expect(envelope.type).toBe("lead.stage_changed");
+    expect(envelope.workspaceId).toBe(organization.id);
     expect(envelope.data.lead).toMatchObject({
       id: lead.json.id,
       stage: { id: pipeline.stages[1].id, name: pipeline.stages[1].name },

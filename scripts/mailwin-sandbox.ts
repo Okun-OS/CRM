@@ -23,6 +23,7 @@ import { createCompany } from "../src/server/services/companies";
 import { createContact } from "../src/server/services/contacts";
 import { createDeal } from "../src/server/services/deals";
 import { createMailwinKey, saveMailwinWebhook } from "../src/server/mailwin/settings";
+import { MAILWIN_WEBHOOK_EVENTS } from "../src/lib/crm/mailwin";
 
 const SLUG = "mailwin-sandbox";
 const ADMIN_EMAIL = "mailwin-sandbox@okun.invalid";
@@ -90,7 +91,7 @@ async function main() {
     await saveMailwinWebhook(ctx, {
       url: webhookUrl,
       secret: argument("webhook-secret"),
-      events: ["lead.stage_changed", "lead.won", "lead.lost", "contact.updated"],
+      events: MAILWIN_WEBHOOK_EVENTS.map((event) => event.type),
       isActive: true,
     });
   }

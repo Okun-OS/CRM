@@ -95,7 +95,7 @@ export function mailwinOpenApi() {
     openapi: "3.1.0",
     info: {
       title: "OKUN CRM — Mailwin Connect API",
-      version: "1.2.0",
+      version: "1.3.0",
       description: [
         "Schnittstelle, über die OKUN Mailwin Kontakte nachschlägt, Leads anlegt und Nachrichten protokolliert.",
         "",
@@ -105,7 +105,7 @@ export function mailwinOpenApi() {
         "",
         "**Rate-Limit:** 120 Anfragen pro Minute und Schlüssel. Jede Antwort trägt `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`.",
         "",
-        "**Webhooks (v1.1)** an Mailwin: `POST` mit `{ id, type, occurredAt, data }`, Typen `lead.stage_changed`, `lead.won`, `lead.lost`, `contact.updated`, `lead.next_action_changed` (v1.2) und `ping` beim Verbindungstest. Header `X-Okun-Timestamp` (Unix-Sekunden) und `X-Okun-Signature: sha256=<hex HMAC-SHA256 über \"<timestamp>.<rohbody>\">`.",
+        "**Webhooks** an Mailwin: `POST` mit `{ id, type, occurredAt, workspaceId, data }` (siehe Abschnitt `webhooks`). Header `X-Okun-Event`, `X-Okun-Workspace`, `X-Okun-Delivery`, `X-Okun-Timestamp` (Unix-Sekunden) und `X-Okun-Signature: sha256=<hex HMAC-SHA256 über \"<timestamp>.<rohbody>\">`. Query-Parameter der Zieladresse bleiben erhalten. Zustellung mindestens einmal — Duplikate über `id` erkennen.",
       ].join("\n"),
     },
     servers: [{ url: MAILWIN_API_BASE_PATH, description: "Relativ zur Adresse der CRM-Instanz, z. B. https://crm.example.com" }],
@@ -224,9 +224,9 @@ export function mailwinOpenApi() {
               source: "mailwin",
               sourceRef: {
                 channel: "email",
-                threadId: "thr_123",
-                messageId: "msg_456",
-                url: "https://okun-mailwin.com/inbox/thr_123",
+                threadId: "7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30",
+                messageId: "c41e9a07-2f3d-4b6e-8a15-9d0c7b3e2f18",
+                url: "https://okun-mailwin.com/emails/7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30",
               },
             }),
           },
@@ -258,8 +258,8 @@ export function mailwinOpenApi() {
               subject: "Re: Angebot",
               summary: "Kundin bittet um eine Staffelung ab 100 Lizenzen.",
               occurredAt: "2026-10-30T09:15:00+01:00",
-              externalId: "msg_789",
-              url: "https://okun-mailwin.com/inbox/thr_123#msg_789",
+              externalId: "email:e8b2d6f4-1a3c-4e5f-9b7d-0c2a4e6f8b13",
+              url: "https://okun-mailwin.com/emails/7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30#m-e8b2d6f4-1a3c-4e5f-9b7d-0c2a4e6f8b13",
             }),
           },
           responses: {
@@ -298,9 +298,9 @@ export function mailwinOpenApi() {
             "",
             "| signal | Folge (Standard) |",
             "| --- | --- |",
-            "| `offer_sent` | Phase → Angebot (nur vorwärts), „Angebot nachfassen“ geplant, `data.valueCents` füllt einen leeren Wert |",
-            "| `offer_accepted` / `contract_accepted` | Vorschlag „Als gewonnen markieren?“ (oder automatisch gewonnen, wenn so eingestellt und `evidence.confidence` reicht) |",
-            "| `offer_declined` | Vorschlag „Als verloren markieren?“ mit `data.reason` |",
+            "| `offer_sent` | Phase → Angebot (nur vorwärts), „Angebot nachfassen“ geplant. `data.valueCents` füllt einen leeren Wert; ein abweichender wird zum Vorschlag „Wert auf … aktualisieren?“ — nie still überschrieben |",
+            "| `offer_accepted` / `contract_accepted` | Vorschlag „Als gewonnen markieren?“ (automatisch gewonnen nur, wenn so eingestellt, `evidence.confidence` reicht **und** `evidence.quote` vorliegt) |",
+            "| `offer_declined` | Vorschlag „Als verloren markieren?“ mit `data.reason` (automatisch wie oben) |",
             "| `meeting_booked` | Termin im Kalender (`data.startAt`), Phase → Termin |",
             "| `meeting_requested` | nächste Aktion „Termin vereinbaren“ |",
             "| `question` | nächste Aktion „Rückfrage beantworten“ |",
@@ -315,8 +315,8 @@ export function mailwinOpenApi() {
             content: json(ref("SignalCreate"), {
               signal: "offer_sent",
               occurredAt: "2026-11-03T10:12:00+01:00",
-              externalId: "msg_9002",
-              url: "https://okun-mailwin.com/inbox/thr_9001#msg_9002",
+              externalId: "email:a5c7e9b1-3d5f-4a7c-8e0b-2d4f6a8c0e25",
+              url: "https://okun-mailwin.com/emails/7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30#m-a5c7e9b1-3d5f-4a7c-8e0b-2d4f6a8c0e25",
               summary: "Angebot Nr. 2026-117 über 24.000 € als PDF verschickt.",
               evidence: { quote: "anbei unser Angebot für die Wartung …", confidence: 0.93 },
               data: { offerNumber: "2026-117", valueCents: 2400000 },
@@ -337,7 +337,7 @@ export function mailwinOpenApi() {
                   status: "open",
                   stage: { id: "cmd2stage0004", name: "Angebot" },
                   valueCents: 2400000,
-                  nextAction: { title: "Angebot nachfassen", dueAt: "2026-11-10T09:12:00.000Z" },
+                  nextAction: { type: "chase_offer", title: "Angebot nachfassen", dueAt: "2026-11-10T09:12:00.000Z" },
                   operationalState: "waiting_for_customer",
                 },
               }),
@@ -354,7 +354,8 @@ export function mailwinOpenApi() {
           tags: ["Aktivitäten"],
           operationId: "createTask",
           summary: "Aufgabe anlegen (v1.2)",
-          description: "Für die Person, die den Lead (sonst den Kontakt) betreut. `url` wird in die Beschreibung übernommen.",
+          description:
+            "Für die Person, die den Lead (sonst den Kontakt) betreut. `url` wird in die Beschreibung übernommen. Mit `externalId` dauerhaft idempotent: Dieselbe Kennung liefert 200 mit der bestehenden Aufgabe.",
           parameters: [idempotencyHeader],
           requestBody: {
             required: true,
@@ -363,11 +364,19 @@ export function mailwinOpenApi() {
               dueAt: "2026-11-04T09:00:00+01:00",
               priority: "high",
               leadId: "cmd2deal0001",
-              url: "https://okun-mailwin.com/inbox/thr_9001#msg_9003",
+              url: "https://okun-mailwin.com/emails/7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30#m-b6d8f0a2-4e6a-4b8d-9f1c-3e5a7b9d1f37",
+              externalId: "task:b6d8f0a2-4e6a-4b8d-9f1c-3e5a7b9d1f37",
             }),
           },
           responses: {
-            "201": { description: "Angelegt", content: json(ref("Created"), { id: "cmd2task0001", url: "https://crm.example.com/deals/cmd2deal0001" }) },
+            "201": {
+              description: "Angelegt",
+              content: json(ref("TaskCreated"), { id: "cmd2task0001", url: "https://crm.example.com/deals/cmd2deal0001", duplicate: false }),
+            },
+            "200": {
+              description: "Bereits angelegt (gleiche externalId)",
+              content: json(ref("TaskCreated"), { id: "cmd2task0001", url: "https://crm.example.com/deals/cmd2deal0001", duplicate: true }),
+            },
             "404": errorResponse("Kontakt oder Lead existiert nicht.", { code: "not_found", message: "Der Lead wurde nicht gefunden." }),
             ...writeErrors,
             ...common,
@@ -379,14 +388,16 @@ export function mailwinOpenApi() {
           tags: ["Kontakte"],
           operationId: "suggestContactChanges",
           summary: "Kontaktdaten vorschlagen (v1.2)",
-          description: "Leere Felder werden direkt gefüllt; wo im CRM schon etwas anderes steht, entsteht ein Vorschlag zur Übernahme. Ein gleicher offener Vorschlag wird nicht doppelt angelegt.",
+          description:
+            "Leere Felder werden direkt gefüllt; wo im CRM schon etwas anderes steht, entsteht ein Vorschlag zur Übernahme. Ein gleicher offener Vorschlag wird nicht doppelt angelegt. `externalId` kommt in `signal.proposal_resolved` zurück.",
           parameters: [idParam("Kontakt-ID"), idempotencyHeader],
           requestBody: {
             required: true,
             content: json(ref("ContactSuggestion"), {
               fields: { phone: "+49 30 999", jobTitle: "Leitung Einkauf" },
               evidence: { quote: "Paul Pflege · Leitung Einkauf · +49 30 999", confidence: 0.9 },
-              url: "https://okun-mailwin.com/inbox/thr_42",
+              url: "https://okun-mailwin.com/emails/7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30#m-b6d8f0a2-4e6a-4b8d-9f1c-3e5a7b9d1f37",
+              externalId: "signature:b6d8f0a2-4e6a-4b8d-9f1c-3e5a7b9d1f37",
             }),
           },
           responses: {
@@ -410,7 +421,7 @@ export function mailwinOpenApi() {
           operationId: "recordOutreachReply",
           summary: "Antwort auf eine Akquise-Sequenz einstufen (v1.2)",
           description:
-            "Mailwins Einstufung ersetzt die Schlüsselwort-Regel des CRM. Folgen wie bei der eigenen Einstufung: Sequenz anhalten, Prospect umstufen, Abmeldung auf die Sperrliste — eine Abwesenheitsnotiz hält nichts an. Zuordnung über `prospectId` oder die Absenderadresse; idempotent über `messageId`.",
+            "Mailwins Einstufung ersetzt die Schlüsselwort-Regel des CRM. Folgen wie bei der eigenen Einstufung: Sequenz anhalten, Prospect umstufen, Abmeldung auf die Sperrliste — eine Abwesenheitsnotiz hält nichts an. Zuordnung über `prospectId`, sonst über `inReplyTo`/`references` (Message-IDs der versendeten Sequenz-Mails, mit oder ohne `<>`), sonst über die Absenderadresse; `matchedBy` nennt den Weg. Idempotent über `messageId`.",
           parameters: [idempotencyHeader],
           requestBody: {
             required: true,
@@ -422,12 +433,20 @@ export function mailwinOpenApi() {
               receivedAt: "2026-11-03T11:00:00+01:00",
               classification: "interested",
               confidence: 0.86,
+              inReplyTo: "<seq-4711@crm.example.com>",
+              references: ["<seq-4711@crm.example.com>"],
             }),
           },
           responses: {
             "201": {
               description: "Verarbeitet",
-              content: json(ref("OutreachReplyResult"), { messageId: "cmd2mail0001", prospectId: "cmd2pros0001", classification: "interested", duplicate: false }),
+              content: json(ref("OutreachReplyResult"), {
+                messageId: "cmd2mail0001",
+                prospectId: "cmd2pros0001",
+                classification: "interested",
+                duplicate: false,
+                matchedBy: "message_id",
+              }),
             },
             "200": { description: "Bereits verarbeitet (gleiche messageId)", content: json(ref("OutreachReplyResult")) },
             "404": errorResponse("Prospect existiert nicht.", { code: "not_found", message: "Der Prospect wurde nicht gefunden." }),
@@ -604,7 +623,7 @@ export function mailwinOpenApi() {
         Evidence: {
           type: "object",
           properties: {
-            quote: { type: "string", maxLength: 1000, description: "Kurzes Zitat als Beleg; wird im CRM angezeigt" },
+            quote: { type: "string", maxLength: 300, description: "Wörtliches Zitat aus der Nachricht als Beleg; wird im CRM angezeigt" },
             confidence: { type: "number", minimum: 0, maximum: 1 },
           },
         },
@@ -664,7 +683,11 @@ export function mailwinOpenApi() {
               items: {
                 type: "object",
                 required: ["id", "kind", "title"],
-                properties: { id: { type: "string" }, kind: { type: "string", enum: ["deal.mark_won", "deal.mark_lost"] }, title: { type: "string" } },
+                properties: {
+                  id: { type: "string", description: "Kommt als `proposalId` in `signal.proposal_resolved` zurück" },
+                  kind: { type: "string", enum: ["deal.mark_won", "deal.mark_lost", "deal.update_value"] },
+                  title: { type: "string" },
+                },
               },
             },
             ignored: { type: "array", items: { type: "string" }, description: "Was bewusst nicht geschah, als `code: Erklärung`" },
@@ -676,12 +699,7 @@ export function mailwinOpenApi() {
                 status: { type: "string", enum: ["open", "won", "lost"] },
                 stage: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } } },
                 valueCents: { type: "integer" },
-                nextAction: {
-                  oneOf: [
-                    { type: "object", properties: { title: { type: "string" }, dueAt: { type: ["string", "null"], format: "date-time" } } },
-                    { type: "null" },
-                  ],
-                },
+                nextAction: { oneOf: [ref("NextActionRef"), { type: "null" }] },
                 operationalState: { type: "string" },
               },
             },
@@ -717,15 +735,7 @@ export function mailwinOpenApi() {
               },
             },
             operationalState: { type: "string", description: "waiting_for_us, waiting_for_customer, scheduled, no_next_action, closed …" },
-            nextAction: {
-              oneOf: [
-                {
-                  type: "object",
-                  properties: { type: { type: ["string", "null"] }, title: { type: "string" }, dueAt: { type: ["string", "null"], format: "date-time" } },
-                },
-                { type: "null" },
-              ],
-            },
+            nextAction: { oneOf: [ref("NextActionRef"), { type: "null" }] },
             offerSentAt: { type: ["string", "null"], format: "date-time" },
             lastCustomerResponseAt: { type: ["string", "null"], format: "date-time" },
             lastOutboundAt: { type: ["string", "null"], format: "date-time" },
@@ -737,6 +747,8 @@ export function mailwinOpenApi() {
             },
             recentActivities: {
               type: "array",
+              maxItems: 5,
+              description: "Die letzten fünf Aktivitäten, neueste zuerst",
               items: {
                 type: "object",
                 properties: {
@@ -769,6 +781,25 @@ export function mailwinOpenApi() {
             contactId: { type: "string" },
             leadId: { type: "string" },
             url: { type: "string", format: "uri" },
+            externalId: { type: "string", maxLength: 200, description: "Dauerhaft eindeutig je Arbeitsbereich, z. B. `task:<messageId>`" },
+          },
+        },
+        TaskCreated: {
+          type: "object",
+          required: ["id", "url", "duplicate"],
+          properties: { id: { type: "string" }, url: { type: "string", format: "uri" }, duplicate: { type: "boolean" } },
+        },
+        NextActionRef: {
+          type: "object",
+          required: ["type", "title", "dueAt"],
+          properties: {
+            type: {
+              type: "string",
+              description:
+                "contact_lead, qualify_lead, follow_up, call, schedule_meeting, confirm_meeting, prepare_meeting, create_offer, send_offer, chase_offer, get_decision, prepare_contract, reactivate, define_next_step, custom",
+            },
+            title: { type: "string" },
+            dueAt: { type: ["string", "null"], format: "date-time" },
           },
         },
         ContactSuggestion: {
@@ -784,10 +815,15 @@ export function mailwinOpenApi() {
                 mobile: { type: "string", maxLength: 40 },
                 jobTitle: { type: "string", maxLength: 120 },
                 linkedinUrl: { type: "string", format: "uri" },
+                street: { type: "string", maxLength: 200 },
+                postalCode: { type: "string", maxLength: 20 },
+                city: { type: "string", maxLength: 120 },
+                country: { type: "string", maxLength: 80 },
               },
             },
             evidence: ref("Evidence"),
             url: { type: "string", format: "uri" },
+            externalId: { type: "string", maxLength: 200 },
           },
         },
         ContactSuggestionResult: {
@@ -819,6 +855,11 @@ export function mailwinOpenApi() {
               enum: ["interested", "question", "meeting_request", "later", "referral", "not_interested", "out_of_office", "unsubscribe", "unknown"],
             },
             confidence: { type: "number", minimum: 0, maximum: 1 },
+            inReplyTo: { type: "string", maxLength: 500, description: "Header `In-Reply-To` der Antwort" },
+            references: {
+              oneOf: [{ type: "array", items: { type: "string" }, maxItems: 100 }, { type: "string" }],
+              description: "Header `References` der Antwort — Liste oder durch Leerzeichen getrennt",
+            },
           },
         },
         OutreachReplyResult: {
@@ -829,9 +870,130 @@ export function mailwinOpenApi() {
             prospectId: { type: ["string", "null"] },
             classification: { type: "string" },
             duplicate: { type: "boolean" },
+            matchedBy: { type: "string", enum: ["prospect_id", "message_id", "from_address"], description: "Fehlt bei `duplicate: true`" },
+          },
+        },
+        WebhookLead: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" },
+            url: { type: "string", format: "uri" },
+            pipelineId: { type: "string" },
+            stage: ref("Stage"),
+            status: { type: "string", enum: ["open", "won", "lost"] },
+            valueCents: { type: "integer" },
+            currency: { type: "string" },
+            lostReason: { type: ["string", "null"] },
+            contacts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { id: { type: "string" }, name: { type: "string" }, email: { type: ["string", "null"] }, isPrimary: { type: "boolean" } },
+              },
+            },
+            sourceRef: { type: ["object", "null"] },
           },
         },
       },
     },
+    webhooks: mailwinWebhooks(),
+  };
+}
+
+/** Umschlag `{ id, type, occurredAt, workspaceId, data }` mit dem Schema von `data`. */
+function envelope(type: string, data: Record<string, unknown>) {
+  return {
+    type: "object",
+    required: ["id", "type", "occurredAt", "workspaceId", "data"],
+    properties: {
+      id: { type: "string", description: "Eindeutig je Ereignis; Wiederholungen tragen dieselbe `id`" },
+      type: { type: "string", const: type },
+      occurredAt: { type: "string", format: "date-time" },
+      workspaceId: { type: "string", description: "Arbeitsbereich (wie `GET /me`); auch als Header `X-Okun-Workspace`" },
+      data: { type: "object", ...data },
+    },
+  };
+}
+
+function webhook(type: string, summary: string, description: string, data: Record<string, unknown>) {
+  return {
+    post: {
+      summary,
+      description,
+      requestBody: { required: true, content: { "application/json": { schema: envelope(type, data) } } },
+      responses: { "2XX": { description: "Empfangen. Jeder andere Status oder eine Zeitüberschreitung (10 s) führt zu einer Wiederholung, bis zu 24 Stunden lang." } },
+    },
+  };
+}
+
+function mailwinWebhooks() {
+  const leadChange = { required: ["lead"], properties: { lead: ref("WebhookLead"), previousStage: { type: ["object", "null"] } } };
+  const nextAction = (extra: Record<string, unknown>) => ({
+    required: ["lead", "nextAction"],
+    properties: { lead: ref("WebhookLead"), nextAction: { type: "object", properties: { ...extra } } },
+  });
+  return {
+    "lead.stage_changed": webhook("lead.stage_changed", "Phase geändert", "Auch beim Wiederöffnen eines gewonnenen oder verlorenen Leads (`status: open`).", leadChange),
+    "lead.won": webhook("lead.won", "Lead gewonnen", "Zusätzlich zu `lead.stage_changed` mit demselben Zeitpunkt.", leadChange),
+    "lead.lost": webhook("lead.lost", "Lead verloren", "Mit `lead.lostReason`.", leadChange),
+    "lead.deleted": webhook("lead.deleted", "Lead gelöscht", "Zuordnungen in Mailwin lösen; weitere Aufrufe zu diesem Lead liefern 404.", {
+      required: ["id"],
+      properties: { id: { type: "string" } },
+    }),
+    "lead.next_action_changed": webhook(
+      "lead.next_action_changed",
+      "Neue nächste Aktion",
+      "Das aktive CRM hat die nächste Aktion festgelegt oder verschoben.",
+      nextAction({
+        type: { type: "string" },
+        title: { type: "string" },
+        reason: { type: "string" },
+        dueAt: { type: ["string", "null"], format: "date-time" },
+        operationalState: { type: "string" },
+      }),
+    ),
+    "lead.next_action_due": webhook(
+      "lead.next_action_due",
+      "Nächste Aktion ist fällig",
+      "Genau einmal je Aktion und Fälligkeit (nach dem Verschieben erneut), nur für Aktionen mit Kundenkontakt: contact_lead, follow_up, chase_offer, schedule_meeting, confirm_meeting, reactivate. Gedacht für einen Nachfass-Entwurf zur Freigabe. Mehr als 24 Stunden Überfälliges wird nicht nachgemeldet.",
+      nextAction({
+        id: { type: "string" },
+        type: { type: "string" },
+        title: { type: "string" },
+        reason: { type: "string" },
+        dueAt: { type: ["string", "null"], format: "date-time" },
+      }),
+    ),
+    "contact.updated": webhook("contact.updated", "Kontakt geändert", "`changed` nennt die geänderten Felder.", {
+      required: ["contact", "changed"],
+      properties: { contact: ref("Contact"), changed: { type: "array", items: { type: "string" } } },
+    }),
+    "contact.merged": webhook("contact.merged", "Kontakte zusammengeführt", "`fromId` gibt es danach nicht mehr; alles hängt an `intoId`.", {
+      required: ["fromId", "intoId", "contact"],
+      properties: { fromId: { type: "string" }, intoId: { type: "string" }, contact: { oneOf: [ref("Contact"), { type: "null" }] } },
+    }),
+    "signal.proposal_resolved": webhook(
+      "signal.proposal_resolved",
+      "Vorschlag entschieden",
+      "Ein Mensch hat einen Vorschlag aus Mailwin übernommen (`accepted: true`) oder verworfen. `signal` und `externalId` stammen aus dem auslösenden Aufruf (bei Kontaktvorschlägen `signal: contact_details`).",
+      {
+        required: ["proposalId", "kind", "accepted", "resolvedAt"],
+        properties: {
+          proposalId: { type: "string" },
+          kind: { type: "string", enum: ["deal.mark_won", "deal.mark_lost", "deal.update_value", "contact.update"] },
+          accepted: { type: "boolean" },
+          signal: { type: ["string", "null"] },
+          externalId: { type: ["string", "null"] },
+          confidence: { type: ["number", "null"] },
+          leadId: { type: ["string", "null"] },
+          contactId: { type: ["string", "null"] },
+          resolvedAt: { type: "string", format: "date-time" },
+        },
+      },
+    ),
+    ping: webhook("ping", "Verbindungstest", "Ausgelöst über „Test senden“ in den Einstellungen.", {
+      properties: { workspaceId: { type: "string" }, message: { type: "string" } },
+    }),
   };
 }

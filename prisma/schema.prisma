@@ -1128,6 +1128,10 @@ model Task {
   companyId      String?
   dealId         String?
   leadId         String?
+  /// Herkunft und Kennung in einem Fremdsystem — eine wiederholte Meldung legt
+  /// keine zweite Aufgabe an.
+  externalSource String?
+  externalId     String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
@@ -1142,6 +1146,7 @@ model Task {
   activities     Activity[]
   nextActions    NextAction[]
 
+  @@unique([organizationId, externalSource, externalId])
   @@index([organizationId, status, dueAt])
   @@index([organizationId, ownerId, status])
   @@index([contactId])
@@ -2101,6 +2106,9 @@ model NextAction {
   completedById  String?
   dismissedAt    DateTime?
   dismissReason  String?
+  /// Wann die Fälligkeit an Integrationen gemeldet wurde (z. B. Mailwin,
+  /// Webhook lead.next_action_due) — damit sie genau einmal gemeldet wird.
+  dueAnnouncedAt DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 

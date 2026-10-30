@@ -26,11 +26,14 @@ Mailwin „Verbunden“.
 
 ## 3. Rückmeldungen an Mailwin (optional)
 
-Damit Mailwin erfährt, wenn ein Lead die Phase wechselt, gewonnen oder verloren
-wird oder sich ein Kontakt ändert:
+Damit Mailwin erfährt, wenn ein Lead die Phase wechselt, gewonnen, verloren
+oder gelöscht wird, sich ein Kontakt ändert oder ein Nachfassen fällig ist (dann
+legt Mailwin einen Entwurf zur Freigabe an — verschickt wird nichts
+automatisch):
 
-1. Im CRM unter **Webhooks an Mailwin** ist die Adresse von Mailwin bereits
-   vorbelegt.
+1. Tragen Sie unter **Webhooks an Mailwin** die Adresse ein, die Mailwin unter
+   Einstellungen → CRM-Anbindung anzeigt (mit `?i=…` am Ende — bitte vollständig
+   übernehmen).
 2. Fügen Sie das **gemeinsame Geheimnis** aus Mailwin ein, oder klicken Sie auf
    **Neues Geheimnis erzeugen** und tragen Sie es in Mailwin ein.
 3. **Speichern**, dann **Testereignis senden**. Erscheint „Mailwin hat das
@@ -48,11 +51,16 @@ Mailwin** legen Sie fest, was daraus folgt:
 - **Zusage und Absage:** Standardmäßig erscheint am Lead ein **Vorschlag**
   („Als gewonnen markieren?“) mit dem Zitat aus der E-Mail — Sie entscheiden mit
   einem Klick auf **Übernehmen** oder **Verwerfen**. Auf Wunsch geschieht das
-  automatisch, sobald Mailwin sich sicher genug ist.
-- **Angebotswert:** wird standardmäßig nur übernommen, wenn der Lead noch keinen
-  Wert hat.
+  automatisch, sobald Mailwin sich sicher genug ist und die Stelle aus der
+  E-Mail wörtlich mitschickt.
+- **Angebotswert:** Hat der Lead noch keinen Wert, wird er übernommen. Weicht
+  der Wert ab, erscheint der Vorschlag „Wert auf … aktualisieren?“ — Ihr
+  eingetragener Wert bleibt, bis Sie übernehmen.
 
-Auch neue Kontaktdaten aus einer Signatur (Telefon, Position) überschreiben
+Ihre Entscheidungen meldet das CRM an Mailwin zurück, damit Mailwin mit der Zeit
+treffsicherer wird.
+
+Auch neue Kontaktdaten aus einer Signatur (Telefon, Position, Adresse) überschreiben
 nichts: Leere Felder werden gefüllt, Abweichungen erscheinen als Vorschlag am
 Kontakt.
 

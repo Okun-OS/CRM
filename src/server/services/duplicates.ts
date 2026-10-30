@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { emitDomainEvent } from "@/lib/events";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import { liveScope, scope, assertFound } from "@/lib/tenant";
 import { writeAudit } from "@/lib/audit";
@@ -150,6 +151,7 @@ export async function mergeContacts(ctx: ActorContext, primaryId: string, duplic
     await tx.emailMessage.updateMany({ where: { contactId: duplicateId }, data: { contactId: primaryId } });
     await tx.fileObject.updateMany({ where: { contactId: duplicateId }, data: { contactId: primaryId } });
     await tx.lead.updateMany({ where: { contactId: duplicateId }, data: { contactId: primaryId } });
+    await tx.recordSuggestion.updateMany({ where: { contactId: duplicateId }, data: { contactId: primaryId } });
 
     // Deal links: skip the ones the primary already has.
     const duplicateLinks = await tx.dealContact.findMany({ where: { contactId: duplicateId } });
@@ -201,6 +203,15 @@ export async function mergeContacts(ctx: ActorContext, primaryId: string, duplic
     entityId: primaryId,
     before: { duplicateId, duplicateName: `${duplicate!.firstName} ${duplicate!.lastName}`.trim() },
     after: { filledFields: Object.keys(fill) },
+  });
+
+  // Integrationen (z. B. Mailwin) müssen ihre Zuordnung vom Duplikat auf den
+  // Zielkontakt umstellen — sonst zeigen sie auf einen gelöschten Kontakt.
+  await emitDomainEvent(ctx, {
+    name: "contact.merged",
+    entityType: "CONTACT",
+    entityId: primaryId,
+    payload: { fromId: duplicateId, intoId: primaryId },
   });
 
   return { primaryId, mergedFields: Object.keys(fill) };

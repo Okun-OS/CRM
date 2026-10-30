@@ -166,7 +166,7 @@ gehören zu keinem Arbeitsbereich und stehen nur im Anwendungslog.
 
 **Vorschläge** (`RecordSuggestion`, `src/server/services/suggestions.ts`) sind
 allgemein gebaut, nicht Mailwin-spezifisch: Eine Integration schlägt vor
-(`deal.mark_won`, `deal.mark_lost`, `contact.update`), ein Mensch übernimmt oder
+(`deal.mark_won`, `deal.mark_lost`, `deal.update_value`, `contact.update`), ein Mensch übernimmt oder
 verwirft an Deal bzw. Kontakt. Ein Vorschlag an einem Deal ist zugleich dessen
 manuelle nächste Aktion („Heute“); die Entscheidung erledigt sie.
 
@@ -179,6 +179,26 @@ zählt ausdrücklich nicht als Kundenantwort.
 
 Migration `20261030170000_mailwin_signals`, nur additiv: `RecordSuggestion`,
 `SuggestionStatus`, `IntegrationSetting`.
+
+## 4b. v1.3: Rückmeldung der Mailwin-Seite
+
+Umgesetzt nach `docs/mailwin/ANTWORT-AN-MAILWIN-V1.2.md`:
+
+| Was | Wo | Kern |
+| --- | --- | --- |
+| `workspaceId` im Umschlag, Header `X-Okun-Workspace` | `mailwin/webhooks.ts` (`envelope`), `services/webhooks.ts` | Mailwin findet das passende Geheimnis ohne Durchprobieren |
+| `lead.deleted`, `contact.merged` | `queueMailwinDelivery`; `mergeContacts` sendet `contact.merged` und hängt offene Vorschläge um | Mailwin löst Zuordnungen, statt erst am 404 zu merken |
+| `signal.proposal_resolved` | `suggestions.ts` → `decide` → `queueProposalResolved` | Rückkanal für Lerneffekte; kein Echo-Schutz, weil ein Mensch entschieden hat |
+| `lead.next_action_due` | `announceDueNextActions` im Zustell-Worker (jede Minute) | `NextAction.dueAnnouncedAt` ist die Reservierung: genau einmal je Aktion; Verschieben setzt es zurück; über 24 h Überfälliges wird still markiert; nur Typen mit Kundenkontakt (`MAILWIN_DUE_ACTION_TYPES`) |
+| Angebotswert | `signals.ts`, Einstellung `offerValue: suggest \| fill` | leer → übernehmen, abweichend → Vorschlag `deal.update_value`; das alte `overwrite` gilt als `suggest`. Dieser Vorschlag wird **nicht** zur nächsten Aktion, damit er „Angebot nachfassen“ nicht verdrängt |
+| Automatisch gewonnen/verloren | `signals.ts` | zusätzlich nur mit `evidence.quote` (≤ 300 Zeichen) |
+| `POST /tasks` mit `externalId` | `actions.ts`, `Task.externalSource/externalId` | dauerhaft idempotent, 201/200 |
+| Adressen in Kontaktvorschlägen | `actions.ts` | `street`, `postalCode`, `city`, `country` |
+| Sequenz-Antworten über `inReplyTo`/`references` | `actions.ts` (`findRepliedSequenceMail`) | Abgleich mit `EmailMessage.providerMessageId` der versendeten Mails, `<>` egal |
+
+Migration `20261030190000_mailwin_feedback`, nur additiv:
+`NextAction.dueAnnouncedAt`, `Task.externalSource/externalId` (eindeutig je
+Arbeitsbereich), bestehende Mailwin-Endpunkte abonnieren die neuen Ereignisse.
 
 ## 5. Später: OAuth 2.0 und weitere Kanäle
 
@@ -206,7 +226,8 @@ eine eingehende WhatsApp-Nachricht zu einem Lead als Kundenantwort.
 ## 6. Betrieb
 
 - Zustell-Worker: startet automatisch mit dem Server (`src/instrumentation.ts`),
-  alle 15 s; abschaltbar mit `WEBHOOK_WORKER=off`.
+  alle 15 s; fällige nächste Aktionen jede Minute (`lead.next_action_due`);
+  abschaltbar mit `WEBHOOK_WORKER=off`.
 - Wartung (stündlich im Worker): abgelaufene Idempotenz-Einträge löschen,
   Aufrufprotokolle älter als 30 Tage löschen.
 - Testarbeitsbereich mit Schlüssel: `pnpm mailwin:sandbox`

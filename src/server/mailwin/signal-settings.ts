@@ -34,7 +34,15 @@ export const signalConfigSchema = z.object({
   decline: z.enum(["suggest", "auto"]).default("suggest"),
   /** 0–1. Nur bei „auto“ relevant: darunter bleibt es ein Vorschlag. */
   autoMinConfidence: z.number().min(0).max(1).default(0.9),
-  offerValue: z.enum(["fill", "overwrite"]).default("fill"),
+  /**
+   * Betrag aus `offer_sent`, wenn der Deal schon einen anderen Wert hat:
+   * „suggest“ = Vorschlag zur Bestätigung, „fill“ = nur leere Werte füllen.
+   * Überschrieben wird nie still; das frühere „overwrite“ gilt als „suggest“.
+   */
+  offerValue: z.preprocess(
+    (value) => (value === "overwrite" ? "suggest" : value),
+    z.enum(["suggest", "fill"]).default("suggest"),
+  ),
 });
 
 export type SignalConfig = z.infer<typeof signalConfigSchema>;

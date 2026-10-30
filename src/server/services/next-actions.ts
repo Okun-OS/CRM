@@ -383,7 +383,8 @@ export async function snoozeNextAction(ctx: ActorContext, id: string, input: z.i
   // engine stops replacing it with its own proposal.
   await prisma.nextAction.update({
     where: { id: action.id },
-    data: { status: "SNOOZED", snoozedUntil: data.until, isManual: true },
+    // dueAnnouncedAt: Zum neuen Termin wird die Fälligkeit erneut gemeldet.
+    data: { status: "SNOOZED", snoozedUntil: data.until, isManual: true, dueAnnouncedAt: null },
   });
 
   await logSystemActivity(ctx, {

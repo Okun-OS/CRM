@@ -30,10 +30,33 @@ export const MAILWIN_WEBHOOK_EVENTS = [
     source: "deal.next_action_changed",
     label: "Neue nächste Aktion (z. B. „Angebot nachfassen“ fällig am …)",
   },
+  { type: "lead.next_action_due", source: "deal.next_action_due", label: "Nächste Aktion ist fällig" },
+  { type: "lead.deleted", source: "deal.deleted", label: "Lead gelöscht" },
+  { type: "contact.merged", source: "contact.merged", label: "Kontakte zusammengeführt" },
+  {
+    type: "signal.proposal_resolved",
+    source: "suggestion.resolved",
+    label: "Vorschlag aus Mailwin übernommen oder verworfen",
+  },
 ] as const;
 
 export type MailwinWebhookType = (typeof MAILWIN_WEBHOOK_EVENTS)[number]["type"];
 export type MailwinWebhookSource = (typeof MAILWIN_WEBHOOK_EVENTS)[number]["source"];
+
+/**
+ * Nächste Aktionen, die eine Nachricht an den Kunden bedeuten. Nur sie lösen
+ * `lead.next_action_due` aus: Mailwin legt daraus einen Nachfass-Entwurf zur
+ * Freigabe an. Interne Schritte („Angebot erstellen“, „Vorschlag prüfen“)
+ * bleiben im CRM.
+ */
+export const MAILWIN_DUE_ACTION_TYPES = [
+  "CONTACT_LEAD",
+  "FOLLOW_UP",
+  "CHASE_OFFER",
+  "SCHEDULE_MEETING",
+  "CONFIRM_MEETING",
+  "REACTIVATE",
+] as const;
 
 export function mailwinTypeFor(source: string): MailwinWebhookType | null {
   return MAILWIN_WEBHOOK_EVENTS.find((event) => event.source === source)?.type ?? null;

@@ -9,7 +9,7 @@ import { createSuggestion, listPendingSuggestions } from "@/server/services/sugg
 import { recordReply } from "@/server/services/acquisition/replies";
 import { notFound, validationFailed } from "./errors";
 import { isoDateTime, linkUrl, occurredAt } from "./schemas";
-import { contactUrl, leadUrl, loadMailwinContact, MAILWIN_SOURCE, splitName, withLock } from "./service";
+import { appUrl, contactUrl, leadUrl, loadMailwinContact, MAILWIN_SOURCE, splitName, withLock } from "./service";
 
 /**
  * Mailwin Connect API v1.2 — Kontext und Handlungen jenseits von Anlegen und
@@ -54,7 +54,7 @@ export async function getLeadContext(ctx: ActorContext, id: string) {
     prisma.activity.findMany({
       where: { ...scope(ctx), dealId: deal.id, type: { not: "SYSTEM" } },
       orderBy: { occurredAt: "desc" },
-      take: 10,
+      take: 5,
       select: { id: true, type: true, direction: true, subject: true, body: true, occurredAt: true, source: true },
     }),
     listPendingSuggestions(ctx, { dealId: deal.id }),
@@ -121,6 +121,8 @@ export const taskCreateSchema = z
     contactId: optionalText(30),
     leadId: optionalText(30),
     url: linkUrl.optional(),
+    /** Mailwins Kennung, z. B. `task:<messageId>`. Dieselbe Kennung legt nie eine zweite Aufgabe an. */
+    externalId: optionalText(200),
   })
   .refine((value) => Boolean(value.contactId || value.leadId), {
     message: "contactId oder leadId ist erforderlich.",
@@ -129,10 +131,34 @@ export const taskCreateSchema = z
 
 /**
  * „Bitte rufen Sie mich am Dienstag an“ → eine Aufgabe für die Person, die den
- * Lead (oder Kontakt) betreut.
+ * Lead (oder Kontakt) betreut. Mit `externalId` idempotent auf Dauer (nicht
+ * nur 24 Stunden wie `Idempotency-Key`): Die vorhandene Aufgabe kommt zurück.
  */
-export async function createMailwinTask(ctx: ActorContext, input: z.infer<typeof taskCreateSchema>) {
+export async function createMailwinTask(
+  ctx: ActorContext,
+  input: z.infer<typeof taskCreateSchema>,
+): Promise<{ id: string; url: string; duplicate: boolean }> {
   assertPermission(ctx, "tasks.write");
+  if (!input.externalId) return { ...(await insertMailwinTask(ctx, input)), duplicate: false };
+  const externalId = input.externalId;
+  return withLock(`mailwin:task:${ctx.organizationId}:${externalId}`, async () => {
+    const existing = await prisma.task.findUnique({
+      where: {
+        organizationId_externalSource_externalId: { organizationId: ctx.organizationId, externalSource: MAILWIN_SOURCE, externalId },
+      },
+      select: { id: true, dealId: true, contactId: true },
+    });
+    if (existing) {
+      const url = existing.dealId ? leadUrl(existing.dealId) : existing.contactId ? contactUrl(existing.contactId) : appUrl();
+      return { id: existing.id, url, duplicate: true };
+    }
+    const created = await insertMailwinTask(ctx, input);
+    await prisma.task.update({ where: { id: created.id }, data: { externalSource: MAILWIN_SOURCE, externalId } });
+    return { ...created, duplicate: false };
+  });
+}
+
+async function insertMailwinTask(ctx: ActorContext, input: z.infer<typeof taskCreateSchema>) {
   const deal = input.leadId
     ? await prisma.deal.findFirst({ where: { id: input.leadId, ...liveScope(ctx) }, select: { id: true, ownerId: true, companyId: true } })
     : null;
@@ -166,12 +192,18 @@ export const contactSuggestionSchema = z.object({
       mobile: optionalText(40),
       jobTitle: optionalText(120),
       linkedinUrl: linkUrl.optional(),
+      street: optionalText(200),
+      postalCode: optionalText(20),
+      city: optionalText(120),
+      country: optionalText(80),
     })
     .refine((value) => Object.values(value).some(Boolean), "Mindestens ein Feld angeben."),
   evidence: z
-    .object({ quote: optionalText(1000), confidence: z.number().min(0).max(1).optional() })
+    .object({ quote: optionalText(300), confidence: z.number().min(0).max(1).optional() })
     .optional(),
   url: linkUrl.optional(),
+  /** Optional, z. B. `signature:<messageId>` — kommt in `signal.proposal_resolved` zurück. */
+  externalId: optionalText(200),
 });
 
 /**
@@ -197,7 +229,7 @@ export async function suggestContactChanges(
         proposed.lastName = parts.lastName;
       }
     }
-    for (const key of ["phone", "mobile", "jobTitle", "linkedinUrl"] as const) {
+    for (const key of ["phone", "mobile", "jobTitle", "linkedinUrl", "street", "postalCode", "city", "country"] as const) {
       const value = input.fields[key];
       if (value && value !== contact[key]) proposed[key] = value;
     }
@@ -234,7 +266,13 @@ export async function suggestContactChanges(
           title: "Kontaktdaten aktualisieren?",
           reason: `Mailwin hat neue Angaben gefunden: ${describe(suggest)}.`,
           payload: { fields: suggest, previous: Object.fromEntries(Object.keys(suggest).map((key) => [key, (contact as unknown as Record<string, unknown>)[key] ?? null])) },
-          evidence: { quote: input.evidence?.quote, confidence: input.evidence?.confidence, url: input.url },
+          evidence: {
+            quote: input.evidence?.quote,
+            confidence: input.evidence?.confidence,
+            url: input.url,
+            signal: "contact_details",
+            externalId: input.externalId,
+          },
         }));
     }
 
@@ -253,6 +291,10 @@ const FIELD_LABELS: Record<string, string> = {
   mobile: "Mobil",
   jobTitle: "Position",
   linkedinUrl: "LinkedIn",
+  street: "Straße",
+  postalCode: "PLZ",
+  city: "Ort",
+  country: "Land",
 };
 
 function describe(fields: Record<string, string>): string {
@@ -277,7 +319,43 @@ export const outreachReplySchema = z.object({
   receivedAt: occurredAt,
   classification: z.enum(REPLY_CLASSES, { error: `classification muss einer der folgenden Werte sein: ${REPLY_CLASSES.join(", ")}.` }),
   confidence: z.number().min(0).max(1),
+  /** RFC-Message-ID, auf die geantwortet wurde (Header `In-Reply-To`). */
+  inReplyTo: optionalText(500),
+  /** Header `References`: Liste oder ein durch Leerzeichen getrennter Text. */
+  references: z
+    .union([z.array(z.string().max(500)).max(100), z.string().max(20_000)])
+    .optional()
+    .transform((value) => (typeof value === "string" ? value.split(/\s+/) : (value ?? [])).filter(Boolean)),
 });
+
+/** `<abc@host>` und `abc@host` sind dieselbe Message-ID. */
+function bareMessageId(value: string): string {
+  return value.trim().replace(/^<|>$/g, "");
+}
+
+/**
+ * Sucht die versendete Sequenz-Mail, auf die geantwortet wurde — zuerst über
+ * `In-Reply-To`, dann über `References` von hinten (die jüngste zuerst).
+ */
+async function findRepliedSequenceMail(ctx: ActorContext, inReplyTo: string | undefined, references: string[]) {
+  const ordered = [inReplyTo, ...references.slice().reverse()].filter((id): id is string => Boolean(id)).map(bareMessageId);
+  const ids = Array.from(new Set(ordered)).filter(Boolean).slice(0, 50);
+  if (ids.length === 0) return null;
+  const candidates = await prisma.emailMessage.findMany({
+    where: {
+      ...scope(ctx),
+      direction: "OUTBOUND",
+      prospectId: { not: null },
+      providerMessageId: { in: ids.flatMap((id) => [id, `<${id}>`]) },
+    },
+    select: { providerMessageId: true, prospectId: true, enrollmentId: true },
+  });
+  for (const id of ids) {
+    const hit = candidates.find((row) => row.providerMessageId && bareMessageId(row.providerMessageId) === id);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 /**
  * Mailwin stuft eine Antwort auf eine Akquise-Sequenz ein; das CRM zieht die
@@ -300,16 +378,31 @@ export async function recordMailwinReply(ctx: ActorContext, input: z.infer<typeo
       };
     }
 
-    const prospect = input.prospectId
-      ? await prisma.prospect.findFirst({ where: { id: input.prospectId, ...scope(ctx), deletedAt: null }, select: { id: true } })
-      : await prisma.prospect.findFirst({ where: { ...scope(ctx), deletedAt: null, email: input.fromAddress }, select: { id: true } });
+    // Zuordnung: ausdrückliche prospectId, sonst die Message-IDs der Antwort
+    // (genau die Sequenz-Mail), sonst die Absenderadresse.
+    const replied = await findRepliedSequenceMail(ctx, input.inReplyTo, input.references);
+    let matchedBy: "prospect_id" | "message_id" | "from_address" = "from_address";
+    let prospect: { id: string } | null = null;
+    if (input.prospectId) {
+      prospect = await prisma.prospect.findFirst({ where: { id: input.prospectId, ...scope(ctx), deletedAt: null }, select: { id: true } });
+      matchedBy = "prospect_id";
+    } else if (replied?.prospectId) {
+      prospect = await prisma.prospect.findFirst({ where: { id: replied.prospectId, ...scope(ctx), deletedAt: null }, select: { id: true } });
+      if (prospect) matchedBy = "message_id";
+    }
+    if (!prospect && !input.prospectId) {
+      prospect = await prisma.prospect.findFirst({ where: { ...scope(ctx), deletedAt: null, email: input.fromAddress }, select: { id: true } });
+      matchedBy = "from_address";
+    }
     if (!prospect) {
       throw input.prospectId
         ? notFound("Der Prospect wurde nicht gefunden.")
         : validationFailed("Zu dieser Absenderadresse gibt es keinen Prospect.", { fromAddress: "Kein Prospect mit dieser Adresse." });
     }
 
+    const enrollmentId = replied?.prospectId === prospect.id ? (replied.enrollmentId ?? undefined) : undefined;
     const result = await recordReply(ctx, {
+      enrollmentId,
       prospectId: prospect.id,
       fromAddress: input.fromAddress,
       subject: input.subject,
@@ -326,6 +419,7 @@ export async function recordMailwinReply(ctx: ActorContext, input: z.infer<typeo
       prospectId: result.prospectId,
       classification: result.classification.toLowerCase(),
       duplicate: false,
+      matchedBy,
     };
   });
 }

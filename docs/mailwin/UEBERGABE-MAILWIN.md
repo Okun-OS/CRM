@@ -3,7 +3,8 @@
 Diese Zusammenfassung ist für die Entwicklung der Mailwin-Seite gedacht.
 Welche Abläufe sich damit abbilden lassen (Bestandskunde schreibt, Angebot
 verschickt, Kunde nimmt per E-Mail an …), steht im [Zusatz](ZUSATZ-ABLAEUFE.md).
-Aktueller Stand: **v1.2** (OpenAPI-Version 1.2.0). Die
+Aktueller Stand: **v1.3** (OpenAPI-Version 1.3.0) — v1.2 plus die Wünsche aus
+Mailwins Rückmeldung ([Antwort](ANTWORT-AN-MAILWIN-V1.2.md)). Die
 vollständige, maschinenlesbare Beschreibung steht in der OpenAPI-3.1-Datei
 (`<APP_URL>/api/mailwin/v1/openapi.json`, im CRM-Repository unter
 `docs/mailwin/openapi.json`).
@@ -12,7 +13,7 @@ vollständige, maschinenlesbare Beschreibung steht in der OpenAPI-3.1-Datei
 
 | | |
 | --- | --- |
-| Basis-URL | `<APP_URL>/api/mailwin/v1` — Produktion: `https://crm-production-8f9e.up.railway.app/api/mailwin/v1` (sobald ausgerollt) |
+| Basis-URL | `<APP_URL>/api/mailwin/v1` — Produktion: `https://crm-production-8f9e.up.railway.app/api/mailwin/v1` |
 | Authentifizierung | `Authorization: Bearer okun_mw_…` — ein Schlüssel pro Arbeitsbereich, erzeugt im CRM unter Einstellungen → Integrationen → Mailwin |
 | Format | JSON, UTF-8; Antworten **ohne** Hülle (direkt das Objekt bzw. Array) |
 | Zeitstempel | ISO 8601 mit Zeitzone. Eingaben **müssen** eine Zone tragen (`Z` oder `+01:00`), sonst 422. Antworten sind UTC (`…Z`). Ereigniszeitpunkte (`occurredAt`, `receivedAt`) in der Zukunft werden auf „jetzt“ gesetzt (Uhrabweichung); Termine und Fälligkeiten dürfen in der Zukunft liegen. |
@@ -35,11 +36,11 @@ gewonnen/verloren). IDs und `url` eines Leads sind die des Deals
 | GET | `/pipelines` | 200 `Pipeline[]` (Standard-Pipeline zuerst) |
 | POST | `/leads` | 201 `{ id, url }` |
 | POST | `/activities` | 201 neu · 200 bereits vorhanden (gleiche `externalId`) — Body: `{ id }` |
-| GET | `/leads/{id}` | 200 Kontext: Phase, Wert, Kontakte, nächste Aktion, offene Aufgaben, letzte Nachrichten, offene Vorschläge (v1.2) |
+| GET | `/leads/{id}` | 200 Kontext: Owner, Phase, Wert, Kontakte, nächste Aktion, offene Aufgaben, die letzten fünf Aktivitäten, offene Vorschläge (v1.2) |
 | POST | `/leads/{id}/signals` | 201 bzw. 200 (Wiederholung) `{ signal, duplicate, applied, proposed, ignored, lead }` — Angebot/Vertrag versendet, angenommen, abgelehnt, Termin, Rückfrage, Abwesenheit (v1.2) |
-| POST | `/tasks` | 201 `{ id, url }` — Aufgabe für den Owner des Leads/Kontakts (v1.2) |
-| POST | `/contacts/{id}/suggestions` | 200 `{ applied, proposed, contact }` — leere Felder füllen, Abweichungen vorschlagen (v1.2) |
-| POST | `/outreach/replies` | 201 bzw. 200 (Wiederholung) — Mailwins Einstufung einer Akquise-Antwort (v1.2) |
+| POST | `/tasks` | 201 neu · 200 bereits vorhanden (gleiche `externalId`) — `{ id, url, duplicate }`, Aufgabe für den Owner des Leads/Kontakts (v1.2) |
+| POST | `/contacts/{id}/suggestions` | 200 `{ applied, proposed, contact }` — Telefon, Position, Adresse …: leere Felder füllen, Abweichungen vorschlagen (v1.2) |
+| POST | `/outreach/replies` | 201 bzw. 200 (Wiederholung) — Mailwins Einstufung einer Akquise-Antwort; Zuordnung auch über `inReplyTo`/`references` (v1.2) |
 | GET | `/openapi.json` | 200, ohne Schlüssel |
 
 `Contact` = `{ id, name, email, phone, company: { id, name, domain } | null, openLeads: [{ id, title, stage, stageId, pipelineId, url }], url }`
@@ -54,9 +55,9 @@ gewonnen/verloren). IDs und `url` eines Leads sind die des Deals
 6. **Firmen:** Zuordnung über `companyDomain` (normalisiert, `https://www.` und Pfad werden entfernt), sonst über `companyName` (Groß-/Kleinschreibung egal), sonst Neuanlage. **Freemail-Domains** (gmail.com, gmx.de, web.de, outlook.com …) werden ignoriert. Ohne `companyName`/`companyDomain` wird keine Firma aus der E-Mail-Adresse abgeleitet. Ein Kontakt, der schon eine Firma hat, behält sie.
 7. **`POST /leads`:** `stageId` allein bestimmt auch die Pipeline. Unbekannte oder nicht zusammenpassende `pipelineId`/`stageId` → **422** (nicht 404). Ohne beides: Standard-Pipeline, erste offene Phase. `description` ist Pflicht, darf aber leer sein. Alle vier `sourceRef`-Felder sind Pflicht; `sourceRef.url` muss http(s) sein. `valueCents` ist eine ganze Zahl; die Währung ist die des Arbeitsbereichs (meist EUR). Der neue Lead gehört dem Owner des Kontakts.
 8. **`POST /activities`:** `url` muss http(s) sein. `contactId`/`leadId`, die es im Arbeitsbereich nicht gibt, → **404**. Eine bereits gemeldete `externalId` liefert **200** mit der bestehenden `id` (der Inhalt der zweiten Meldung wird verworfen). Eine **eingehende** E-Mail/WhatsApp mit `leadId` zählt im CRM als Antwort des Kunden (stoppt z. B. eine geplante Nachfass-Automation).
-9. **Idempotenz:** Gespeichert werden nur erfolgreiche Antworten (2xx). Nach 4xx ist der Schlüssel wieder frei — korrigiert erneut senden ist erlaubt. Derselbe Schlüssel mit **anderem** Body → **422** `idempotency_key_reused`. Läuft die erste Anfrage noch → **409** `idempotency_key_in_use` mit `Retry-After: 1`. Empfehlung: `Idempotency-Key` = Mailwin-Nachrichten-ID + Aktion, z. B. `lead:msg_456`.
+9. **Idempotenz:** Gespeichert werden nur erfolgreiche Antworten (2xx). Nach 4xx ist der Schlüssel wieder frei — korrigiert erneut senden ist erlaubt. Derselbe Schlüssel mit **anderem** Body → **422** `idempotency_key_reused`. Läuft die erste Anfrage noch → **409** `idempotency_key_in_use` mit `Retry-After: 1`. Mailwins Schema passt: `lead:<messageId>:<Inhalts-Prüfsumme>`, `activity:<messageId>`.
 10. **Fehler:** Hülle `{ "error": { "code", "message" } }`, bei 422 zusätzlich `details.fields` (Feldpfade wie `contact.email`, `sourceRef.url`). Codes: `invalid_request` (400), `unauthorized` (401), `forbidden` (403: Schlüssel ohne Mailwin-Freigabe oder Arbeitsbereich gesperrt), `not_found` (404), `conflict` / `idempotency_key_in_use` (409), `payload_too_large` (413, > 256 KB), `validation_failed` / `idempotency_key_reused` (422), `rate_limited` (429), `internal_error` (500). Meldungen sind deutsch; bitte auf `code` verzweigen.
-11. **Webhooks:** zusätzliche Header `X-Okun-Event` (= `type`) und `X-Okun-Delivery`; zusätzlicher Typ **`ping`** beim „Testereignis senden“. Ein Wechsel in eine Gewonnen-/Verloren-Phase erzeugt **zwei** Meldungen (`lead.stage_changed` und `lead.won`/`lead.lost`). Änderungen, die Mailwin selbst über die API ausgelöst hat, werden **nicht** zurückgemeldet.
+11. **Webhooks:** Umschlag `{ id, type, occurredAt, workspaceId, data }`; zusätzliche Header `X-Okun-Event` (= `type`), `X-Okun-Workspace` (= `workspaceId`) und `X-Okun-Delivery`; zusätzlicher Typ **`ping`** beim „Testereignis senden“. Query-Parameter der Zieladresse (z. B. `?i=<Integrations-ID>`) bleiben erhalten. Ein Wechsel in eine Gewonnen-/Verloren-Phase erzeugt **zwei** Meldungen (`lead.stage_changed` und `lead.won`/`lead.lost`). Änderungen, die Mailwin selbst über die API ausgelöst hat, werden **nicht** zurückgemeldet.
 
 ## Beispiele (echte Antworten aus dem Test, Adresse ersetzt)
 
@@ -108,7 +109,7 @@ GET /api/mailwin/v1/contacts?email=ERIKA@beispiel-ag.de
 ```http
 POST /api/mailwin/v1/contacts
 Content-Type: application/json
-Idempotency-Key: contact:msg_9000
+Idempotency-Key: contact:c41e9a07-2f3d-4b6e-8a15-9d0c7b3e2f18
 
 {"email":"jonas.becker@nordwerk.de","name":"Jonas Becker","phone":"+49 40 555123","companyName":"Nordwerk GmbH","companyDomain":"nordwerk.de"}
 ```
@@ -140,7 +141,7 @@ Idempotency-Key: contact:msg_9000
 ```http
 POST /api/mailwin/v1/leads
 Content-Type: application/json
-Idempotency-Key: lead:msg_9001
+Idempotency-Key: lead:c41e9a07-2f3d-4b6e-8a15-9d0c7b3e2f18:3f9a1c7e5b2d8046
 
 {
   "contact": { "email": "jonas.becker@nordwerk.de", "name": "Jonas Becker" },
@@ -151,9 +152,9 @@ Idempotency-Key: lead:msg_9001
   "source": "mailwin",
   "sourceRef": {
     "channel": "email",
-    "threadId": "thr_9001",
-    "messageId": "msg_9001",
-    "url": "https://okun-mailwin.com/inbox/thr_9001"
+    "threadId": "7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30",
+    "messageId": "c41e9a07-2f3d-4b6e-8a15-9d0c7b3e2f18",
+    "url": "https://okun-mailwin.com/emails/7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30"
   }
 }
 ```
@@ -178,8 +179,8 @@ Content-Type: application/json
   "subject": "Rückfrage Termin",
   "summary": "Herr Becker schlägt Dienstag 10 Uhr für die Begehung vor.",
   "occurredAt": "2026-10-30T16:05:00+01:00",
-  "externalId": "wa_9001_1",
-  "url": "https://okun-mailwin.com/inbox/wa/9001"
+  "externalId": "whatsapp:e8b2d6f4-1a3c-4e5f-9b7d-0c2a4e6f8b13",
+  "url": "https://okun-mailwin.com/emails/5a9c1e3f-7b2d-4c6e-8f0a-1b3d5e7f9a24#m-e8b2d6f4-1a3c-4e5f-9b7d-0c2a4e6f8b13"
 }
 ```
 → `201 {"id":"cmvv4dnl4000kwq7d9wznyfi5"}`; dieselbe `externalId` erneut → `200` mit derselben `id`.
@@ -197,7 +198,7 @@ Content-Type: application/json
 {"error":{"code":"rate_limited","message":"Zu viele Anfragen: höchstens 120 pro Minute und Schlüssel."}}   (+ Retry-After)
 ```
 
-## Webhooks an Mailwin (v1.1)
+## Webhooks an Mailwin (v1.1, erweitert in v1.3)
 
 Standard-Ziel: `https://okun-mailwin.com/api/integrations/okun-crm/webhook`
 (im CRM änderbar). Das gemeinsame Geheimnis trägt der Kunde im CRM ein (oder
@@ -208,6 +209,7 @@ POST /api/integrations/okun-crm/webhook
 Content-Type: application/json
 User-Agent: OKUN-CRM-Webhooks/1.0
 X-Okun-Event: lead.won
+X-Okun-Workspace: cmvv4b9hr0000pb7dafcqc8pi
 X-Okun-Delivery: <Zustell-ID>
 X-Okun-Timestamp: 1793373690
 X-Okun-Signature: sha256=91157f85df56951aa58b328a4ed277ddcee05655eca5fc42e7a03842c6c1862e
@@ -220,6 +222,7 @@ Echtes Beispiel (`lead.won`):
   "id": "evt_c9dfc29f-ab1b-4248-b317-d99e550e289f",
   "type": "lead.won",
   "occurredAt": "2026-10-30T15:21:30.575Z",
+  "workspaceId": "cmvv4b9hr0000pb7dafcqc8pi",
   "data": {
     "lead": {
       "id": "cmvv4dngx000bwq7d989hmq3m",
@@ -237,9 +240,9 @@ Echtes Beispiel (`lead.won`):
       "sourceRef": {
         "system": "mailwin",
         "channel": "email",
-        "threadId": "thr_9001",
-        "messageId": "msg_9001",
-        "url": "https://okun-mailwin.com/inbox/thr_9001"
+        "threadId": "7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30",
+        "messageId": "c41e9a07-2f3d-4b6e-8a15-9d0c7b3e2f18",
+        "url": "https://okun-mailwin.com/emails/7d1f3c2a-5b8e-4f6a-9c0d-2e4b6a8c1f30"
       }
     },
     "previousStage": { "id": "cmvv4b9in000fpb7drrk4vq0y", "name": "Lead" }
@@ -247,10 +250,15 @@ Echtes Beispiel (`lead.won`):
 }
 ```
 
-- `lead.stage_changed`, `lead.won`, `lead.lost`: `data = { lead, previousStage }` wie oben. `sourceRef` ist `null` bei Leads, die nicht aus Mailwin stammen.
+- `lead.stage_changed`, `lead.won`, `lead.lost`: `data = { lead, previousStage }` wie oben. `sourceRef` ist `null` bei Leads, die nicht aus Mailwin stammen. Wird ein gewonnener oder verlorener Lead wieder geöffnet, kommt `lead.stage_changed` mit `status: "open"`.
+- `lead.deleted` (v1.3): `data = { id }`. Danach liefern Aufrufe zu diesem Lead 404.
 - `contact.updated`: `data = { contact: <Contact wie bei GET /contacts>, changed: ["phone", "companyId", …] }`.
+- `contact.merged` (v1.3): `data = { fromId, intoId, contact }` — `fromId` gibt es danach nicht mehr, `contact` ist der verbleibende Kontakt.
 - `lead.next_action_changed` (v1.2): `data = { lead, nextAction: { type, title, reason, dueAt, operationalState } }` — z. B. `chase_offer` / „Angebot nachfassen“ mit Fälligkeit. Wird auch gesendet, wenn Mailwin die Änderung über ein Signal angestoßen hat.
+- `lead.next_action_due` (v1.3): `data = { lead, nextAction: { id, type, title, reason, dueAt } }`, sobald die Aktion fällig ist — genau einmal je Aktion und Termin (nach dem Verschieben erneut). Nur Aktionen mit Kundenkontakt: `contact_lead`, `follow_up`, `chase_offer`, `schedule_meeting`, `confirm_meeting`, `reactivate`. Über 24 Stunden Überfälliges wird nicht nachgemeldet (etwa beim ersten Einschalten).
+- `signal.proposal_resolved` (v1.3): `data = { proposalId, kind, accepted, signal, externalId, confidence, leadId, contactId, resolvedAt }`, wenn ein Mensch einen Vorschlag aus Mailwin übernommen oder verworfen hat. `proposalId` ist die `id` aus `proposed[]` der Signal-Antwort bzw. `proposed.id` bei Kontaktvorschlägen; `signal` + `externalId` stammen aus dem auslösenden Aufruf.
 - `ping`: `data = { workspaceId, message }`.
+- Bestehende Mailwin-Webhooks abonnieren die neuen Ereignisse automatisch; abbestellen lässt sich jedes einzeln in den Einstellungen.
 - Reihenfolge der Schlüssel im JSON ist nicht garantiert — die Signatur gilt für den **Rohbody**, wie er ankommt.
 
 **Signatur prüfen** (Node.js):
@@ -284,7 +292,11 @@ verarbeiten.
 - **Lokal:** CRM mit `pnpm dev` starten, `pnpm mailwin:sandbox` ausführen, Basis-URL `http://localhost:3000/api/mailwin/v1`. Webhook-Ziele mit `http://localhost:<port>/…` sind für lokale Tests erlaubt, sonst nur https.
 - **Grenzen der Testumgebung:** Das Rate-Limit gilt je Schlüssel und Serverprozess; ein Neustart setzt es zurück.
 
-**Testschlüssel:** `<wird nachgereicht — auf der Testinstanz erzeugt>`
+**Testschlüssel:** wird auf der Testinstanz erzeugt und von OKUN **direkt in
+Mailwin** unter Einstellungen → CRM-Anbindung eingetragen — nicht in einen Chat
+und nicht ins Repository. Als Webhook-Ziel der Sandbox gilt die Adresse, die
+Mailwin dort anzeigt (`https://okun-mailwin.com/api/integrations/okun-crm/webhook?i=…`),
+mit dem Geheimnis aus Mailwin.
 
 Alternativ ohne Skript: auf der Testinstanz unter `/register` ein Konto anlegen, dann
 Einstellungen → Integrationen → Mailwin → **Schlüssel erzeugen**.

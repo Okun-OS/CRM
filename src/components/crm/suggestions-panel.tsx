@@ -22,6 +22,10 @@ const FIELD_LABELS: Record<string, string> = {
   mobile: "Mobil",
   jobTitle: "Position",
   linkedinUrl: "LinkedIn",
+  street: "Straße",
+  postalCode: "PLZ",
+  city: "Ort",
+  country: "Land",
 };
 
 export function SuggestionsPanel({ items, canDecide }: { items: SuggestionDTO[]; canDecide: boolean }) {

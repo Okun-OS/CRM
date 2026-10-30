@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { assertPermission, type ActorContext } from "@/lib/context";
 import { liveScope, scope } from "@/lib/tenant";
 import { MAILWIN_SIGNALS, MAILWIN_SIGNAL_LABELS, type MailwinSignal, type MailwinStageSignal } from "@/lib/crm/mailwin";
+import { formatCurrency } from "@/lib/format";
 import { changeDealStage } from "@/server/services/deals";
 import { createMeeting } from "@/server/services/meetings";
 import { pauseRecordAutomation, setManualNextAction } from "@/server/services/next-actions";
@@ -44,7 +45,8 @@ export const signalInputSchema = z.object({
   summary: optionalText(2000),
   evidence: z
     .object({
-      quote: optionalText(1000),
+      // Wörtlich aus der Nachricht, nie mehr als das Zitat.
+      quote: optionalText(300),
       confidence: z.number().min(0, "confidence liegt zwischen 0 und 1.").max(1, "confidence liegt zwischen 0 und 1.").optional(),
     })
     .optional(),
@@ -83,7 +85,7 @@ type LeadState = {
   status: "open" | "won" | "lost";
   stage: { id: string; name: string };
   valueCents: number;
-  nextAction: { title: string; dueAt: string | null } | null;
+  nextAction: { type: string; title: string; dueAt: string | null } | null;
   operationalState: string;
 };
 
@@ -204,6 +206,7 @@ type DealWithStages = {
   id: string;
   name: string;
   amount: unknown;
+  currency: string;
   ownerId: string | null;
   pipelineId: string;
   stage: { id: string; name: string; position: number };
@@ -221,21 +224,52 @@ async function applySignal(
   const ref = { kind: "DEAL" as const, id: deal.id };
   const reason = input.summary ?? input.evidence?.quote ?? MAILWIN_SIGNAL_LABELS[input.signal];
   const confidence = input.evidence?.confidence;
-  const evidence = { quote: input.evidence?.quote, confidence, url: input.url };
+  const quote = input.evidence?.quote;
+  const evidence = { quote, confidence, url: input.url, signal: input.signal, externalId: input.externalId };
+  // Automatisch abschließen nur mit Einstellung, ausreichender Verlässlichkeit
+  // und einem wörtlichen Zitat als Beleg.
+  const autoClose = (setting: "suggest" | "auto") =>
+    setting === "auto" && confidence !== undefined && confidence >= config.autoMinConfidence && Boolean(quote);
+  const whyOnlySuggested = (setting: "suggest" | "auto") =>
+    setting !== "auto"
+      ? null
+      : !quote
+        ? "ohne wörtliches Zitat"
+        : `Verlässlichkeit unter ${Math.round(config.autoMinConfidence * 100)} %`;
 
   switch (input.signal) {
     case "offer_sent": {
       await moveForward(ctx, deal, config, "offer_sent", outcome);
+      // Der Wert wird nie still überschrieben: leer → übernehmen, abweichend
+      // → Vorschlag (oder, je nach Einstellung, gar nichts).
       const valueCents = input.data?.valueCents;
-      if (valueCents !== undefined) {
+      if (valueCents !== undefined && valueCents > 0) {
         const current = Math.round(Number(deal.amount) * 100);
         if (current === valueCents) {
           // nichts zu tun
-        } else if (current === 0 || config.offerValue === "overwrite") {
+        } else if (current === 0) {
           await prisma.deal.update({ where: { id: deal.id }, data: { amount: valueCents / 100 } });
           outcome.applied.push("value_updated");
+        } else if (config.offerValue === "suggest") {
+          const amount = formatCurrency(valueCents / 100, deal.currency);
+          // Derselbe Betrag aus einem zweiten Angebot legt keinen zweiten Vorschlag an.
+          const pending = await prisma.recordSuggestion.findMany({
+            where: { ...scope(ctx), dealId: deal.id, kind: "deal.update_value", status: "PENDING" },
+            select: { id: true, kind: true, title: true, payload: true },
+          });
+          const same = pending.find((row) => (row.payload as { valueCents?: number } | null)?.valueCents === valueCents);
+          const suggestion = same ?? await createSuggestion(ctx, {
+            source: MAILWIN_SOURCE,
+            kind: "deal.update_value",
+            dealId: deal.id,
+            title: `Wert auf ${amount} aktualisieren?`,
+            reason: `Im versendeten Angebot steht ${amount}, am Deal ${formatCurrency(current / 100, deal.currency)} (erkannt von Mailwin).`,
+            payload: { valueCents, previousValueCents: current },
+            evidence,
+          });
+          outcome.proposed.push({ id: suggestion.id, kind: suggestion.kind, title: suggestion.title });
         } else {
-          outcome.ignored.push("value: Der Lead hat bereits einen Wert; er wird nur überschrieben, wenn das in den Mailwin-Einstellungen erlaubt ist.");
+          outcome.ignored.push("value: Der Lead hat bereits einen Wert; laut Mailwin-Einstellungen werden nur leere Werte übernommen.");
         }
       }
       outcome.applied.push("offer_follow_up");
@@ -318,8 +352,7 @@ async function applySignal(
 
     case "offer_accepted":
     case "contract_accepted": {
-      const automatic = config.acceptance === "auto" && confidence !== undefined && confidence >= config.autoMinConfidence;
-      if (automatic) {
+      if (autoClose(config.acceptance)) {
         await closeDeal(ctx, deal, "WON", undefined, outcome);
       } else {
         const suggestion = await createSuggestion(ctx, {
@@ -332,17 +365,15 @@ async function applySignal(
           evidence,
         });
         outcome.proposed.push({ id: suggestion.id, kind: suggestion.kind, title: suggestion.title });
-        if (config.acceptance === "auto") {
-          outcome.ignored.push(`won: Verlässlichkeit unter ${Math.round(config.autoMinConfidence * 100)} % — deshalb nur ein Vorschlag.`);
-        }
+        const why = whyOnlySuggested(config.acceptance);
+        if (why) outcome.ignored.push(`won: ${why} — deshalb nur ein Vorschlag.`);
       }
       return;
     }
 
     case "offer_declined": {
       const lostReason = input.data?.reason ?? input.summary ?? "Angebot abgelehnt (erkannt von Mailwin)";
-      const automatic = config.decline === "auto" && confidence !== undefined && confidence >= config.autoMinConfidence;
-      if (automatic) {
+      if (autoClose(config.decline)) {
         await closeDeal(ctx, deal, "LOST", lostReason, outcome);
       } else {
         const suggestion = await createSuggestion(ctx, {
@@ -355,6 +386,8 @@ async function applySignal(
           evidence,
         });
         outcome.proposed.push({ id: suggestion.id, kind: suggestion.kind, title: suggestion.title });
+        const why = whyOnlySuggested(config.decline);
+        if (why) outcome.ignored.push(`lost: ${why} — deshalb nur ein Vorschlag.`);
       }
       return;
     }
@@ -434,6 +467,7 @@ async function leadState(ctx: ActorContext, dealId: string): Promise<LeadState> 
       operationalState: true,
       nextActionTitle: true,
       nextActionAt: true,
+      nextActionType: true,
       stage: { select: { id: true, name: true } },
     },
   });
@@ -443,7 +477,13 @@ async function leadState(ctx: ActorContext, dealId: string): Promise<LeadState> 
     status: deal.status.toLowerCase() as LeadState["status"],
     stage: deal.stage,
     valueCents: Math.round(Number(deal.amount) * 100),
-    nextAction: deal.nextActionTitle ? { title: deal.nextActionTitle, dueAt: deal.nextActionAt?.toISOString() ?? null } : null,
+    nextAction: deal.nextActionTitle
+      ? {
+          type: (deal.nextActionType ?? "CUSTOM").toLowerCase(),
+          title: deal.nextActionTitle,
+          dueAt: deal.nextActionAt?.toISOString() ?? null,
+        }
+      : null,
     operationalState: deal.operationalState.toLowerCase(),
   };
 }
