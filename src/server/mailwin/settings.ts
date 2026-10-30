@@ -15,6 +15,7 @@ import {
 } from "@/lib/crm/mailwin";
 import { issueApiKey, MAILWIN_KEY_PREFIX } from "@/server/services/api-keys";
 import { appUrl } from "./service";
+import { getSignalSettings } from "./signal-settings";
 
 /**
  * Verwaltung der Mailwin-Verbindung: Schlüssel, Webhook an Mailwin und die
@@ -227,11 +228,12 @@ export async function listMailwinDeliveries(ctx: ActorContext, limit = 30) {
 }
 
 export async function getMailwinOverview(ctx: ActorContext) {
-  const [keys, webhook, requests, deliveries] = await Promise.all([
+  const [keys, webhook, requests, deliveries, signals] = await Promise.all([
     listMailwinKeys(ctx),
     getMailwinWebhook(ctx),
     listMailwinRequests(ctx),
     listMailwinDeliveries(ctx),
+    getSignalSettings(ctx),
   ]);
-  return { baseUrl: `${appUrl()}${MAILWIN_API_BASE_PATH}`, keys, webhook, requests, deliveries };
+  return { baseUrl: `${appUrl()}${MAILWIN_API_BASE_PATH}`, keys, webhook, requests, deliveries, signals };
 }

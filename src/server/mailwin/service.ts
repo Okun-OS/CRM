@@ -555,7 +555,7 @@ async function reportToEngine(
  */
 const locks = new Map<string, Promise<unknown>>();
 
-async function withLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+export async function withLock<T>(key: string, work: () => Promise<T>): Promise<T> {
   const previous = locks.get(key) ?? Promise.resolve();
   const run = previous.catch(() => undefined).then(work);
   locks.set(key, run);

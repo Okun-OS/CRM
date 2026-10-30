@@ -36,6 +36,26 @@ wird oder sich ein Kontakt ändert:
 3. **Speichern**, dann **Testereignis senden**. Erscheint „Mailwin hat das
    Testereignis angenommen“, ist alles verbunden.
 
+## 4. Was Mailwin aus E-Mails ableiten darf (optional)
+
+Mailwin erkennt in E-Mails, wenn Sie ein Angebot verschickt haben, ein Kunde
+zusagt, absagt, einen Termin möchte oder abwesend ist. Unter **Signale aus
+Mailwin** legen Sie fest, was daraus folgt:
+
+- **Phase je Signal:** z. B. „Angebot gesendet“ → Phase *Angebot*. Phasen gehen
+  dabei nur vorwärts. Stellen Sie „Phase nicht ändern“ ein, wenn Sie das nicht
+  möchten.
+- **Zusage und Absage:** Standardmäßig erscheint am Lead ein **Vorschlag**
+  („Als gewonnen markieren?“) mit dem Zitat aus der E-Mail — Sie entscheiden mit
+  einem Klick auf **Übernehmen** oder **Verwerfen**. Auf Wunsch geschieht das
+  automatisch, sobald Mailwin sich sicher genug ist.
+- **Angebotswert:** wird standardmäßig nur übernommen, wenn der Lead noch keinen
+  Wert hat.
+
+Auch neue Kontaktdaten aus einer Signatur (Telefon, Position) überschreiben
+nichts: Leere Felder werden gefüllt, Abweichungen erscheinen als Vorschlag am
+Kontakt.
+
 ## Was Mailwin im CRM darf — und was nicht
 
 - Mailwin sieht **nur Ihren Arbeitsbereich**, nie die Daten anderer.

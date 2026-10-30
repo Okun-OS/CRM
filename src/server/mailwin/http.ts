@@ -46,12 +46,14 @@ export type MailwinRequest = {
   principal: MailwinPrincipal;
   /** Geparster JSON-Body (nur bei POST). */
   body: unknown;
+  /** Pfadparameter, z. B. `id` in /leads/{id}/signals. */
+  params: Record<string, string>;
 };
 
 export type MailwinResult = { status: number; body: unknown };
 
 export function mailwinRoute(handler: (request: MailwinRequest) => Promise<MailwinResult>) {
-  return async (req: NextRequest): Promise<NextResponse> => {
+  return async (req: NextRequest, segmentData: { params: Promise<Record<string, string>> }): Promise<NextResponse> => {
     const started = Date.now();
     const requestId = randomUUID();
     const url = new URL(req.url);
@@ -120,7 +122,8 @@ export function mailwinRoute(handler: (request: MailwinRequest) => Promise<Mailw
       }
 
       const ctx = await contextFor(principal);
-      const result = await handler({ req, url, ctx, principal, body });
+      const params = (await segmentData?.params) ?? {};
+      const result = await handler({ req, url, ctx, principal, body, params });
       const serialized = serialize(result.body);
       if (recordId) await completeIdempotent(recordId, result.status, serialized);
       response = respond(result.status, serialized);

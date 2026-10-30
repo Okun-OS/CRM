@@ -39,6 +39,18 @@ export const isoDateTime = z
   )
   .transform((value) => new Date(value));
 
+/**
+ * Wann etwas *geschehen* ist. Liegt der Zeitpunkt in der Zukunft (Uhren zweier
+ * Systeme laufen nie gleich), gilt „jetzt“ — sonst stünde in der Zeitleiste
+ * „in 5 Minuten“ und im Momentum „vor −1 Tagen geantwortet“. Termine,
+ * Fälligkeiten und Rückkehrdaten verwenden `isoDateTime` und dürfen in der
+ * Zukunft liegen.
+ */
+export const occurredAt = isoDateTime.transform((value) => {
+  const now = new Date();
+  return value.getTime() > now.getTime() ? now : value;
+});
+
 export const contactQuerySchema = z.object({ email });
 
 export const contactUpsertSchema = z.object({
@@ -81,7 +93,7 @@ export const activityCreateSchema = z
     direction: z.enum(["inbound", "outbound"], { error: "direction muss „inbound“ oder „outbound“ sein." }),
     subject: optionalText(200),
     summary: z.string({ error: "summary ist erforderlich." }).trim().min(1, "summary darf nicht leer sein.").max(10_000),
-    occurredAt: isoDateTime,
+    occurredAt,
     externalId: z.string({ error: "externalId ist erforderlich." }).trim().min(1).max(200),
     url: linkUrl,
   })

@@ -25,6 +25,11 @@ export const MAILWIN_WEBHOOK_EVENTS = [
   { type: "lead.won", source: "deal.won", label: "Lead gewonnen" },
   { type: "lead.lost", source: "deal.lost", label: "Lead verloren" },
   { type: "contact.updated", source: "contact.updated", label: "Kontakt geändert" },
+  {
+    type: "lead.next_action_changed",
+    source: "deal.next_action_changed",
+    label: "Neue nächste Aktion (z. B. „Angebot nachfassen“ fällig am …)",
+  },
 ] as const;
 
 export type MailwinWebhookType = (typeof MAILWIN_WEBHOOK_EVENTS)[number]["type"];
@@ -33,3 +38,37 @@ export type MailwinWebhookSource = (typeof MAILWIN_WEBHOOK_EVENTS)[number]["sour
 export function mailwinTypeFor(source: string): MailwinWebhookType | null {
   return MAILWIN_WEBHOOK_EVENTS.find((event) => event.source === source)?.type ?? null;
 }
+
+/**
+ * Signale, die Mailwin zu einem Lead melden kann (POST /leads/{id}/signals).
+ * Mailwin meldet, was es erkannt hat; was daraus folgt, entscheidet das CRM.
+ */
+export const MAILWIN_SIGNALS = [
+  "offer_sent",
+  "offer_accepted",
+  "offer_declined",
+  "meeting_requested",
+  "meeting_booked",
+  "question",
+  "out_of_office",
+  "contract_sent",
+  "contract_accepted",
+] as const;
+
+export type MailwinSignal = (typeof MAILWIN_SIGNALS)[number];
+
+/** Signale, die einen Lead in eine Phase vorrücken können. */
+export const MAILWIN_STAGE_SIGNALS = ["offer_sent", "meeting_booked", "contract_sent"] as const;
+export type MailwinStageSignal = (typeof MAILWIN_STAGE_SIGNALS)[number];
+
+export const MAILWIN_SIGNAL_LABELS: Record<MailwinSignal, string> = {
+  offer_sent: "Angebot gesendet",
+  offer_accepted: "Angebot angenommen",
+  offer_declined: "Angebot abgelehnt",
+  meeting_requested: "Terminwunsch",
+  meeting_booked: "Termin vereinbart",
+  question: "Rückfrage",
+  out_of_office: "Abwesenheitsnotiz",
+  contract_sent: "Vertrag gesendet",
+  contract_accepted: "Vertrag angenommen",
+};

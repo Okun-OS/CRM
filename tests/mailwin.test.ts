@@ -23,18 +23,26 @@ import { createTestOrganization, defaultPipeline } from "./setup/factories";
  * Mailwin Connect API v1 — geprüft über die echten Route-Handler, also mit
  * Statuscodes, Headern und Fehlerhülle, wie Mailwin sie sieht.
  */
-type Handler = (req: NextRequest) => Promise<Response>;
+type Handler = (req: NextRequest, segment: { params: Promise<Record<string, string>> }) => Promise<Response>;
 
 async function call(
   handler: Handler,
   method: "GET" | "POST",
   path: string,
-  options: { key?: string | null; body?: unknown; rawBody?: string; headers?: Record<string, string> } = {},
+  options: {
+    key?: string | null;
+    body?: unknown;
+    rawBody?: string;
+    headers?: Record<string, string>;
+    params?: Record<string, string>;
+  } = {},
 ) {
   const headers: Record<string, string> = { "content-type": "application/json", ...options.headers };
   if (options.key) headers.authorization = `Bearer ${options.key}`;
   const body = options.rawBody ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined);
-  const response = await handler(new NextRequest(`http://localhost${path}`, { method, headers, body }));
+  const response = await handler(new NextRequest(`http://localhost${path}`, { method, headers, body }), {
+    params: Promise.resolve(options.params ?? {}),
+  });
   const json = await response.json();
   return { status: response.status, json, headers: response.headers };
 }

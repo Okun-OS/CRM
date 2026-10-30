@@ -9,6 +9,8 @@ import { getDeal } from "@/server/services/deals";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, PropertyList, RecordDetailLayout, RelatedList, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
+import { SuggestionsPanel } from "@/components/crm/suggestions-panel";
+import { listPendingSuggestions } from "@/server/services/suggestions";
 import { RecordActions } from "@/components/crm/record-actions";
 import { NextActionPanel } from "@/components/crm/next-action-panel";
 import { DealStagePicker } from "./stage-picker";
@@ -38,6 +40,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
     if (error instanceof AppError && error.code === "NOT_FOUND") notFound();
     throw error;
   }
+  const suggestions = await listPendingSuggestions(actor, { dealId: deal.id });
 
   const statusTone = deal.status === "WON" ? "success" : deal.status === "LOST" ? "danger" : "brand";
   const statusLabel = deal.status === "WON" ? "Gewonnen" : deal.status === "LOST" ? "Verloren" : "Offen";
@@ -107,6 +110,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       }
       left={
         <>
+          <SuggestionsPanel items={suggestions} canDecide={can(actor, "deals.write")} />
           <NextActionPanel kind="deal" id={deal.id} canEdit={can(actor, "deals.write")} />
 
           <Section title="Eigenschaften">

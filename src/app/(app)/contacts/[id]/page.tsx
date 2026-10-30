@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/misc";
 import { Breadcrumb, PropertyList, RecordDetailLayout, RelatedList, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
+import { SuggestionsPanel } from "@/components/crm/suggestions-panel";
+import { listPendingSuggestions } from "@/server/services/suggestions";
 import { RecordActions } from "@/components/crm/record-actions";
 import { formatCurrency, formatDate, formatRelative, formatSource } from "@/lib/format";
 
@@ -39,6 +41,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
     if (error instanceof AppError && error.code === "NOT_FOUND") notFound();
     throw error;
   }
+  const suggestions = await listPendingSuggestions(actor, { contactId: contact.id });
 
   const [lifecycleStages, leadStatuses] = await Promise.all([listLifecycleStages(actor), listLeadStatuses(actor)]);
   const lifecycleLabel = lifecycleStages.find((stage) => stage.key === contact.lifecycleStage)?.label;
@@ -127,6 +130,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
       }
       left={
         <>
+          <SuggestionsPanel items={suggestions} canDecide={can(actor, "contacts.write")} />
           <Section title="Eigenschaften">
             <PropertyList
               items={[

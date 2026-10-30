@@ -483,6 +483,8 @@ model Organization {
   apiKeys               ApiKey[]
   idempotencyRecords    IdempotencyRecord[]
   integrationRequests   IntegrationRequestLog[]
+  recordSuggestions     RecordSuggestion[]
+  integrationSettings   IntegrationSetting[]
   activeCrmSetting      ActiveCrmSetting?
   activeCrmRules        ActiveCrmRuleSetting[]
 
@@ -796,6 +798,7 @@ model Contact {
   domainEvents   DomainEventRecord[]
   nextActions    NextAction[]
   automations    ScheduledAutomation[]
+  suggestions    RecordSuggestion[]
 
   @@index([organizationId, deletedAt])
   @@index([organizationId, lastName, firstName])
@@ -985,6 +988,7 @@ model Deal {
   domainEvents      DomainEventRecord[]
   nextActions       NextAction[]
   automations       ScheduledAutomation[]
+  suggestions       RecordSuggestion[]
 
   @@index([organizationId, deletedAt])
   @@index([organizationId, operationalState, nextActionAt])
@@ -2223,4 +2227,58 @@ model IntegrationRequestLog {
 
   @@index([organizationId, integration, createdAt])
   @@index([createdAt])
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+/// Ein Änderungsvorschlag, den ein Mensch bestätigt — etwa „Als gewonnen
+/// markieren?“, weil Mailwin eine Zusage in einer E-Mail erkannt hat. Eine
+/// Integration darf vorschlagen; entscheiden, was in Forecast und Stammdaten
+/// steht, tut ein Mensch.
+model RecordSuggestion {
+  id             String           @id @default(cuid())
+  organizationId String
+  /// Wer vorschlägt, z. B. „mailwin“.
+  source         String
+  /// Was bei Annahme geschieht: deal.mark_won, deal.mark_lost, contact.update.
+  kind           String
+  status         SuggestionStatus @default(PENDING)
+  dealId         String?
+  contactId      String?
+  title          String
+  reason         String
+  /// Was bei Annahme geschrieben wird (Phase, Verlustgrund, Felder).
+  payload        Json
+  /// Beleg: Zitat, Verlässlichkeit, Link zur Nachricht.
+  evidence       Json?
+  /// Die nächste Aktion, die den Vorschlag in „Heute“ sichtbar macht.
+  nextActionId   String?
+  decidedAt      DateTime?
+  decidedById    String?
+  createdAt      DateTime         @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deal           Deal?        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, createdAt])
+  @@index([dealId, status])
+  @@index([contactId, status])
+}
+
+/// Einstellungen einer Integration je Arbeitsbereich (z. B. welche Mailwin-
+/// Signale welche Pipeline-Phase auslösen).
+model IntegrationSetting {
+  organizationId String
+  integration    String
+  config         Json
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, integration])
 }

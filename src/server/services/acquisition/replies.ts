@@ -76,6 +76,19 @@ export const replyInputSchema = z.object({
   body: z.string().max(100_000).default(""),
   receivedAt: z.coerce.date().optional(),
   providerMessageId: z.string().max(200).optional(),
+  /**
+   * Eine Einstufung, die ein anderes System bereits vorgenommen hat (z. B.
+   * OKUN Mailwin). Sie ersetzt die Schlüsselwort-Regel; Verlässlichkeit 0–100.
+   */
+  judged: z
+    .object({
+      classification: z.enum([
+        "INTERESTED", "QUESTION", "MEETING_REQUEST", "LATER", "REFERRAL",
+        "NOT_INTERESTED", "OUT_OF_OFFICE", "UNSUBSCRIBE", "UNKNOWN",
+      ]),
+      confidence: z.number().min(0).max(100),
+    })
+    .optional(),
 });
 
 /**
@@ -119,7 +132,10 @@ export async function recordReply(ctx: ActorContext, input: z.input<typeof reply
   let classification: ReplyClassification;
   let confidence: number;
 
-  if (provider?.classifyReply && (await provider.available(ctx))) {
+  if (data.judged) {
+    classification = data.judged.classification;
+    confidence = Math.round(data.judged.confidence);
+  } else if (provider?.classifyReply && (await provider.available(ctx))) {
     const judged = await provider.classifyReply(ctx, { subject: data.subject, body: data.body });
     classification = judged.classification as ReplyClassification;
     confidence = judged.confidence;

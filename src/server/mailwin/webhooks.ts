@@ -44,7 +44,9 @@ export async function queueMailwinDelivery(ctx: ActorContext, endpoint: WebhookE
   await enqueue(ctx, endpoint, event.name, { id: `evt_${randomUUID()}`, type, occurredAt: new Date().toISOString(), data });
 }
 
-async function enqueue(ctx: ActorContext, endpoint: WebhookEndpoint, event: string, envelope: MailwinEnvelope) {
+type TenantRef = Pick<ActorContext, "organizationId">;
+
+async function enqueue(ctx: TenantRef, endpoint: WebhookEndpoint, event: string, envelope: MailwinEnvelope) {
   const delivery = await prisma.webhookDelivery.create({
     data: {
       organizationId: ctx.organizationId,
@@ -60,9 +62,12 @@ async function enqueue(ctx: ActorContext, endpoint: WebhookEndpoint, event: stri
   return delivery.id;
 }
 
-async function leadData(ctx: ActorContext, event: DomainEvent): Promise<Record<string, unknown> | null> {
+async function leadData(
+  ctx: TenantRef,
+  event: Pick<DomainEvent, "entityId" | "payload">,
+): Promise<Record<string, unknown> | null> {
   const deal = await prisma.deal.findFirst({
-    where: { id: event.entityId, ...scope(ctx) },
+    where: { id: event.entityId, organizationId: ctx.organizationId },
     include: {
       stage: { select: { id: true, name: true, type: true } },
       contacts: {
@@ -104,6 +109,44 @@ async function contactData(ctx: ActorContext, event: DomainEvent): Promise<Recor
   } catch {
     return null;
   }
+}
+
+/**
+ * Das aktive CRM hat für einen Lead eine neue nächste Aktion festgelegt —
+ * etwa „Angebot nachfassen“, fällig am 10.11. Mailwin kann daraufhin zum
+ * Fälligkeitstermin einen Entwurf im richtigen Thread vorbereiten.
+ *
+ * Aufgerufen aus `reconcileSubject`, also auch dann, wenn Mailwin die Änderung
+ * selbst angestoßen hat: Die Fälligkeit ist eine Entscheidung des CRM, nicht
+ * ein Echo von Mailwins Eingabe.
+ */
+export async function queueNextActionChanged(
+  organizationId: string,
+  dealId: string,
+  nextAction: { type: string; title: string; reason: string; dueAt: Date | null; operationalState: string },
+): Promise<void> {
+  const endpoint = await prisma.webhookEndpoint.findFirst({
+    where: { organizationId, format: "MAILWIN", isActive: true, events: { has: "deal.next_action_changed" } },
+  });
+  if (!endpoint) return;
+  const ctx = { organizationId };
+  const data = await leadData(ctx, { entityId: dealId, payload: {} });
+  if (!data) return;
+  await enqueue(ctx, endpoint, "deal.next_action_changed", {
+    id: `evt_${randomUUID()}`,
+    type: "lead.next_action_changed",
+    occurredAt: new Date().toISOString(),
+    data: {
+      lead: data.lead,
+      nextAction: {
+        type: nextAction.type.toLowerCase(),
+        title: nextAction.title,
+        reason: nextAction.reason,
+        dueAt: nextAction.dueAt?.toISOString() ?? null,
+        operationalState: nextAction.operationalState.toLowerCase(),
+      },
+    },
+  });
 }
 
 /**

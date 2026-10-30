@@ -1,12 +1,12 @@
 # Zusatz für Mailwin: Was das CRM kann und wie Mailwin es nutzen kann
 
 Ergänzung zur [Übergabe](UEBERGABE-MAILWIN.md). Sie beantwortet drei Fragen:
-Was kann OKUN CRM? Was kann Mailwin mit der API v1 **heute** schon auslösen?
-Welche Abläufe sind als **v1.2 vorgeschlagen** (noch nicht gebaut) — und was
-muss Mailwin dafür liefern?
+Was kann OKUN CRM? Welche Abläufe lassen sich damit abbilden — vom ersten
+Kontakt über das Angebot bis zur Zusage? Und was muss Mailwin dafür liefern?
 
-> Kennzeichnung: **✅ heute verfügbar** · **🧩 Vorschlag v1.2, noch nicht verfügbar**.
-> Gegen 🧩 bitte noch nicht bauen — Rückmeldung zum Entwurf ist ausdrücklich erwünscht.
+> **Stand:** v1.2 ist gebaut und ausgerollt. Alles in diesem Dokument ist
+> verfügbar; die maschinenlesbare Beschreibung steht in der OpenAPI-Datei
+> (Version 1.2.0).
 
 ---
 
@@ -27,69 +27,100 @@ muss Mailwin dafür liefern?
 
 ---
 
-## 2. Was Mailwin heute schon auslösen kann ✅
+## 2. Abläufe
 
 Die Wirkung im CRM entsteht nicht durch „Felder setzen“, sondern durch das
 **aktive CRM**: Mailwin meldet, was passiert ist, und das CRM leitet daraus
-Wartezustand, nächste Aktion und Automationen ab.
+Phase, Wartezustand, nächste Aktion und Automationen ab.
 
-### Ablauf A — Neue Anfrage
+### A — Neue Anfrage
 
 1. `GET /contacts?email=<absender>` → bekannt? Firma? offene Leads?
 2. Kein offener Lead passt → `POST /leads` (Kontakt und Firma entstehen bei Bedarf).
 3. Die Anfrage selbst → `POST /activities` mit `leadId` (Typ `email`, `inbound`).
 
-**Wirkung:** Lead in der ersten Phase, Nachricht in der Zeitleiste, nächste
-Aktion für den Owner. Bei aktivem Webhook bekommt Mailwin später jeden
-Phasenwechsel.
-
-### Ablauf B — Nachricht von einem Bestandskunden
+### B — Nachricht von einem Bestandskunden
 
 1. `GET /contacts?email=<absender>` → Kontakt gefunden, ggf. mit `openLeads`.
-2. Gehört die Nachricht zu einem offenen Lead → `POST /activities` **mit `leadId`**
-   (und `contactId`).
-   Gehört sie zu keinem → `POST /activities` nur mit `contactId`.
-   Ist es eine **neue** Anfrage (Nachbestellung, Erweiterung) → `POST /leads`; der
-   bestehende Kontakt wird wiederverwendet, nicht doppelt angelegt.
+2. Gehört die Nachricht zu einem offenen Lead → `POST /activities` **mit
+   `leadId`**. Gehört sie zu keinem → nur mit `contactId`. Ist es eine **neue**
+   Anfrage (Nachbestellung, Erweiterung) → `POST /leads`; der bestehende Kontakt
+   wird wiederverwendet.
+3. Neue Angaben in der Signatur (Telefon, Position) → `POST /contacts/{id}/suggestions`:
+   leere Felder werden gefüllt, Abweichungen werden zum Vorschlag im CRM.
 
-**Wirkung einer eingehenden Nachricht mit `leadId`:** Das CRM vermerkt „Kunde hat
-geantwortet“, **stoppt geplante Nachfass-Automationen** für diesen Lead, schließt
-die automatisch erzeugten Nachfass-Aufgaben und setzt die nächste Aktion auf
-„Auf Kundenantwort reagieren“ (Zustand „Wir sind am Zug“). Gilt für E-Mail und
-WhatsApp gleichermaßen.
+**Wirkung einer eingehenden Nachricht mit `leadId`:** „Kunde hat geantwortet“ —
+geplante Nachfass-Automationen stoppen, automatisch erzeugte Nachfass-Aufgaben
+werden geschlossen, nächste Aktion „Auf Kundenantwort reagieren“. Ohne `leadId`
+landet die Nachricht nur in der Zeitleiste des Kontakts.
 
-> Wichtig: Ohne `leadId` landet die Nachricht nur in der Zeitleiste des Kontakts —
-> das aktive CRM reagiert dann nicht. Mailwin sollte die Nachricht deshalb dem
-> passenden offenen Lead zuordnen (aus `openLeads` von `GET /contacts`).
+### C — Wir schicken ein Angebot
 
-### Ablauf C — Wir schreiben dem Kunden
+Mailwin erkennt in einer **ausgehenden** Mail ein Angebot →
+`POST /leads/{id}/signals` mit `signal: "offer_sent"` (am besten mit
+`data.valueCents` und `data.offerNumber`).
+
+**Wirkung:** Phase → **Angebot** (nur vorwärts), „Angebot gesendet“ in der
+Zeitleiste, nächste Aktion **„Angebot nachfassen“** nach der im CRM
+eingestellten Frist; ein leerer Lead-Wert wird aus dem Angebot übernommen.
+
+### D — Kunde nimmt per E-Mail an (oder lehnt ab)
+
+`POST /leads/{id}/signals` mit `offer_accepted` (bzw. `offer_declined`), mit
+`evidence.quote` und `evidence.confidence`.
+
+**Wirkung (Standard):** Das geplante Nachfassen entfällt, und am Lead erscheint
+der Vorschlag **„Als gewonnen markieren?“** (bzw. „Als verloren markieren?“ mit
+Grund) — mit Zitat, Verlässlichkeit und Link zur Nachricht. Der Vorschlag ist
+zugleich die nächste Aktion und steht damit in „Heute“. Ein Klick auf
+**Übernehmen** setzt den Lead auf Gewonnen; das löst `lead.won` an Mailwin aus.
+Wer möchte, stellt im CRM auf **automatisch** um — dann ab einer
+Mindest-Verlässlichkeit (Standard 90 %), darunter bleibt es ein Vorschlag.
+Für Verträge gilt dasselbe mit `contract_sent` (Phase → Verhandlung) und
+`contract_accepted`.
+
+### E — Termine, Rückfragen, Abwesenheit
+
+| Mailwin erkennt … | Aufruf | Wirkung |
+| --- | --- | --- |
+| Terminwunsch | signal `meeting_requested` | nächste Aktion „Termin vereinbaren“ |
+| Termin bestätigt | signal `meeting_booked` mit `data.startAt` | Termin im Kalender, Phase → Termin, „Termin vorbereiten“ |
+| Rückfrage | signal `question` | nächste Aktion „Rückfrage beantworten“ |
+| Abwesenheitsnotiz | signal `out_of_office` mit `data.until` | Automationen pausieren bis zur Rückkehr — ausdrücklich **keine** Kundenantwort |
+| „Rufen Sie mich Dienstag an“ | `POST /tasks` | Aufgabe für den Owner des Leads |
+
+### F — Wir schreiben dem Kunden
 
 `POST /activities` mit `direction: "outbound"` und `leadId` → das CRM vermerkt
-den letzten Kontakt von unserer Seite. Bleibt eine Antwort aus, schlägt es nach
-einigen Tagen „Nachfassen“ vor (Zustand „Warten auf Kunde“), sofern für die
-aktuelle Phase kein eigener nächster Schritt hinterlegt ist.
+unseren letzten Kontakt. Bleibt eine Antwort aus, schlägt es nach einigen Tagen
+„Nachfassen“ vor, sofern für die Phase kein eigener Schritt hinterlegt ist.
 
-### Ablauf D — Rückmeldungen an Mailwin
+### G — Antwort mit Kontext vorbereiten
 
-Webhooks `lead.stage_changed`, `lead.won`, `lead.lost`, `contact.updated`
-(siehe Übergabe). Damit kann Mailwin z. B. einen Thread als „gewonnen“
-markieren oder Kontaktdaten aktualisieren.
+`GET /leads/{id}` liefert Phase, Wert, Kontakte, nächste Aktion, offene Aufgaben,
+die letzten Nachrichten und offene Vorschläge — genug, damit ein Entwurf zum
+Stand im CRM passt.
 
-### Was heute **nicht** geht
+### H — Nachfassen zur richtigen Zeit
 
-- Mailwin kann die **Phase** eines Leads nicht ändern und kein Angebot als
-  „versendet“ oder „angenommen“ melden.
-- Mailwin kann bestehende Kontaktdaten nicht **ändern**, nur leere Felder füllen.
-- Mailwin kann keine Aufgaben anlegen und keine Antworten auf Akquise-Sequenzen
-  einstufen.
+Webhook **`lead.next_action_changed`**: Sobald das CRM für einen Lead eine neue
+nächste Aktion festlegt (z. B. „Angebot nachfassen“, fällig am 10.11.), bekommt
+Mailwin sie mit `dueAt` und kann zum Termin einen Entwurf im richtigen Thread
+vorbereiten. Dazu wie bisher `lead.stage_changed`, `lead.won`, `lead.lost`,
+`contact.updated`.
 
-Genau dafür ist v1.2 gedacht.
+### I — Akquise-Antworten einstufen
+
+Antworten auf Akquise-Sequenzen des CRM → `POST /outreach/replies` mit
+Mailwins Einstufung (`interested`, `question`, `meeting_request`, `later`,
+`referral`, `not_interested`, `out_of_office`, `unsubscribe`, `unknown`) und
+Verlässlichkeit. Das ersetzt die Schlüsselwort-Regel des CRM; die Folgen sind
+dieselben (Sequenz anhalten, Prospect umstufen, Abmeldung sperren — eine
+Abwesenheitsnotiz hält nichts an).
 
 ---
 
-## 3. Vorgeschlagen für v1.2 🧩 (noch nicht gebaut)
-
-### 3.1 Signale zu einem Lead — der Kern
+## 3. Signale im Detail
 
 ```http
 POST /api/mailwin/v1/leads/{leadId}/signals
@@ -102,59 +133,45 @@ Idempotency-Key: signal:msg_9002:offer_sent
   "url": "https://okun-mailwin.com/inbox/thr_9001#msg_9002",
   "summary": "Angebot Nr. 2026-117 über 24.000 € als PDF verschickt.",
   "evidence": { "quote": "anbei unser Angebot für die Wartung …", "confidence": 0.93 },
-  "data": { "offerNumber": "2026-117", "valueCents": 2400000, "validUntil": "2026-11-30" }
+  "data": { "offerNumber": "2026-117", "valueCents": 2400000 }
 }
 ```
 
-Mailwin meldet, **was es erkannt hat**; das CRM entscheidet nach den Regeln des
-Arbeitsbereichs, **was daraus folgt**:
-
-| Signal | Mailwin erkennt … | Folge im CRM (Standard) |
-| --- | --- | --- |
-| `offer_sent` | ausgehende Mail mit Angebot (Anhang/Text) | Phase → **Angebot** (nur vorwärts), „Angebot gesendet“ in der Zeitleiste, Automation **„Angebot nachfassen“** nach X Tagen; optional Wert aus `data.valueCents` übernehmen |
-| `offer_accepted` | Kunde nimmt per E-Mail an („Wir nehmen das Angebot an“) | **Vorschlag** „Als gewonnen markieren?“ mit Zitat — ein Klick im CRM; wahlweise automatisch **Gewonnen** |
-| `offer_declined` | Kunde sagt ab | **Vorschlag** „Als verloren markieren?“ mit Grund aus der Mail |
-| `meeting_requested` | Kunde möchte einen Termin | nächste Aktion „Termin vereinbaren“ |
-| `meeting_booked` | Termin bestätigt (`data.startAt`) | Phase → **Termin** (nur vorwärts), Termin in der Zeitleiste, „Termin vorbereiten“ vor dem Termin |
-| `question` | Rückfrage des Kunden | nächste Aktion „Frage beantworten“ |
-| `out_of_office` | Abwesenheitsnotiz (`data.until`) | Nachfass-Automationen **pausieren bis** zum Rückkehrdatum — ausdrücklich **keine** Kundenantwort |
-| `contract_sent` / `contract_accepted` | Vertrag versendet / unterschrieben zurück | wie Angebot, Phase → **Verhandlung** bzw. Vorschlag **Gewonnen** |
-
-Regeln, die immer gelten:
-
-- **Nur vorwärts:** Ein Signal verschiebt nie zurück und öffnet nie einen gewonnenen
-  oder verlorenen Lead wieder.
-- **Gewonnen/Verloren standardmäßig nur als Vorschlag.** Eine falsch erkannte
-  Zusage darf keinen Umsatz in den Forecast schreiben. Wer möchte, stellt im CRM
-  auf „automatisch“ um (z. B. ab `confidence ≥ 0.9`).
-- **Phasen über Zuordnung, nicht über Namen:** Im CRM legt der Kunde je Pipeline
-  fest, welches Signal in welche Phase führt (vorbelegt für die Standard-Pipeline).
-  Gibt es keine Zuordnung, ändert sich die Phase nicht — das Signal wirkt trotzdem
-  auf Zeitleiste und nächste Aktion.
-- **Alles sichtbar und umkehrbar:** Jede Folge steht „über Mailwin“ in der
-  Zeitleiste, mit Zitat und Link zur Nachricht, und lässt sich mit einem Klick
-  zurücknehmen.
-- **Idempotent** über `externalId` + `signal`.
-
-Antwort (Vorschlag) — damit Mailwin dem Nutzer zeigen kann, was passiert ist:
+Antwort (`201`, bei Wiederholung `200` mit `duplicate: true`):
 
 ```json
 {
-  "applied": ["timeline", "stage:Angebot", "automation:offer_chase"],
+  "signal": "offer_sent",
+  "duplicate": false,
+  "applied": ["timeline", "stage_changed:Angebot", "value_updated", "offer_follow_up"],
   "proposed": [],
-  "lead": { "id": "cmvv4dngx000bwq7d989hmq3m", "stage": "Angebot", "status": "open", "nextAction": "Angebot nachfassen am 10.11.2026" }
+  "ignored": [],
+  "lead": {
+    "id": "cmvv4dngx000bwq7d989hmq3m",
+    "url": "https://crm.example.com/deals/cmvv4dngx000bwq7d989hmq3m",
+    "status": "open",
+    "stage": { "id": "…", "name": "Angebot" },
+    "valueCents": 2400000,
+    "nextAction": { "title": "Angebot nachfassen", "dueAt": "2026-11-10T09:12:00.000Z" },
+    "operationalState": "waiting_for_customer"
+  }
 }
 ```
 
-### 3.2 Weitere Bausteine
+- `applied`: was ausgeführt wurde — `timeline`, `stage_changed:<Phase>`,
+  `value_updated`, `offer_follow_up`, `meeting_created`, `next_action_set`,
+  `automation_paused`, `won`, `lost`.
+- `proposed`: Vorschläge, die ein Mensch bestätigt (`deal.mark_won`, `deal.mark_lost`).
+- `ignored`: was bewusst nicht geschah, als `code: Erklärung` — z. B.
+  `stage: …nur vorwärts`, `value: …hat bereits einen Wert`, `lead_closed: …`.
 
-| Vorschlag | Zweck |
-| --- | --- |
-| `GET /leads/{id}` | Kontext für Antwortentwürfe: Phase, Wert, nächste Aktion, offene Aufgaben, letzte Aktivitäten |
-| `POST /tasks` | „Bitte rufen Sie mich Dienstag an“ → Aufgabe mit Fälligkeit für den Owner |
-| `POST /contacts/{id}/suggestions` | Neue Telefonnummer oder Position aus der Signatur → **Vorschlag** zur Übernahme im CRM statt stillem Überschreiben |
-| `POST /outreach/replies` | Mailwin stuft Antworten auf Akquise-Sequenzen ein (interessiert, Frage, Termin, später, Weiterleitung, kein Interesse, abwesend, abmelden) mit Verlässlichkeit. Das CRM ersetzt damit seine heutige Schlüsselwort-Einstufung; Abmeldungen landen sofort auf der Sperrliste, Sequenzen stoppen. |
-| Webhook `lead.next_action_due` | Das CRM meldet „Angebot nachfassen ist fällig“ → Mailwin legt einen Nachfass-Entwurf im richtigen Thread an |
+**Regeln, die immer gelten:** Phasen nur vorwärts; ein gewonnener oder
+verlorener Lead wird nur noch protokolliert; Gewonnen/Verloren standardmäßig nur
+als Vorschlag; welche Phase ein Signal auslöst, legt der Kunde je Pipeline fest
+(Einstellungen → Integrationen → Mailwin → Signale), ohne Zuordnung bleibt die
+Phase; alles steht „über Mailwin“ mit Zitat und Link in der Zeitleiste;
+idempotent über `signal` + `externalId`. Eine automatische Phasenänderung nimmt
+man im CRM wie gewohnt über die Phasenleiste zurück.
 
 ---
 
@@ -174,6 +191,6 @@ Antwort (Vorschlag) — damit Mailwin dem Nutzer zeigen kann, was passiert ist:
 - **Mailwin-Seite:** Wie erkennt Mailwin ein Angebot (Anhangname, Schlagwörter,
   Modell)? Welche Verlässlichkeitswerte sind realistisch? Gibt es WhatsApp-IDs,
   die stabil wie `messageId` sind?
-- **OKUN-Seite (Produktentscheidung, noch offen):** Soll „Angebot angenommen“
-  standardmäßig nur ein Vorschlag sein oder direkt **Gewonnen** setzen? Soll
-  `offer_sent` den Deal-Wert überschreiben dürfen?
+- **Entschieden (OKUN):** „Angebot angenommen“ ist standardmäßig ein
+  **Vorschlag**; „automatisch gewonnen“ lässt sich je Arbeitsbereich einschalten.
+  Ein Angebotswert füllt standardmäßig nur einen leeren Lead-Wert.

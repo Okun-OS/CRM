@@ -1,9 +1,9 @@
 # Übergabe an Mailwin: OKUN CRM — Mailwin Connect API v1
 
 Diese Zusammenfassung ist für die Entwicklung der Mailwin-Seite gedacht.
-Welche Abläufe sich damit heute schon abbilden lassen (Bestandskunde schreibt,
-Antwort auf ein Angebot …) und was für v1.2 vorgeschlagen ist, steht im
-[Zusatz](ZUSATZ-ABLAEUFE.md). Die
+Welche Abläufe sich damit abbilden lassen (Bestandskunde schreibt, Angebot
+verschickt, Kunde nimmt per E-Mail an …), steht im [Zusatz](ZUSATZ-ABLAEUFE.md).
+Aktueller Stand: **v1.2** (OpenAPI-Version 1.2.0). Die
 vollständige, maschinenlesbare Beschreibung steht in der OpenAPI-3.1-Datei
 (`<APP_URL>/api/mailwin/v1/openapi.json`, im CRM-Repository unter
 `docs/mailwin/openapi.json`).
@@ -15,7 +15,7 @@ vollständige, maschinenlesbare Beschreibung steht in der OpenAPI-3.1-Datei
 | Basis-URL | `<APP_URL>/api/mailwin/v1` — Produktion: `https://crm-production-8f9e.up.railway.app/api/mailwin/v1` (sobald ausgerollt) |
 | Authentifizierung | `Authorization: Bearer okun_mw_…` — ein Schlüssel pro Arbeitsbereich, erzeugt im CRM unter Einstellungen → Integrationen → Mailwin |
 | Format | JSON, UTF-8; Antworten **ohne** Hülle (direkt das Objekt bzw. Array) |
-| Zeitstempel | ISO 8601 mit Zeitzone. Eingaben **müssen** eine Zone tragen (`Z` oder `+01:00`), sonst 422. Antworten sind UTC (`…Z`). |
+| Zeitstempel | ISO 8601 mit Zeitzone. Eingaben **müssen** eine Zone tragen (`Z` oder `+01:00`), sonst 422. Antworten sind UTC (`…Z`). Ereigniszeitpunkte (`occurredAt`, `receivedAt`) in der Zukunft werden auf „jetzt“ gesetzt (Uhrabweichung); Termine und Fälligkeiten dürfen in der Zukunft liegen. |
 | Rate-Limit | 120 Anfragen pro Minute und Schlüssel; Header `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` (Sekunden); bei 429 `Retry-After` |
 | Idempotenz | Header `Idempotency-Key` (1–255 sichtbare ASCII-Zeichen) bei allen POST; 24 h gültig; Wiederholung trägt `Idempotent-Replayed: true` |
 | Korrelation | Jede Antwort trägt `X-Request-Id` |
@@ -35,6 +35,11 @@ gewonnen/verloren). IDs und `url` eines Leads sind die des Deals
 | GET | `/pipelines` | 200 `Pipeline[]` (Standard-Pipeline zuerst) |
 | POST | `/leads` | 201 `{ id, url }` |
 | POST | `/activities` | 201 neu · 200 bereits vorhanden (gleiche `externalId`) — Body: `{ id }` |
+| GET | `/leads/{id}` | 200 Kontext: Phase, Wert, Kontakte, nächste Aktion, offene Aufgaben, letzte Nachrichten, offene Vorschläge (v1.2) |
+| POST | `/leads/{id}/signals` | 201 bzw. 200 (Wiederholung) `{ signal, duplicate, applied, proposed, ignored, lead }` — Angebot/Vertrag versendet, angenommen, abgelehnt, Termin, Rückfrage, Abwesenheit (v1.2) |
+| POST | `/tasks` | 201 `{ id, url }` — Aufgabe für den Owner des Leads/Kontakts (v1.2) |
+| POST | `/contacts/{id}/suggestions` | 200 `{ applied, proposed, contact }` — leere Felder füllen, Abweichungen vorschlagen (v1.2) |
+| POST | `/outreach/replies` | 201 bzw. 200 (Wiederholung) — Mailwins Einstufung einer Akquise-Antwort (v1.2) |
 | GET | `/openapi.json` | 200, ohne Schlüssel |
 
 `Contact` = `{ id, name, email, phone, company: { id, name, domain } | null, openLeads: [{ id, title, stage, stageId, pipelineId, url }], url }`
@@ -244,6 +249,7 @@ Echtes Beispiel (`lead.won`):
 
 - `lead.stage_changed`, `lead.won`, `lead.lost`: `data = { lead, previousStage }` wie oben. `sourceRef` ist `null` bei Leads, die nicht aus Mailwin stammen.
 - `contact.updated`: `data = { contact: <Contact wie bei GET /contacts>, changed: ["phone", "companyId", …] }`.
+- `lead.next_action_changed` (v1.2): `data = { lead, nextAction: { type, title, reason, dueAt, operationalState } }` — z. B. `chase_offer` / „Angebot nachfassen“ mit Fälligkeit. Wird auch gesendet, wenn Mailwin die Änderung über ein Signal angestoßen hat.
 - `ping`: `data = { workspaceId, message }`.
 - Reihenfolge der Schlüssel im JSON ist nicht garantiert — die Signatur gilt für den **Rohbody**, wie er ankommt.
 

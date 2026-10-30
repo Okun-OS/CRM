@@ -4,11 +4,17 @@ import * as React from "react";
 import { Copy, ExternalLink, KeyRound, Plus, RefreshCw, Send, Trash2, Webhook } from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
-import { MAILWIN_WEBHOOK_EVENTS, type MailwinWebhookType } from "@/lib/crm/mailwin";
+import {
+  MAILWIN_SIGNAL_LABELS,
+  MAILWIN_STAGE_SIGNALS,
+  MAILWIN_WEBHOOK_EVENTS,
+  type MailwinStageSignal,
+  type MailwinWebhookType,
+} from "@/lib/crm/mailwin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Checkbox, Field, Input } from "@/components/ui/field";
+import { Checkbox, Field, Input, Select } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { DataTable, Td, Th, Tr } from "@/components/ui/table";
@@ -33,8 +39,22 @@ type WebhookConfig = {
   lastDeliveryAt: string | null;
 };
 
+type SignalSettings = {
+  acceptance: "suggest" | "auto";
+  decline: "suggest" | "auto";
+  autoMinConfidence: number;
+  offerValue: "fill" | "overwrite";
+  pipelines: {
+    id: string;
+    name: string;
+    stages: { id: string; name: string }[];
+    mapping: Record<MailwinStageSignal, string | null>;
+  }[];
+};
+
 type Overview = {
   baseUrl: string;
+  signals: SignalSettings;
   keys: MailwinKey[];
   webhook: WebhookConfig;
   requests: {
@@ -118,6 +138,7 @@ export function MailwinView({ initial }: { initial: Overview }) {
       </Card>
 
       <KeysCard keys={data.keys} baseUrl={data.baseUrl} onChanged={reload} onCopy={copy} />
+      <SignalsCard settings={data.signals} onChanged={reload} />
       <WebhookCard config={data.webhook} onChanged={reload} onCopy={copy} />
 
       <Card>
@@ -503,5 +524,123 @@ function WebhookCard({
         </div>
       </Modal>
     </>
+  );
+}
+
+function SignalsCard({ settings, onChanged }: { settings: SignalSettings; onChanged: () => Promise<void> }) {
+  const toast = useToast();
+  const [acceptance, setAcceptance] = React.useState(settings.acceptance);
+  const [decline, setDecline] = React.useState(settings.decline);
+  const [threshold, setThreshold] = React.useState(Math.round(settings.autoMinConfidence * 100));
+  const [offerValue, setOfferValue] = React.useState(settings.offerValue);
+  const [mapping, setMapping] = React.useState(
+    Object.fromEntries(settings.pipelines.map((pipeline) => [pipeline.id, { ...pipeline.mapping }])) as Record<
+      string,
+      Record<MailwinStageSignal, string | null>
+    >,
+  );
+  const [busy, setBusy] = React.useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await api.put("/api/v1/settings/mailwin/signals", {
+        acceptance,
+        decline,
+        autoMinConfidence: Math.min(100, Math.max(0, threshold)) / 100,
+        offerValue,
+        stageMapping: mapping,
+      });
+      toast.success("Signal-Einstellungen gespeichert");
+      await onChanged();
+    } catch (cause) {
+      toast.error(cause instanceof ApiError ? cause.message : "Die Einstellungen konnten nicht gespeichert werden.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        title="Signale aus Mailwin"
+        description="Mailwin meldet, was es in E-Mails erkannt hat — etwa „Angebot verschickt“ oder „Kunde nimmt an“. Hier legen Sie fest, was daraus im CRM folgt. Phasen gehen dabei nur vorwärts, und alles steht mit Zitat in der Zeitleiste."
+      />
+      <CardBody className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Angebot oder Vertrag angenommen" htmlFor="mailwin-acceptance" hint="Eine falsch erkannte Zusage soll keinen Umsatz in den Forecast schreiben.">
+            <Select id="mailwin-acceptance" value={acceptance} onChange={(event) => setAcceptance(event.target.value as "suggest" | "auto")}>
+              <option value="suggest">Vorschlag „Als gewonnen markieren?“ (empfohlen)</option>
+              <option value="auto">Automatisch gewonnen ab Mindest-Verlässlichkeit</option>
+            </Select>
+          </Field>
+          <Field label="Angebot abgelehnt" htmlFor="mailwin-decline">
+            <Select id="mailwin-decline" value={decline} onChange={(event) => setDecline(event.target.value as "suggest" | "auto")}>
+              <option value="suggest">Vorschlag „Als verloren markieren?“ (empfohlen)</option>
+              <option value="auto">Automatisch verloren ab Mindest-Verlässlichkeit</option>
+            </Select>
+          </Field>
+          <Field label="Mindest-Verlässlichkeit für „automatisch“" htmlFor="mailwin-threshold" hint="Darunter bleibt es ein Vorschlag.">
+            <div className="flex items-center gap-2">
+              <Input
+                id="mailwin-threshold"
+                type="number"
+                min={0}
+                max={100}
+                className="w-24"
+                value={threshold}
+                disabled={acceptance === "suggest" && decline === "suggest"}
+                onChange={(event) => setThreshold(Number(event.target.value))}
+              />
+              <span className="text-sm text-ink-600">%</span>
+            </div>
+          </Field>
+          <Field label="Wert aus dem Angebot" htmlFor="mailwin-offer-value">
+            <Select id="mailwin-offer-value" value={offerValue} onChange={(event) => setOfferValue(event.target.value as "fill" | "overwrite")}>
+              <option value="fill">Nur übernehmen, wenn der Lead noch keinen Wert hat</option>
+              <option value="overwrite">Immer übernehmen</option>
+            </Select>
+          </Field>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-ink-700">Phase je Signal</p>
+          {settings.pipelines.map((pipeline) => (
+            <div key={pipeline.id} className="rounded-md border border-ink-200 p-3">
+              <p className="mb-2 text-xs font-semibold text-ink-800">{pipeline.name}</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {MAILWIN_STAGE_SIGNALS.map((signal) => (
+                  <Field key={signal} label={MAILWIN_SIGNAL_LABELS[signal]} htmlFor={`mailwin-map-${pipeline.id}-${signal}`}>
+                    <Select
+                      id={`mailwin-map-${pipeline.id}-${signal}`}
+                      value={mapping[pipeline.id]?.[signal] ?? ""}
+                      onChange={(event) =>
+                        setMapping((current) => ({
+                          ...current,
+                          [pipeline.id]: { ...current[pipeline.id], [signal]: event.target.value || null },
+                        }))
+                      }
+                    >
+                      <option value="">— Phase nicht ändern —</option>
+                      {pipeline.stages.map((stage) => (
+                        <option key={stage.id} value={stage.id}>
+                          {stage.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-ink-100 pt-4">
+          <Button variant="primary" loading={busy} onClick={() => void save()}>
+            Speichern
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
   );
 }

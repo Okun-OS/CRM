@@ -153,6 +153,33 @@ Meldungen: `lead.stage_changed` und `lead.won`.
 (`?email=`) wird bewusst nicht gespeichert. Aufrufe ohne gültigen Schlüssel
 gehören zu keinem Arbeitsbereich und stehen nur im Anwendungslog.
 
+## 4a. v1.2: Signale, Vorschläge, Kontext
+
+| Endpunkt | Datei | Kern |
+| --- | --- | --- |
+| `POST /leads/{id}/signals` | `src/server/mailwin/signals.ts` | Mailwin meldet Erkanntes (Angebot versendet/angenommen/abgelehnt, Termin, Rückfrage, Abwesenheit, Vertrag); das CRM entscheidet nach `IntegrationSetting` (`signal-settings.ts`). Erst Folgen (Phase, Termin, Vorschlag), dann das Engine-Ereignis — damit die nächste Aktion auf dem neuen Stand berechnet wird. |
+| `GET /leads/{id}` | `src/server/mailwin/actions.ts` | Kontext für Antwortentwürfe |
+| `POST /tasks` | `actions.ts` | Aufgabe für den Owner |
+| `POST /contacts/{id}/suggestions` | `actions.ts` | leere Felder füllen, Abweichungen vorschlagen |
+| `POST /outreach/replies` | `actions.ts` → `recordReply` (`judged`) | Mailwins Einstufung ersetzt die Schlüsselwort-Regel |
+| Webhook `lead.next_action_changed` | `reconcileSubject` → `queueNextActionChanged` | jede neue nächste Aktion eines Deals, mit Fälligkeit |
+
+**Vorschläge** (`RecordSuggestion`, `src/server/services/suggestions.ts`) sind
+allgemein gebaut, nicht Mailwin-spezifisch: Eine Integration schlägt vor
+(`deal.mark_won`, `deal.mark_lost`, `contact.update`), ein Mensch übernimmt oder
+verwirft an Deal bzw. Kontakt. Ein Vorschlag an einem Deal ist zugleich dessen
+manuelle nächste Aktion („Heute“); die Entscheidung erledigt sie.
+
+**Entscheidungen:** Gewonnen/Verloren standardmäßig nur als Vorschlag
+(umstellbar auf „automatisch ab Verlässlichkeit X“); Phasen nur vorwärts, nie aus
+Gewonnen/Verloren heraus; Zuordnung Signal → Phase je Pipeline, Standard über
+die Phasen-Schlüssel `proposal`, `meeting`, `negotiation`; Angebotswert füllt nur
+einen leeren Wert (umstellbar); eine Abwesenheitsnotiz pausiert Automationen und
+zählt ausdrücklich nicht als Kundenantwort.
+
+Migration `20261030170000_mailwin_signals`, nur additiv: `RecordSuggestion`,
+`SuggestionStatus`, `IntegrationSetting`.
+
 ## 5. Später: OAuth 2.0 und weitere Kanäle
 
 **OAuth 2.0 (Authorization Code + PKCE)** als Alternative zum Schlüssel, damit

@@ -177,11 +177,19 @@ export async function reconcileSubject(
   };
 
   if (subject.kind === "DEAL") {
-    const current = await prisma.deal.findFirst({ where: { id: subject.id, organizationId }, select: { stalledSince: true } });
+    const current = await prisma.deal.findFirst({
+      where: { id: subject.id, organizationId },
+      select: { stalledSince: true, nextActionTitle: true, nextActionAt: true, nextActionType: true },
+    });
     await prisma.deal.updateMany({
       where: { id: subject.id, organizationId },
       data: { ...record, stalledSince: stalled ? (current?.stalledSince ?? now) : null },
     });
+    const moved =
+      current?.nextActionTitle !== proposal.title ||
+      current?.nextActionType !== proposal.type ||
+      !sameMoment(current?.nextActionAt ?? null, proposal.dueAt);
+    if (moved) await announceNextAction(organizationId, subject.id, proposal);
   } else {
     const current = await prisma.lead.findFirst({ where: { id: subject.id, organizationId }, select: { stalledSince: true } });
     await prisma.lead.updateMany({
@@ -193,6 +201,19 @@ export async function reconcileSubject(
   await syncFollowUpAutomation(organizationId, ref, subject, proposal, config.thresholds, now);
 
   return { subject, operationalState: proposal.operationalState, nextActionId, proposal, changed };
+}
+
+/**
+ * Meldet eine neue nächste Aktion an verbundene Integrationen (heute: Mailwin,
+ * Webhook `lead.next_action_changed`). Darf die Abstimmung nie scheitern lassen.
+ */
+async function announceNextAction(organizationId: string, dealId: string, proposal: NextActionProposal): Promise<void> {
+  try {
+    const { queueNextActionChanged } = await import("@/server/mailwin/webhooks");
+    await queueNextActionChanged(organizationId, dealId, proposal);
+  } catch (error) {
+    logError("engine.next_action_announce_failed", error, { dealId });
+  }
 }
 
 /** Reconciliation never breaks the request that triggered it. */

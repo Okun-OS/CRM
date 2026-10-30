@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OKUN CRM — Mailwin Connect API",
-    "version": "1.0.0",
-    "description": "Schnittstelle, über die OKUN Mailwin Kontakte nachschlägt, Leads anlegt und Nachrichten protokolliert.\n\n**Begriffe:** Ein Mailwin-„Lead“ ist im CRM ein Deal (Pipeline, Phase, Wert, gewonnen/verloren).\n\n**Zeitstempel** sind ISO 8601 mit Zeitzone; Antworten verwenden UTC (`Z`).\n\n**Rate-Limit:** 120 Anfragen pro Minute und Schlüssel. Jede Antwort trägt `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`.\n\n**Webhooks (v1.1)** an Mailwin: `POST` mit `{ id, type, occurredAt, data }`, Typen `lead.stage_changed`, `lead.won`, `lead.lost`, `contact.updated` (und `ping` beim Verbindungstest). Header `X-Okun-Timestamp` (Unix-Sekunden) und `X-Okun-Signature: sha256=<hex HMAC-SHA256 über \"<timestamp>.<rohbody>\">`."
+    "version": "1.2.0",
+    "description": "Schnittstelle, über die OKUN Mailwin Kontakte nachschlägt, Leads anlegt und Nachrichten protokolliert.\n\n**Begriffe:** Ein Mailwin-„Lead“ ist im CRM ein Deal (Pipeline, Phase, Wert, gewonnen/verloren).\n\n**Zeitstempel** sind ISO 8601 mit Zeitzone; Antworten verwenden UTC (`Z`).\n\n**Rate-Limit:** 120 Anfragen pro Minute und Schlüssel. Jede Antwort trägt `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`.\n\n**Webhooks (v1.1)** an Mailwin: `POST` mit `{ id, type, occurredAt, data }`, Typen `lead.stage_changed`, `lead.won`, `lead.lost`, `contact.updated`, `lead.next_action_changed` (v1.2) und `ping` beim Verbindungstest. Header `X-Okun-Timestamp` (Unix-Sekunden) und `X-Okun-Signature: sha256=<hex HMAC-SHA256 über \"<timestamp>.<rohbody>\">`."
   },
   "servers": [
     {
@@ -28,6 +28,12 @@
     },
     {
       "name": "Aktivitäten"
+    },
+    {
+      "name": "Signale (v1.2)"
+    },
+    {
+      "name": "Akquise (v1.2)"
     }
   ],
   "paths": {
@@ -926,6 +932,937 @@
           }
         }
       }
+    },
+    "/leads/{id}": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "operationId": "getLead",
+        "summary": "Kontext zu einem Lead (v1.2)",
+        "description": "Für Antwortentwürfe: Phase, Wert, Kontakte, nächste Aktion, offene Aufgaben, letzte Nachrichten (ohne Systemereignisse), offene Vorschläge.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lead-ID (im CRM: Deal)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadContext"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Schlüssel fehlt, ist ungültig oder widerrufen.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthorized",
+                    "message": "Der API-Schlüssel fehlt, ist ungültig oder wurde widerrufen."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Schlüssel ohne Mailwin-Freigabe oder Arbeitsbereich gesperrt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "Dieser API-Schlüssel ist nicht für die Mailwin Connect API freigegeben."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lead existiert nicht (in diesem Arbeitsbereich).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "Der Lead wurde nicht gefunden."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Mehr als 120 Anfragen pro Minute und Schlüssel.",
+            "headers": {
+              "Retry-After": {
+                "description": "Sekunden bis zur nächsten erlaubten Anfrage.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Zu viele Anfragen: höchstens 120 pro Minute und Schlüssel."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/signals": {
+      "post": {
+        "tags": [
+          "Signale (v1.2)"
+        ],
+        "operationId": "postSignal",
+        "summary": "Erkanntes Ereignis zu einem Lead melden (v1.2)",
+        "description": "Mailwin meldet, was es erkannt hat; das CRM entscheidet nach den Einstellungen des Arbeitsbereichs, was folgt.\n\n| signal | Folge (Standard) |\n| --- | --- |\n| `offer_sent` | Phase → Angebot (nur vorwärts), „Angebot nachfassen“ geplant, `data.valueCents` füllt einen leeren Wert |\n| `offer_accepted` / `contract_accepted` | Vorschlag „Als gewonnen markieren?“ (oder automatisch gewonnen, wenn so eingestellt und `evidence.confidence` reicht) |\n| `offer_declined` | Vorschlag „Als verloren markieren?“ mit `data.reason` |\n| `meeting_booked` | Termin im Kalender (`data.startAt`), Phase → Termin |\n| `meeting_requested` | nächste Aktion „Termin vereinbaren“ |\n| `question` | nächste Aktion „Rückfrage beantworten“ |\n| `out_of_office` | Automationen pausieren bis `data.until` (sonst 7 Tage) — keine Kundenantwort |\n| `contract_sent` | Phase → Verhandlung |\n\nPhasen gehen nur vorwärts; ein gewonnener oder verlorener Lead wird nur protokolliert. Idempotent über `signal` + `externalId` (200 mit `duplicate: true`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lead-ID (im CRM: Deal)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Frei wählbarer Schlüssel (1–255 sichtbare ASCII-Zeichen). Dieselbe Anfrage mit demselben Schlüssel liefert 24 Stunden lang dieselbe Antwort und legt nichts doppelt an. Nur erfolgreiche Antworten werden gespeichert.",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalCreate"
+              },
+              "example": {
+                "signal": "offer_sent",
+                "occurredAt": "2026-11-03T10:12:00+01:00",
+                "externalId": "msg_9002",
+                "url": "https://okun-mailwin.com/inbox/thr_9001#msg_9002",
+                "summary": "Angebot Nr. 2026-117 über 24.000 € als PDF verschickt.",
+                "evidence": {
+                  "quote": "anbei unser Angebot für die Wartung …",
+                  "confidence": 0.93
+                },
+                "data": {
+                  "offerNumber": "2026-117",
+                  "valueCents": 2400000
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bereits verarbeitet (gleiches signal + externalId)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalOutcome"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Verarbeitet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalOutcome"
+                },
+                "example": {
+                  "signal": "offer_sent",
+                  "duplicate": false,
+                  "applied": [
+                    "timeline",
+                    "stage_changed:Angebot",
+                    "value_updated",
+                    "offer_follow_up"
+                  ],
+                  "proposed": [],
+                  "ignored": [],
+                  "lead": {
+                    "id": "cmd2deal0001",
+                    "url": "https://crm.example.com/deals/cmd2deal0001",
+                    "status": "open",
+                    "stage": {
+                      "id": "cmd2stage0004",
+                      "name": "Angebot"
+                    },
+                    "valueCents": 2400000,
+                    "nextAction": {
+                      "title": "Angebot nachfassen",
+                      "dueAt": "2026-11-10T09:12:00.000Z"
+                    },
+                    "operationalState": "waiting_for_customer"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Kein gültiges JSON oder ungültiger Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_request",
+                    "message": "Der Request-Body ist kein gültiges JSON."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Schlüssel fehlt, ist ungültig oder widerrufen.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthorized",
+                    "message": "Der API-Schlüssel fehlt, ist ungültig oder wurde widerrufen."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Schlüssel ohne Mailwin-Freigabe oder Arbeitsbereich gesperrt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "Dieser API-Schlüssel ist nicht für die Mailwin Connect API freigegeben."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lead existiert nicht (in diesem Arbeitsbereich).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "Der Lead wurde nicht gefunden."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Eine Anfrage mit demselben Idempotency-Key läuft noch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "idempotency_key_in_use",
+                    "message": "Eine Anfrage mit diesem Idempotency-Key wird gerade verarbeitet. Bitte kurz darauf wiederholen."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validierungsfehler — oder ein Idempotency-Key, der schon für eine andere Anfrage verwendet wurde.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "Die übermittelten Daten sind ungültig.",
+                    "details": {
+                      "fields": {
+                        "contact.email": "Bitte eine gültige E-Mail-Adresse angeben."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Mehr als 120 Anfragen pro Minute und Schlüssel.",
+            "headers": {
+              "Retry-After": {
+                "description": "Sekunden bis zur nächsten erlaubten Anfrage.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Zu viele Anfragen: höchstens 120 pro Minute und Schlüssel."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks": {
+      "post": {
+        "tags": [
+          "Aktivitäten"
+        ],
+        "operationId": "createTask",
+        "summary": "Aufgabe anlegen (v1.2)",
+        "description": "Für die Person, die den Lead (sonst den Kontakt) betreut. `url` wird in die Beschreibung übernommen.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Frei wählbarer Schlüssel (1–255 sichtbare ASCII-Zeichen). Dieselbe Anfrage mit demselben Schlüssel liefert 24 Stunden lang dieselbe Antwort und legt nichts doppelt an. Nur erfolgreiche Antworten werden gespeichert.",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreate"
+              },
+              "example": {
+                "title": "Kundin am Dienstag anrufen",
+                "dueAt": "2026-11-04T09:00:00+01:00",
+                "priority": "high",
+                "leadId": "cmd2deal0001",
+                "url": "https://okun-mailwin.com/inbox/thr_9001#msg_9003"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Angelegt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                },
+                "example": {
+                  "id": "cmd2task0001",
+                  "url": "https://crm.example.com/deals/cmd2deal0001"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Kein gültiges JSON oder ungültiger Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_request",
+                    "message": "Der Request-Body ist kein gültiges JSON."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Schlüssel fehlt, ist ungültig oder widerrufen.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthorized",
+                    "message": "Der API-Schlüssel fehlt, ist ungültig oder wurde widerrufen."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Schlüssel ohne Mailwin-Freigabe oder Arbeitsbereich gesperrt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "Dieser API-Schlüssel ist nicht für die Mailwin Connect API freigegeben."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kontakt oder Lead existiert nicht.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "Der Lead wurde nicht gefunden."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Eine Anfrage mit demselben Idempotency-Key läuft noch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "idempotency_key_in_use",
+                    "message": "Eine Anfrage mit diesem Idempotency-Key wird gerade verarbeitet. Bitte kurz darauf wiederholen."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validierungsfehler — oder ein Idempotency-Key, der schon für eine andere Anfrage verwendet wurde.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "Die übermittelten Daten sind ungültig.",
+                    "details": {
+                      "fields": {
+                        "contact.email": "Bitte eine gültige E-Mail-Adresse angeben."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Mehr als 120 Anfragen pro Minute und Schlüssel.",
+            "headers": {
+              "Retry-After": {
+                "description": "Sekunden bis zur nächsten erlaubten Anfrage.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Zu viele Anfragen: höchstens 120 pro Minute und Schlüssel."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contacts/{id}/suggestions": {
+      "post": {
+        "tags": [
+          "Kontakte"
+        ],
+        "operationId": "suggestContactChanges",
+        "summary": "Kontaktdaten vorschlagen (v1.2)",
+        "description": "Leere Felder werden direkt gefüllt; wo im CRM schon etwas anderes steht, entsteht ein Vorschlag zur Übernahme. Ein gleicher offener Vorschlag wird nicht doppelt angelegt.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Kontakt-ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Frei wählbarer Schlüssel (1–255 sichtbare ASCII-Zeichen). Dieselbe Anfrage mit demselben Schlüssel liefert 24 Stunden lang dieselbe Antwort und legt nichts doppelt an. Nur erfolgreiche Antworten werden gespeichert.",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactSuggestion"
+              },
+              "example": {
+                "fields": {
+                  "phone": "+49 30 999",
+                  "jobTitle": "Leitung Einkauf"
+                },
+                "evidence": {
+                  "quote": "Paul Pflege · Leitung Einkauf · +49 30 999",
+                  "confidence": 0.9
+                },
+                "url": "https://okun-mailwin.com/inbox/thr_42"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verarbeitet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactSuggestionResult"
+                },
+                "example": {
+                  "applied": [
+                    "phone"
+                  ],
+                  "proposed": {
+                    "id": "cmd2sugg0001",
+                    "fields": [
+                      "jobTitle"
+                    ]
+                  },
+                  "contact": {
+                    "id": "cmd2contact0001",
+                    "name": "Erika Musterfrau",
+                    "email": "erika@beispiel-ag.de",
+                    "phone": "+49 30 999",
+                    "company": {
+                      "id": "cmd2company0001",
+                      "name": "Beispiel AG",
+                      "domain": "beispiel-ag.de"
+                    },
+                    "openLeads": [
+                      {
+                        "id": "cmd2deal0001",
+                        "title": "Anfrage Rahmenvertrag",
+                        "stage": "Qualifiziert",
+                        "stageId": "cmd2stage0002",
+                        "pipelineId": "cmd2pipeline01",
+                        "url": "https://crm.example.com/deals/cmd2deal0001"
+                      }
+                    ],
+                    "url": "https://crm.example.com/contacts/cmd2contact0001"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Kein gültiges JSON oder ungültiger Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_request",
+                    "message": "Der Request-Body ist kein gültiges JSON."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Schlüssel fehlt, ist ungültig oder widerrufen.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthorized",
+                    "message": "Der API-Schlüssel fehlt, ist ungültig oder wurde widerrufen."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Schlüssel ohne Mailwin-Freigabe oder Arbeitsbereich gesperrt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "Dieser API-Schlüssel ist nicht für die Mailwin Connect API freigegeben."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kontakt existiert nicht.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "Der Kontakt wurde nicht gefunden."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Eine Anfrage mit demselben Idempotency-Key läuft noch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "idempotency_key_in_use",
+                    "message": "Eine Anfrage mit diesem Idempotency-Key wird gerade verarbeitet. Bitte kurz darauf wiederholen."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validierungsfehler — oder ein Idempotency-Key, der schon für eine andere Anfrage verwendet wurde.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "Die übermittelten Daten sind ungültig.",
+                    "details": {
+                      "fields": {
+                        "contact.email": "Bitte eine gültige E-Mail-Adresse angeben."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Mehr als 120 Anfragen pro Minute und Schlüssel.",
+            "headers": {
+              "Retry-After": {
+                "description": "Sekunden bis zur nächsten erlaubten Anfrage.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Zu viele Anfragen: höchstens 120 pro Minute und Schlüssel."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outreach/replies": {
+      "post": {
+        "tags": [
+          "Akquise (v1.2)"
+        ],
+        "operationId": "recordOutreachReply",
+        "summary": "Antwort auf eine Akquise-Sequenz einstufen (v1.2)",
+        "description": "Mailwins Einstufung ersetzt die Schlüsselwort-Regel des CRM. Folgen wie bei der eigenen Einstufung: Sequenz anhalten, Prospect umstufen, Abmeldung auf die Sperrliste — eine Abwesenheitsnotiz hält nichts an. Zuordnung über `prospectId` oder die Absenderadresse; idempotent über `messageId`.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Frei wählbarer Schlüssel (1–255 sichtbare ASCII-Zeichen). Dieselbe Anfrage mit demselben Schlüssel liefert 24 Stunden lang dieselbe Antwort und legt nichts doppelt an. Nur erfolgreiche Antworten werden gespeichert.",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutreachReply"
+              },
+              "example": {
+                "messageId": "msg_reply_77",
+                "fromAddress": "info@kalt-ag.de",
+                "subject": "Re: Kurze Frage",
+                "body": "Gerne, schicken Sie mir Unterlagen.",
+                "receivedAt": "2026-11-03T11:00:00+01:00",
+                "classification": "interested",
+                "confidence": 0.86
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bereits verarbeitet (gleiche messageId)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachReplyResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Verarbeitet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachReplyResult"
+                },
+                "example": {
+                  "messageId": "cmd2mail0001",
+                  "prospectId": "cmd2pros0001",
+                  "classification": "interested",
+                  "duplicate": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Kein gültiges JSON oder ungültiger Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_request",
+                    "message": "Der Request-Body ist kein gültiges JSON."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Schlüssel fehlt, ist ungültig oder widerrufen.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthorized",
+                    "message": "Der API-Schlüssel fehlt, ist ungültig oder wurde widerrufen."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Schlüssel ohne Mailwin-Freigabe oder Arbeitsbereich gesperrt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "Dieser API-Schlüssel ist nicht für die Mailwin Connect API freigegeben."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prospect existiert nicht.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "Der Prospect wurde nicht gefunden."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Eine Anfrage mit demselben Idempotency-Key läuft noch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "idempotency_key_in_use",
+                    "message": "Eine Anfrage mit diesem Idempotency-Key wird gerade verarbeitet. Bitte kurz darauf wiederholen."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validierungsfehler — oder ein Idempotency-Key, der schon für eine andere Anfrage verwendet wurde.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "Die übermittelten Daten sind ungültig.",
+                    "details": {
+                      "fields": {
+                        "contact.email": "Bitte eine gültige E-Mail-Adresse angeben."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Mehr als 120 Anfragen pro Minute und Schlüssel.",
+            "headers": {
+              "Retry-After": {
+                "description": "Sekunden bis zur nächsten erlaubten Anfrage.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Zu viele Anfragen: höchstens 120 pro Minute und Schlüssel."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1365,6 +2302,713 @@
         "properties": {
           "id": {
             "type": "string"
+          }
+        }
+      },
+      "Created": {
+        "type": "object",
+        "required": [
+          "id",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "quote": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Kurzes Zitat als Beleg; wird im CRM angezeigt"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "SignalCreate": {
+        "type": "object",
+        "required": [
+          "signal",
+          "occurredAt",
+          "externalId"
+        ],
+        "properties": {
+          "signal": {
+            "type": "string",
+            "enum": [
+              "offer_sent",
+              "offer_accepted",
+              "offer_declined",
+              "meeting_requested",
+              "meeting_booked",
+              "question",
+              "out_of_office",
+              "contract_sent",
+              "contract_accepted"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 mit Zeitzone"
+          },
+          "externalId": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Nachrichten-ID; mit `signal` zusammen eindeutig"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/Evidence"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "valueCents": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "offer_sent: Angebotswert"
+              },
+              "offerNumber": {
+                "type": "string"
+              },
+              "validUntil": {
+                "type": "string"
+              },
+              "startAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "meeting_booked"
+              },
+              "endAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "meeting_booked; sonst Beginn + 60 min"
+              },
+              "title": {
+                "type": "string",
+                "description": "meeting_booked: Titel des Termins"
+              },
+              "location": {
+                "type": "string"
+              },
+              "until": {
+                "type": "string",
+                "format": "date-time",
+                "description": "out_of_office: Rückkehr"
+              },
+              "reason": {
+                "type": "string",
+                "description": "offer_declined: Grund"
+              }
+            }
+          }
+        }
+      },
+      "SignalOutcome": {
+        "type": "object",
+        "required": [
+          "signal",
+          "duplicate",
+          "applied",
+          "proposed",
+          "ignored",
+          "lead"
+        ],
+        "properties": {
+          "signal": {
+            "type": "string"
+          },
+          "duplicate": {
+            "type": "boolean"
+          },
+          "applied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "timeline, stage_changed:<Phase>, value_updated, offer_follow_up, meeting_created, next_action_set, automation_paused, won, lost"
+          },
+          "proposed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "kind",
+                "title"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "deal.mark_won",
+                    "deal.mark_lost"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "ignored": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Was bewusst nicht geschah, als `code: Erklärung`"
+          },
+          "lead": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "won",
+                  "lost"
+                ]
+              },
+              "stage": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              "valueCents": {
+                "type": "integer"
+              },
+              "nextAction": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "dueAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "operationalState": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "LeadContext": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "won",
+              "lost"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pipeline": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "stage": {
+            "$ref": "#/components/schemas/Stage"
+          },
+          "valueCents": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "expectedCloseDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "owner": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              }
+            }
+          },
+          "company": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CompanyRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "phone": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "isPrimary": {
+                  "type": "boolean"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "operationalState": {
+            "type": "string",
+            "description": "waiting_for_us, waiting_for_customer, scheduled, no_next_action, closed …"
+          },
+          "nextAction": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "dueAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offerSentAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastCustomerResponseAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastOutboundAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "nextMeetingAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "automationPausedUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "openTasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "dueAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "priority": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "recentActivities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "subject": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "viaMailwin": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "pendingSuggestions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "sourceRef": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
+      "TaskCreate": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "description": "Mindestens `contactId` oder `leadId` ist Pflicht.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 mit Zeitzone"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "urgent"
+            ],
+            "default": "medium"
+          },
+          "contactId": {
+            "type": "string"
+          },
+          "leadId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "ContactSuggestion": {
+        "type": "object",
+        "required": [
+          "fields"
+        ],
+        "properties": {
+          "fields": {
+            "type": "object",
+            "minProperties": 1,
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "phone": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "mobile": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "jobTitle": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "linkedinUrl": {
+                "type": "string",
+                "format": "uri"
+              }
+            }
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/Evidence"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "ContactSuggestionResult": {
+        "type": "object",
+        "required": [
+          "applied",
+          "proposed",
+          "contact"
+        ],
+        "properties": {
+          "applied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Direkt gefüllte Felder"
+          },
+          "proposed": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          }
+        }
+      },
+      "OutreachReply": {
+        "type": "object",
+        "required": [
+          "messageId",
+          "fromAddress",
+          "body",
+          "receivedAt",
+          "classification",
+          "confidence"
+        ],
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "fromAddress": {
+            "type": "string",
+            "format": "email"
+          },
+          "prospectId": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 100000
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "interested",
+              "question",
+              "meeting_request",
+              "later",
+              "referral",
+              "not_interested",
+              "out_of_office",
+              "unsubscribe",
+              "unknown"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "OutreachReplyResult": {
+        "type": "object",
+        "required": [
+          "messageId",
+          "prospectId",
+          "classification",
+          "duplicate"
+        ],
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "prospectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "classification": {
+            "type": "string"
+          },
+          "duplicate": {
+            "type": "boolean"
           }
         }
       }
