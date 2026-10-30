@@ -25,7 +25,9 @@
     "backfill:active-crm": "tsx --conditions=react-server scripts/backfill-active-crm.ts",
     "start:migrate": "sh scripts/start-production.sh",
     "admin:set-email": "tsx --conditions=react-server scripts/set-user-email.ts",
-    "platform:admin": "tsx --conditions=react-server scripts/platform-admin.ts"
+    "platform:admin": "tsx --conditions=react-server scripts/platform-admin.ts",
+    "mailwin:openapi": "tsx scripts/export-mailwin-openapi.ts",
+    "mailwin:sandbox": "tsx --conditions=react-server scripts/mailwin-sandbox.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

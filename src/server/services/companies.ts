@@ -10,7 +10,7 @@ import { listDefinitions, writeValues, assertRequiredProperties } from "@/server
 import { companyInputSchema, companyUpdateSchema } from "@/lib/schemas/crm";
 import { buildListArgs, type ListQuery } from "./listing";
 import { logSystemActivity } from "./activities";
-import { assertOwnerInOrganization, syncTags } from "./record-helpers";
+import { type CreateOptions, assertOwnerInOrganization, syncTags } from "./record-helpers";
 
 /** Companies — the account context around contacts and deals. */
 export type CompanyListItem = {
@@ -207,11 +207,15 @@ export async function getCompany(ctx: ActorContext, id: string) {
 
 export type CompanyDetail = Awaited<ReturnType<typeof getCompany>>;
 
-export async function createCompany(ctx: ActorContext, input: z.input<typeof companyInputSchema>) {
+export async function createCompany(
+  ctx: ActorContext,
+  input: z.input<typeof companyInputSchema>,
+  options: CreateOptions = {},
+) {
   assertPermission(ctx, "companies.write");
   const data = companyInputSchema.parse(input);
   await assertOwnerInOrganization(ctx, data.ownerId);
-  await assertRequiredProperties(ctx, "COMPANY", data.properties ?? {});
+  if (!options.skipRequiredProperties) await assertRequiredProperties(ctx, "COMPANY", data.properties ?? {});
 
   const company = await prisma.company.create({
     data: {

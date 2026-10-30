@@ -10,7 +10,7 @@ import { listDefinitions, writeValues, assertRequiredProperties } from "@/server
 import { contactInputSchema, contactUpdateSchema } from "@/lib/schemas/crm";
 import { buildListArgs, type ListQuery } from "./listing";
 import { logSystemActivity } from "./activities";
-import { assertOwnerInOrganization, assertRelationsExist, syncTags } from "./record-helpers";
+import { type CreateOptions, assertOwnerInOrganization, assertRelationsExist, syncTags } from "./record-helpers";
 
 /**
  * Contacts — the central CRM object. Every function is tenant-scoped through
@@ -222,13 +222,17 @@ export async function getContact(ctx: ActorContext, id: string) {
 
 export type ContactDetail = Awaited<ReturnType<typeof getContact>>;
 
-export async function createContact(ctx: ActorContext, input: z.input<typeof contactInputSchema>) {
+export async function createContact(
+  ctx: ActorContext,
+  input: z.input<typeof contactInputSchema>,
+  options: CreateOptions = {},
+) {
   assertPermission(ctx, "contacts.write");
   const data = contactInputSchema.parse(input);
 
   await assertRelationsExist(ctx, { companyId: data.companyId });
   await assertOwnerInOrganization(ctx, data.ownerId);
-  await assertRequiredProperties(ctx, "CONTACT", data.properties ?? {});
+  if (!options.skipRequiredProperties) await assertRequiredProperties(ctx, "CONTACT", data.properties ?? {});
 
   const contact = await prisma.contact.create({
     data: {

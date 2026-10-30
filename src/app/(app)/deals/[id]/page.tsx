@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Building2 } from "lucide-react";
+import { Building2, ExternalLink } from "lucide-react";
 import { getActor } from "@/lib/auth/session";
 import { can } from "@/lib/context";
 import { AppError } from "@/lib/api/errors";
@@ -12,7 +12,7 @@ import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
 import { NextActionPanel } from "@/components/crm/next-action-panel";
 import { DealStagePicker } from "./stage-picker";
-import { formatCurrency, formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime, formatNumber, formatSource } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -122,11 +122,31 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
                 },
                 { label: "Erwarteter Abschluss", value: deal.expectedCloseDate ? formatDate(deal.expectedCloseDate) : "—" },
                 { label: "Abgeschlossen", value: deal.closedAt ? formatDate(deal.closedAt) : "—" },
-                { label: "Quelle", value: deal.source ?? "—" },
+                { label: "Quelle", value: formatSource(deal.source) },
                 { label: "Erstellt", value: formatDate(deal.createdAt) },
               ]}
             />
           </Section>
+
+          {deal.sourceRef || deal.description ? (
+            <Section title="Herkunft & Beschreibung">
+              {deal.sourceRef ? (
+                <a
+                  href={deal.sourceRef.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {deal.sourceRef.system === "mailwin" ? "In Mailwin öffnen" : "Ursprung öffnen"}
+                  {deal.sourceRef.channel === "whatsapp" ? " (WhatsApp)" : ""}
+                </a>
+              ) : null}
+              {deal.description ? (
+                <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink-700">{deal.description}</p>
+              ) : null}
+            </Section>
+          ) : null}
 
           {deal.lostReason ? (
             <Section title="Verlustgrund">

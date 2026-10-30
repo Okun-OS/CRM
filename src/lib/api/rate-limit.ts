@@ -34,6 +34,36 @@ export function consumeRateLimit({ key, limit, windowMs }: RateLimitRule): void 
   if (bucket.count > limit) throw RateLimited();
 }
 
+export type RateLimitState = {
+  allowed: boolean;
+  limit: number;
+  remaining: number;
+  /** Sekunden, bis das Fenster zurückgesetzt wird. */
+  resetSeconds: number;
+};
+
+/**
+ * Wie `consumeRateLimit`, wirft aber nicht, sondern meldet den Stand — für
+ * Schnittstellen, die `Retry-After` und `RateLimit-*`-Header ausliefern.
+ */
+export function takeRateLimit({ key, limit, windowMs }: RateLimitRule): RateLimitState {
+  const now = Date.now();
+  sweep(now);
+  let bucket = buckets.get(key);
+  if (!bucket || bucket.resetAt < now) {
+    bucket = { count: 0, resetAt: now + windowMs };
+    buckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  const resetSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+  return {
+    allowed: bucket.count <= limit,
+    limit,
+    remaining: Math.max(0, limit - bucket.count),
+    resetSeconds,
+  };
+}
+
 /**
  * Checks a bucket without counting the request. Used where only failures should
  * count — repeated successful logins from one account are normal, repeated

@@ -2,7 +2,19 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Building2, Mail, MessageSquare, Phone, Settings2, Target, Users, CalendarDays, ListChecks } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  ExternalLink,
+  ListChecks,
+  Mail,
+  MessageCircle,
+  MessageSquare,
+  Phone,
+  Settings2,
+  Target,
+  Users,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import type { ActivityDTO } from "@/server/services/activities";
@@ -19,6 +31,7 @@ const ICONS: Record<string, React.ReactNode> = {
   NOTE: <MessageSquare className="h-3.5 w-3.5" />,
   TASK: <ListChecks className="h-3.5 w-3.5" />,
   SYSTEM: <Settings2 className="h-3.5 w-3.5" />,
+  WHATSAPP: <MessageCircle className="h-3.5 w-3.5" />,
 };
 
 const TONES: Record<string, string> = {
@@ -28,7 +41,17 @@ const TONES: Record<string, string> = {
   NOTE: "bg-ink-100 text-ink-600",
   TASK: "bg-warning-50 text-warning-700",
   SYSTEM: "bg-ink-100 text-ink-500",
+  WHATSAPP: "bg-success-50 text-success-700",
 };
+
+/**
+ * Link zum Ursprung einer Aktivität, die eine Integration gemeldet hat — nur
+ * http(s), damit aus Fremddaten nie ein `javascript:`-Link wird.
+ */
+function sourceLink(item: ActivityDTO): string | null {
+  const url = (item.metadata as { url?: unknown } | null)?.url;
+  return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
+}
 
 export function ActivityTimeline({
   items,
@@ -78,6 +101,22 @@ export function ActivityTimeline({
 
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-ink-500">
               {item.actor ? <span>{item.actor.name}</span> : null}
+              {item.source === "MAILWIN" ? (
+                <span className="rounded bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700">
+                  über Mailwin{item.direction === "INBOUND" ? " · eingehend" : item.direction === "OUTBOUND" ? " · ausgehend" : ""}
+                </span>
+              ) : null}
+              {item.source === "MAILWIN" && sourceLink(item) ? (
+                <a
+                  href={sourceLink(item)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  In Mailwin öffnen
+                </a>
+              ) : null}
               {item.outcome ? <span className="text-ink-600">Ergebnis: {item.outcome}</span> : null}
               {item.durationMinutes ? <span>{item.durationMinutes} Min.</span> : null}
               {item.contact ? (
@@ -114,6 +153,7 @@ function typeLabel(type: string): string {
     NOTE: "Notiz",
     TASK: "Aufgabe",
     SYSTEM: "Systemereignis",
+    WHATSAPP: "WhatsApp-Nachricht",
   };
   return labels[type] ?? type;
 }

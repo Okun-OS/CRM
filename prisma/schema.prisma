@@ -67,6 +67,8 @@ enum ActivityType {
   NOTE
   TASK
   SYSTEM
+  /// Nachricht über WhatsApp, z. B. von OKUN Mailwin gemeldet.
+  WHATSAPP
 }
 
 enum ActivitySource {
@@ -74,6 +76,8 @@ enum ActivitySource {
   SYSTEM
   WORKFLOW
   IMPORT
+  /// Über die Mailwin Connect API angelegt.
+  MAILWIN
 }
 
 enum ActivityDirection {
@@ -277,6 +281,14 @@ enum NotificationType {
   REPLY_RECEIVED
 }
 
+/// Wie ein Webhook-Endpunkt beliefert wird. STANDARD ist das allgemeine
+/// OKUN-Format; MAILWIN ist die verwaltete Verbindung zu OKUN Mailwin mit
+/// eigener Hülle, eigenen Ereignisnamen und längerem Wiederholungsfenster.
+enum WebhookFormat {
+  STANDARD
+  MAILWIN
+}
+
 enum WebhookDeliveryStatus {
   PENDING
   DELIVERED
@@ -469,6 +481,8 @@ model Organization {
   sequenceEnrollments   SequenceEnrollment[]
   enrollmentStepRuns    EnrollmentStepRun[]
   apiKeys               ApiKey[]
+  idempotencyRecords    IdempotencyRecord[]
+  integrationRequests   IntegrationRequestLog[]
   activeCrmSetting      ActiveCrmSetting?
   activeCrmRules        ActiveCrmRuleSetting[]
 
@@ -924,6 +938,9 @@ model Deal {
   closedAt          DateTime?
   lostReason        String?
   source            String?
+  /// Verweis auf den Ursprung in einem Fremdsystem, z. B. die Mailwin-Unterhaltung:
+  /// { system, channel, threadId, messageId, url }.
+  sourceRef         Json?
   description       String?
   ownerId           String?
   lastActivityAt    DateTime?
@@ -1064,6 +1081,10 @@ model Activity {
   meetingId       String?
   noteId          String?
   emailMessageId  String?
+  /// Herkunft und Kennung in einem Fremdsystem (z. B. „mailwin“ + Nachrichten-ID).
+  /// Zusammen eindeutig je Organisation: Eine wiederholte Meldung legt nichts doppelt an.
+  externalSource  String?
+  externalId      String?
   createdAt       DateTime          @default(now())
 
   organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1084,6 +1105,7 @@ model Activity {
   @@index([dealId, occurredAt])
   @@index([leadId, occurredAt])
   @@index([organizationId, actorId, occurredAt])
+  @@unique([organizationId, externalSource, externalId])
 }
 
 model Task {
@@ -1838,6 +1860,7 @@ model WebhookEndpoint {
   events         String[]
   description    String?
   isActive       Boolean      @default(true)
+  format         WebhookFormat @default(STANDARD)
   createdById    String?
   lastDeliveryAt DateTime?
   createdAt      DateTime     @default(now())
@@ -1905,6 +1928,8 @@ model AuditLog {
   after          Json?
   ip             String?
   userAgent      String?
+  /// Woher die Änderung kam, wenn nicht aus der Oberfläche — z. B. „mailwin“.
+  origin         String?
   createdAt      DateTime     @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2151,4 +2176,51 @@ model ApiKey {
   createdBy      User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, revokedAt])
+}
+
+/// Gespeicherte Antwort zu einem `Idempotency-Key` einer Maschinenanfrage.
+/// Dieselbe Anfrage mit demselben Schlüssel liefert innerhalb der Gültigkeit
+/// dieselbe Antwort, statt etwas doppelt anzulegen.
+model IdempotencyRecord {
+  id             String       @id @default(cuid())
+  organizationId String
+  /// Der Zugang, der die Anfrage gestellt hat (heute ein ApiKey).
+  credentialId   String
+  key            String
+  method         String
+  path           String
+  /// SHA-256 über Methode, Pfad und Rohbody — erkennt einen wiederverwendeten Schlüssel.
+  requestHash    String
+  /// Leer, solange die erste Anfrage noch läuft.
+  responseStatus Int?
+  responseBody   Json?
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@index([expiresAt])
+}
+
+/// Protokoll jedes Aufrufs einer Integrationsschnittstelle (z. B. Mailwin
+/// Connect API), sichtbar in den Einstellungen der Integration.
+model IntegrationRequestLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  integration    String
+  credentialId   String?
+  method         String
+  path           String
+  status         Int
+  durationMs     Int
+  errorCode      String?
+  idempotencyKey String?
+  replayed       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, integration, createdAt])
+  @@index([createdAt])
 }

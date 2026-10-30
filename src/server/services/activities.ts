@@ -26,6 +26,7 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   NOTE: "Notiz",
   TASK: "Aufgabe",
   SYSTEM: "System",
+  WHATSAPP: "WhatsApp",
 };
 
 export const activityListQuerySchema = paginationSchema.extend({
@@ -34,7 +35,7 @@ export const activityListQuerySchema = paginationSchema.extend({
   dealId: z.string().max(30).optional(),
   leadId: z.string().max(30).optional(),
   ownerId: z.string().max(30).optional(),
-  types: z.array(z.enum(["CALL", "EMAIL", "MEETING", "NOTE", "TASK", "SYSTEM"])).optional(),
+  types: z.array(z.enum(["CALL", "EMAIL", "MEETING", "NOTE", "TASK", "SYSTEM", "WHATSAPP"])).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
 });
@@ -289,7 +290,9 @@ export async function logSystemActivity(
     data: {
       organizationId: ctx.organizationId,
       type: input.type ?? "SYSTEM",
-      source: input.source ?? "SYSTEM",
+      // Was eine Integration auslöst, steht in der Zeitleiste auch so — nicht
+      // als Handlung der Person, unter deren Konto der Zugang läuft.
+      source: input.source ?? (ctx.origin === "mailwin" ? "MAILWIN" : "SYSTEM"),
       subject: input.subject,
       body: input.body,
       occurredAt: new Date(),

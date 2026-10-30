@@ -41,6 +41,7 @@ export async function writeAudit(ctx: ActorContext, input: AuditInput): Promise<
         after: (sanitize(input.after) ?? undefined) as Prisma.InputJsonValue | undefined,
         ip: ctx.ip,
         userAgent: ctx.userAgent,
+        origin: ctx.origin ?? null,
       },
     });
   } catch (error) {

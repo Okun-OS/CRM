@@ -86,7 +86,7 @@ export function SettingsNav({ permissions }: { permissions: Permission[] }) {
               </p>
               <ul className="flex gap-1 lg:block lg:space-y-0.5">
                 {items.map((item) => {
-                  const active = pathname === item.href;
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return (
                     <li key={item.href}>
                       <Link

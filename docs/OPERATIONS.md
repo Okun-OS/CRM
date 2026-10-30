@@ -164,15 +164,17 @@ definiert den Vertrag: `put`, `get`, `remove`).
 
 ## 5. Wiederkehrende Aufgaben
 
-Ein Scheduler (Cron, systemd-Timer, Plattform-Job) sollte regelmäßig aufrufen:
-
-| Aufgabe | Funktion | Empfohlener Takt |
+| Aufgabe | Wer | Takt |
 | --- | --- | --- |
-| Webhook-Wiederholungen | `retryPendingWebhookDeliveries()` aus `src/server/services/webhooks.ts` | alle 5 Minuten |
-| Durchlauf des aktiven CRM | `POST /api/v1/scheduler/run` | alle 15 Minuten |
+| Webhook-Zustellung und -Wiederholungen | Zustell-Worker im Serverprozess (`src/server/services/webhook-worker.ts`, gestartet in `src/instrumentation.ts`) | alle 15 Sekunden, automatisch |
+| Aufräumen (abgelaufene `Idempotency-Key`s, Aufrufprotokolle > 30 Tage) | derselbe Worker | stündlich, automatisch |
+| Durchlauf des aktiven CRM | externer Scheduler: `POST /api/v1/scheduler/run` | alle 15 Minuten |
 
-Ohne den Webhook-Job bleiben fehlgeschlagene Zustellungen im Status „in
-Wiederholung"; die Oberfläche unter Einstellungen → System zeigt das an.
+Der Zustell-Worker braucht keinen externen Cron. Er reserviert jede Zustellung
+vor dem Senden, mehrere Instanzen verschicken also nichts doppelt. Abschalten
+lässt er sich mit `WEBHOOK_WORKER=off` (etwa für eine reine Lese-Instanz).
+Normale Webhooks werden bis zu fünfmal versucht, Webhooks an Mailwin mit
+wachsendem Abstand bis zu 24 Stunden (siehe `docs/MAILWIN.md`).
 
 Der Durchlauf des aktiven CRM prüft fällige nächste Aktionen, erkennt
 Stagnation und führt geplante Automationen aus. Er wird mit einem API-Key mit

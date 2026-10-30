@@ -46,6 +46,7 @@ export async function listAuditLog(ctx: ActorContext, query: z.infer<typeof audi
       entityId: row.entityId,
       actor: row.actor,
       actorEmail: row.actorEmail,
+      origin: row.origin,
       before: row.before,
       after: row.after,
       ip: row.ip,

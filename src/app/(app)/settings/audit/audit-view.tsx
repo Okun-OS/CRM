@@ -16,6 +16,7 @@ type Entry = {
   entityId: string | null;
   actor: { id: string; name: string } | null;
   actorEmail: string | null;
+  origin: string | null;
   before: unknown;
   after: unknown;
   ip: string | null;
@@ -104,6 +105,9 @@ export function AuditView({ initial, members }: { initial: Page; members: { id: 
                       </span>
                     </p>
                     <span className="text-2xs text-ink-400">
+                      {entry.origin === "mailwin" ? (
+                        <span className="mr-1.5 rounded bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700">über Mailwin</span>
+                      ) : null}
                       {entry.actor?.name ?? entry.actorEmail ?? "System"} · {formatDateTime(entry.createdAt)}
                       {entry.ip ? ` · ${entry.ip}` : ""}
                     </span>

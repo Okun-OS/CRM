@@ -12,7 +12,7 @@ import { dealInputSchema, dealUpdateSchema, dealStageChangeSchema } from "@/lib/
 import { ValidationError } from "@/lib/api/errors";
 import { buildListArgs, type ListQuery } from "./listing";
 import { logSystemActivity } from "./activities";
-import { assertOwnerInOrganization, assertRelationsExist, syncTags } from "./record-helpers";
+import { type CreateOptions, assertOwnerInOrganization, assertRelationsExist, syncTags } from "./record-helpers";
 import { notify } from "./notifications";
 
 /** Deals — the sales opportunity, always inside exactly one pipeline stage. */
@@ -268,6 +268,7 @@ export async function getDeal(ctx: ActorContext, id: string) {
     closedAt: deal.closedAt?.toISOString() ?? null,
     lostReason: deal.lostReason,
     source: deal.source,
+    sourceRef: readSourceRef(deal.sourceRef),
     description: deal.description,
     company: deal.company,
     owner: deal.owner,
@@ -319,19 +320,41 @@ export async function getDeal(ctx: ActorContext, id: string) {
 
 export type DealDetail = Awaited<ReturnType<typeof getDeal>>;
 
+/**
+ * Ursprung eines Deals in einem Fremdsystem (z. B. die Mailwin-Unterhaltung).
+ * Nur http(s)-Links werden weitergegeben — die Oberfläche macht daraus einen
+ * anklickbaren Link.
+ */
+export type DealSourceRef = { system: string; channel: string | null; url: string };
+
+function readSourceRef(value: unknown): DealSourceRef | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.url !== "string" || !/^https?:\/\//i.test(record.url)) return null;
+  return {
+    system: typeof record.system === "string" ? record.system : "extern",
+    channel: typeof record.channel === "string" ? record.channel : null,
+    url: record.url,
+  };
+}
+
 async function loadStage(ctx: ActorContext, pipelineId: string, stageId: string) {
   const stage = await prisma.pipelineStage.findFirst({ where: { id: stageId, pipelineId, ...scope(ctx) } });
   if (!stage) throw ValidationError("Die gewählte Stage gehört nicht zur gewählten Pipeline.");
   return stage;
 }
 
-export async function createDeal(ctx: ActorContext, input: z.input<typeof dealInputSchema>) {
+export async function createDeal(
+  ctx: ActorContext,
+  input: z.input<typeof dealInputSchema>,
+  options: CreateOptions = {},
+) {
   assertPermission(ctx, "deals.write");
   const data = dealInputSchema.parse(input);
 
   await assertRelationsExist(ctx, { companyId: data.companyId, pipelineId: data.pipelineId });
   await assertOwnerInOrganization(ctx, data.ownerId);
-  await assertRequiredProperties(ctx, "DEAL", data.properties ?? {});
+  if (!options.skipRequiredProperties) await assertRequiredProperties(ctx, "DEAL", data.properties ?? {});
   const stage = await loadStage(ctx, data.pipelineId, data.stageId);
 
   if (data.contactIds?.length) {

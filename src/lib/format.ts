@@ -95,3 +95,11 @@ export function formatBytes(bytes: number): string {
   }
   return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unitIndex]}`;
 }
+
+/** Herkunft eines Datensatzes für die Anzeige — technische Quellen bekommen ihren Produktnamen. */
+const SOURCE_LABELS: Record<string, string> = { mailwin: "Mailwin" };
+
+export function formatSource(value: string | null | undefined): string {
+  if (!value) return "—";
+  return SOURCE_LABELS[value] ?? value;
+}

@@ -169,7 +169,10 @@ Services lösen nach erfolgreicher Änderung ein Domänenereignis aus
 2. **Webhooks** (`src/server/services/webhooks.ts`)
    Zustellung wird persistiert, dann versucht. Signatur:
    `x-okun-signature: sha256=HMAC(secret, "timestamp.body")`. Fehlschläge
-   werden mit wachsendem Abstand bis zu fünfmal wiederholt.
+   werden mit wachsendem Abstand bis zu fünfmal wiederholt — vom
+   Zustell-Worker im Serverprozess (`webhook-worker.ts`). Endpunkte im Format
+   `MAILWIN` (die verwaltete Verbindung zu OKUN Mailwin) bekommen Mailwins
+   Hülle und werden bis zu 24 Stunden wiederholt.
 
 Reaktionen lassen die auslösende Anfrage nie scheitern; Fehler werden
 protokolliert.
@@ -200,6 +203,18 @@ warum. Sie ist additiv — kein bestehender Service wurde dafür umgebaut.
   dem Schlüssel, nie aus dem Payload.
 
 Vollständig beschrieben in `docs/ACTIVE-CRM.md`.
+
+## 8b. Mailwin Connect API
+
+Eigenständige Schnittstelle unter `/api/mailwin/v1` für OKUN Mailwin
+(KI-E-Mail-Assistent): Kontakte nachschlagen und anlegen, Leads (im CRM: Deals)
+anlegen, Nachrichten protokollieren, Webhooks an Mailwin. Eigener Rahmen
+(`src/server/mailwin/http.ts`: Schlüssel mit Scope `mailwin:connect`, 120
+Anfragen/Minute, `Idempotency-Key`, Aufrufprotokoll), dieselben Services
+dahinter. Änderungen tragen `ActorContext.origin = "mailwin"` und stehen so im
+Audit-Log und in der Zeitleiste.
+
+Vollständig beschrieben in `docs/MAILWIN.md`.
 
 ## 9. Fehler, Validierung, API-Vertrag
 

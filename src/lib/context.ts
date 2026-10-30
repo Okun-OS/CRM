@@ -18,6 +18,15 @@ export type ActorContext = {
   sessionId?: string;
   ip?: string;
   userAgent?: string;
+  /**
+   * Gesetzt, wenn die Anfrage nicht aus der Oberfläche kommt, sondern über
+   * eine Integrationsschnittstelle — z. B. „mailwin“. Landet im Audit-Log und
+   * in der Zeitleiste und verhindert, dass eine Änderung als Webhook an genau
+   * das System zurückgeht, das sie ausgelöst hat.
+   */
+  origin?: "mailwin";
+  /** Der Zugang (z. B. API-Schlüssel), über den die Integration angefragt hat. */
+  credentialId?: string;
 };
 
 export function can(ctx: ActorContext, permission: Permission): boolean {

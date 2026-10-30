@@ -5,6 +5,15 @@ import { liveScope, scope } from "@/lib/tenant";
 import { ValidationError } from "@/lib/api/errors";
 
 /**
+ * Optionen beim Anlegen eines Datensatzes.
+ *
+ * `skipRequiredProperties`: Eine Integration (z. B. Mailwin) kennt die eigenen
+ * Pflichtfelder eines Arbeitsbereichs nicht. Sie soll deshalb nicht an ihnen
+ * scheitern — die Felder bleiben leer, bis ein Mensch sie ausfüllt.
+ */
+export type CreateOptions = { skipRequiredProperties?: boolean };
+
+/**
  * Cross-cutting guards shared by the CRM services. Each of these exists to stop
  * a request from referencing a record in another organization.
  */

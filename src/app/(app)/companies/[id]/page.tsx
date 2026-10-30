@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, PropertyList, RecordDetailLayout, RelatedList, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
-import { formatCurrency, formatDate, formatNumber, formatRelative } from "@/lib/format";
+import { formatCurrency, formatDate, formatNumber, formatRelative, formatSource } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -130,7 +130,7 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
                 { label: "Mitarbeiter", value: company.employeeCount ? formatNumber(company.employeeCount) : "—" },
                 { label: "Jahresumsatz", value: company.annualRevenue ? formatCurrency(company.annualRevenue) : "—" },
                 { label: "Lifecycle", value: lifecycleLabel ?? "—" },
-                { label: "Quelle", value: company.source ?? "—" },
+                { label: "Quelle", value: formatSource(company.source) },
                 {
                   label: "Adresse",
                   value:

@@ -12,7 +12,7 @@ import { Avatar } from "@/components/ui/misc";
 import { Breadcrumb, PropertyList, RecordDetailLayout, RelatedList, Section } from "@/components/crm/record-detail";
 import { RecordTabs } from "@/components/crm/record-tabs";
 import { RecordActions } from "@/components/crm/record-actions";
-import { formatCurrency, formatDate, formatRelative } from "@/lib/format";
+import { formatCurrency, formatDate, formatRelative, formatSource } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -137,7 +137,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                 { label: "Position", value: contact.jobTitle ?? "—" },
                 { label: "Lifecycle", value: lifecycleLabel ?? "—" },
                 { label: "Lead-Status", value: leadStatusLabel ?? "—" },
-                { label: "Quelle", value: contact.source ?? "—" },
+                { label: "Quelle", value: formatSource(contact.source) },
                 {
                   label: "Adresse",
                   value:

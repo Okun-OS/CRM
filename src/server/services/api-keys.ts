@@ -7,6 +7,7 @@ import { hashToken, randomToken } from "@/lib/crypto";
 import { writeAudit } from "@/lib/audit";
 import { Unauthenticated, ValidationError } from "@/lib/api/errors";
 import { API_KEY_SCOPES, type ApiKeyScope } from "@/lib/crm/api-keys";
+import { MAILWIN_SCOPE } from "@/lib/crm/mailwin";
 
 /**
  * API keys for machine-to-machine access — the way other OKUN products deliver
@@ -17,6 +18,13 @@ import { API_KEY_SCOPES, type ApiKeyScope } from "@/lib/crm/api-keys";
 export { API_KEY_SCOPES, API_KEY_SCOPE_LABELS, type ApiKeyScope } from "@/lib/crm/api-keys";
 
 const PREFIX = "okun_ck";
+/**
+ * Mailwin-Schlüssel tragen ein eigenes Präfix: Man erkennt sie in Logs und
+ * Secret-Scannern sofort, und sie lassen sich nie mit einem allgemeinen
+ * Schlüssel verwechseln. Rechte gibt aber allein der Scope, nicht das Präfix.
+ */
+export const MAILWIN_KEY_PREFIX = "okun_mw";
+const KNOWN_PREFIXES = [PREFIX, MAILWIN_KEY_PREFIX];
 
 export const apiKeyInputSchema = z.object({
   name: requiredString("Name ist erforderlich.", 80),
@@ -27,7 +35,8 @@ export const apiKeyInputSchema = z.object({
 export async function listApiKeys(ctx: ActorContext) {
   assertPermission(ctx, "settings.manage");
   const keys = await prisma.apiKey.findMany({
-    where: scope(ctx),
+    // Mailwin-Schlüssel werden unter Integrationen → Mailwin verwaltet.
+    where: { ...scope(ctx), NOT: { scopes: { has: MAILWIN_SCOPE } } },
     orderBy: { createdAt: "desc" },
     include: { createdBy: { select: { id: true, name: true } } },
   });
@@ -52,19 +61,11 @@ export async function createApiKey(ctx: ActorContext, input: z.input<typeof apiK
     throw ValidationError("Das Ablaufdatum muss in der Zukunft liegen.");
   }
 
-  const secret = randomToken(32);
-  const plaintext = `${PREFIX}_${secret}`;
-
-  const key = await prisma.apiKey.create({
-    data: {
-      organizationId: ctx.organizationId,
-      name: data.name,
-      prefix: plaintext.slice(0, 14),
-      keyHash: hashToken(plaintext),
-      scopes: data.scopes,
-      createdById: ctx.userId,
-      expiresAt: data.expiresAt ?? null,
-    },
+  const { key, plaintext } = await issueApiKey(ctx, {
+    name: data.name,
+    scopes: data.scopes,
+    expiresAt: data.expiresAt ?? null,
+    prefix: PREFIX,
   });
 
   await writeAudit(ctx, {
@@ -90,11 +91,38 @@ export async function revokeApiKey(ctx: ActorContext, id: string) {
   return { id: updated.id, revokedAt: updated.revokedAt?.toISOString() ?? null };
 }
 
+/**
+ * Erzeugt einen Schlüssel und gibt den Klartext genau einmal zurück. Gemeinsam
+ * für allgemeine und Mailwin-Schlüssel; die Rechteprüfung liegt beim Aufrufer.
+ */
+export async function issueApiKey(
+  ctx: ActorContext,
+  input: { name: string; scopes: string[]; expiresAt?: Date | null; prefix: string },
+) {
+  const plaintext = `${input.prefix}_${randomToken(32)}`;
+  const key = await prisma.apiKey.create({
+    data: {
+      organizationId: ctx.organizationId,
+      name: input.name,
+      prefix: plaintext.slice(0, 14),
+      keyHash: hashToken(plaintext),
+      scopes: input.scopes,
+      createdById: ctx.userId,
+      expiresAt: input.expiresAt ?? null,
+    },
+  });
+  return { key, plaintext };
+}
+
 export type ApiKeyPrincipal = {
   keyId: string;
+  keyName: string;
   organizationId: string;
   organizationName: string;
+  /** Gesperrter oder gelöschter Arbeitsbereich: Der Schlüssel ist gültig, darf aber nichts. */
+  organizationActive: boolean;
   scopes: string[];
+  createdById: string | null;
 };
 
 /**
@@ -103,11 +131,13 @@ export type ApiKeyPrincipal = {
  */
 export async function authenticateApiKey(header: string | null): Promise<ApiKeyPrincipal> {
   const raw = header?.startsWith("Bearer ") ? header.slice(7).trim() : header?.trim();
-  if (!raw || !raw.startsWith(`${PREFIX}_`)) throw Unauthenticated("Kein gültiger API-Key übermittelt.");
+  if (!raw || !KNOWN_PREFIXES.some((prefix) => raw.startsWith(`${prefix}_`))) {
+    throw Unauthenticated("Kein gültiger API-Key übermittelt.");
+  }
 
   const key = await prisma.apiKey.findUnique({
     where: { keyHash: hashToken(raw) },
-    include: { organization: { select: { name: true } } },
+    include: { organization: { select: { name: true, suspendedAt: true, deletedAt: true } } },
   });
   if (!key || key.revokedAt) throw Unauthenticated("Der API-Key ist ungültig oder wurde widerrufen.");
   if (key.expiresAt && key.expiresAt.getTime() <= Date.now()) throw Unauthenticated("Der API-Key ist abgelaufen.");
@@ -116,9 +146,12 @@ export async function authenticateApiKey(header: string | null): Promise<ApiKeyP
 
   return {
     keyId: key.id,
+    keyName: key.name,
     organizationId: key.organizationId,
     organizationName: key.organization.name,
+    organizationActive: !key.organization.suspendedAt && !key.organization.deletedAt,
     scopes: key.scopes,
+    createdById: key.createdById,
   };
 }
 
@@ -133,12 +166,26 @@ export function assertScope(principal: ApiKeyPrincipal, required: ApiKeyScope): 
  * the organization's administrator rather than to nobody, so the audit trail
  * stays complete.
  */
-export async function contextForApiKey(principal: ApiKeyPrincipal): Promise<ActorContext> {
-  const membership = await prisma.membership.findFirst({
-    where: { organizationId: principal.organizationId, status: "ACTIVE", role: { in: ["SUPER_ADMIN", "ADMIN"] } },
-    orderBy: { createdAt: "asc" },
-    include: { user: { select: { id: true, email: true, name: true } } },
-  });
+export async function contextForApiKey(
+  principal: ApiKeyPrincipal,
+  options: { preferCreator?: boolean } = {},
+): Promise<ActorContext> {
+  const admins = { organizationId: principal.organizationId, status: "ACTIVE" as const, role: { in: ["SUPER_ADMIN" as const, "ADMIN" as const] } };
+  // Wer den Schlüssel erzeugt hat, steht als Verantwortliche(r) hinter seinen
+  // Aufrufen — solange diese Person noch Administrator ist. Sonst die erste
+  // Administratorin, damit ein ausgeschiedenes Konto die Integration nicht lahmlegt.
+  const membership =
+    (options.preferCreator && principal.createdById
+      ? await prisma.membership.findFirst({
+          where: { ...admins, userId: principal.createdById },
+          include: { user: { select: { id: true, email: true, name: true } } },
+        })
+      : null) ??
+    (await prisma.membership.findFirst({
+      where: admins,
+      orderBy: { createdAt: "asc" },
+      include: { user: { select: { id: true, email: true, name: true } } },
+    }));
   if (!membership) throw Unauthenticated("Die Organisation hat kein aktives Administratorkonto.");
 
   return buildContext({
