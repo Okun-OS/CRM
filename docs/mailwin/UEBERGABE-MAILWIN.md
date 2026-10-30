@@ -1,6 +1,9 @@
 # Übergabe an Mailwin: OKUN CRM — Mailwin Connect API v1
 
-Diese Zusammenfassung ist für die Entwicklung der Mailwin-Seite gedacht. Die
+Diese Zusammenfassung ist für die Entwicklung der Mailwin-Seite gedacht.
+Welche Abläufe sich damit heute schon abbilden lassen (Bestandskunde schreibt,
+Antwort auf ein Angebot …) und was für v1.2 vorgeschlagen ist, steht im
+[Zusatz](ZUSATZ-ABLAEUFE.md). Die
 vollständige, maschinenlesbare Beschreibung steht in der OpenAPI-3.1-Datei
 (`<APP_URL>/api/mailwin/v1/openapi.json`, im CRM-Repository unter
 `docs/mailwin/openapi.json`).
@@ -268,10 +271,14 @@ verarbeiten.
 
 ## Testumgebung und Testschlüssel
 
+- **Testinstanz:** eine eigene Railway-Umgebung „test“ des CRM mit **eigener, leerer Datenbank** — keine Produktivdaten. Adresse: `<TEST_APP_URL>` (wird nachgereicht), Basis-URL `<TEST_APP_URL>/api/mailwin/v1`.
 - **Test-Arbeitsbereich mit Schlüssel:** auf der Testinstanz `pnpm mailwin:sandbox` ausführen. Das legt (einmalig) den Arbeitsbereich „Mailwin Sandbox“ mit Beispieldaten an und gibt Basis-URL und einen neuen Schlüssel aus. Mit `-- --webhook-url=<URL> --webhook-secret=<Geheimnis>` wird zugleich der Webhook an Mailwin eingerichtet.
 - **Testdaten im Sandbox-Arbeitsbereich:** Kontakt `erika@beispiel-ag.de` (Firma Beispiel AG, offener Lead „Rahmenvertrag 2027“ in Phase „Qualifiziert“).
 - Der Schlüssel sieht ausschließlich den Sandbox-Arbeitsbereich. Für Mailwin-Tests bitte nie einen Schlüssel aus einem Kunden-Arbeitsbereich verwenden.
 - **Lokal:** CRM mit `pnpm dev` starten, `pnpm mailwin:sandbox` ausführen, Basis-URL `http://localhost:3000/api/mailwin/v1`. Webhook-Ziele mit `http://localhost:<port>/…` sind für lokale Tests erlaubt, sonst nur https.
 - **Grenzen der Testumgebung:** Das Rate-Limit gilt je Schlüssel und Serverprozess; ein Neustart setzt es zurück.
 
-**Testschlüssel:** `<wird nachgereicht — mit pnpm mailwin:sandbox auf der Testinstanz erzeugt>`
+**Testschlüssel:** `<wird nachgereicht — auf der Testinstanz erzeugt>`
+
+Alternativ ohne Skript: auf der Testinstanz unter `/register` ein Konto anlegen, dann
+Einstellungen → Integrationen → Mailwin → **Schlüssel erzeugen**.
