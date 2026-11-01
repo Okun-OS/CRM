@@ -51,7 +51,7 @@ export function UsersView({
   const router = useRouter();
   const toast = useToast();
   const [inviting, setInviting] = React.useState(false);
-  const [inviteLink, setInviteLink] = React.useState<string | null>(null);
+  const [inviteLink, setInviteLink] = React.useState<InviteResult | null>(null);
   const [removing, setRemoving] = React.useState<Member | null>(null);
   const [creatingTeam, setCreatingTeam] = React.useState(false);
 
@@ -278,9 +278,9 @@ export function UsersView({
         open={inviting}
         onClose={() => setInviting(false)}
         assignableRoles={assignableRoles}
-        onInvited={(url) => {
+        onInvited={(result) => {
           setInviting(false);
-          setInviteLink(url);
+          setInviteLink(result);
           router.refresh();
         }}
       />
@@ -288,20 +288,27 @@ export function UsersView({
       <Modal
         open={inviteLink !== null}
         onClose={() => setInviteLink(null)}
-        title="Einladung erstellt"
-        description="E-Mail-Versand benötigt eine verbundene Integration – bis dahin teilst du den Link direkt."
+        title={inviteLink?.emailSent ? "Einladung verschickt" : "Einladung erstellt"}
+        description={
+          inviteLink?.emailSent
+            ? `Die Einladung ist per E-Mail an ${inviteLink.email} unterwegs. Den Link kannst du zusätzlich direkt weitergeben.`
+            : "Nicht per E-Mail verschickt — teile den Link direkt."
+        }
         size="sm"
         footer={<Button variant="primary" onClick={() => setInviteLink(null)}>Fertig</Button>}
       >
         <div className="space-y-2">
-          <Input readOnly value={inviteLink ?? ""} onFocus={(event) => event.currentTarget.select()} />
+          {inviteLink && !inviteLink.emailSent && inviteLink.emailSkippedReason ? (
+            <p className="rounded-md bg-warning-50 px-3 py-2 text-2xs text-warning-800">{inviteLink.emailSkippedReason}</p>
+          ) : null}
+          <Input readOnly value={inviteLink?.inviteUrl ?? ""} onFocus={(event) => event.currentTarget.select()} />
           <Button
             size="sm"
             variant="secondary"
             icon={<Copy className="h-3.5 w-3.5" />}
             onClick={async () => {
               try {
-                await navigator.clipboard.writeText(inviteLink ?? "");
+                await navigator.clipboard.writeText(inviteLink?.inviteUrl ?? "");
                 toast.success("Link kopiert.");
               } catch {
                 toast.error("Kopieren nicht möglich", "Bitte den Link manuell markieren.");
@@ -330,6 +337,8 @@ export function UsersView({
   );
 }
 
+type InviteResult = { email: string; inviteUrl: string; emailSent: boolean; emailSkippedReason: string | null };
+
 function InviteModal({
   open,
   onClose,
@@ -339,7 +348,7 @@ function InviteModal({
   open: boolean;
   onClose: () => void;
   assignableRoles: Role[];
-  onInvited: (url: string) => void;
+  onInvited: (result: InviteResult) => void;
 }) {
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<Role>(assignableRoles.includes("SALES") ? "SALES" : assignableRoles[0]);
@@ -350,9 +359,9 @@ function InviteModal({
     setPending(true);
     setError(null);
     try {
-      const result = await api.post<{ inviteUrl: string }>("/api/v1/users", { email, role });
+      const result = await api.post<InviteResult>("/api/v1/users", { email, role });
       setEmail("");
-      onInvited(result.inviteUrl);
+      onInvited(result);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Die Einladung konnte nicht erstellt werden.");
     } finally {

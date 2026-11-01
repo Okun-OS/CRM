@@ -70,6 +70,7 @@ export function createSmtpTransport(config: SmtpConfig, password: string): Email
           subject: message.subject,
           html: message.html,
           text: message.text,
+          replyTo: message.replyTo,
         });
         return { providerMessageId: result.messageId };
       } finally {

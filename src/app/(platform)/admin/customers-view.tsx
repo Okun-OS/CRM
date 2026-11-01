@@ -88,8 +88,8 @@ export function CustomersView({
         <div className="rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-xs text-warning-800">
           <strong className="font-semibold">Kein Postausgang konfiguriert.</strong> Einladungen werden nicht
           automatisch verschickt — der Link wird nach dem Anlegen angezeigt und kann von Hand weitergegeben werden.
-          Für automatischen Versand die Variablen <code>SMTP_HOST</code>, <code>SMTP_USER</code>,{" "}
-          <code>SMTP_PASSWORD</code> und <code>SMTP_FROM</code> setzen.
+          Für automatischen Versand über Resend die Variablen <code>RESEND_API_KEY</code> und{" "}
+          <code>MAIL_FROM</code> setzen (siehe docs/OPERATIONS.md).
         </div>
       ) : null}
 

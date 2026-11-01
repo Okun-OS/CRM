@@ -21,6 +21,8 @@ export type OutgoingEmail = {
   subject: string;
   html: string;
   text?: string;
+  /** Antworten gehen an diese Adresse statt an den Absender. */
+  replyTo?: string;
 };
 
 export type EmailTransport = {

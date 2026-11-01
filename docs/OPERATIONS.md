@@ -29,6 +29,7 @@ Vorlage: `.env.example`.
 | `STORAGE_DRIVER` | nein | Derzeit `local` |
 | `STORAGE_LOCAL_PATH` | nein | Ablagepfad für Dateien (Standard `./storage`) |
 | `TRUST_PROXY` | nein | `1` nur hinter einem vertrauenswürdigen Proxy: erst dann wird `X-Forwarded-For` ausgewertet |
+| `RESEND_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` | nein | Versand von Einladungen über Resend — siehe „Betreiberzugang und Postausgang“ |
 | `NODE_ENV` | ja | `production` im Betrieb (aktiviert HSTS und strengere CSP) |
 
 Schlüssel erzeugen:
@@ -207,21 +208,37 @@ versendet nichts. Es ist gefahrlos wiederholbar.
 ### Betreiberzugang und Postausgang
 
 Der erste Betreiberzugang entsteht über die Konsole — siehe
-[docs/PLATFORM.md](PLATFORM.md). Für den automatischen Versand von Einladungen
-an künftige Kunden zusätzlich diese Variablen setzen:
+[docs/PLATFORM.md](PLATFORM.md).
+
+**Einladungen per E-Mail** gehen über den Postausgang des Betriebs: die
+Einladung eines neuen Kunden aus dem Backoffice ebenso wie die Einladung eines
+Teammitglieds unter *Einstellungen → Benutzer & Teams*. Empfohlen ist
+**Resend**:
+
+1. In [resend.com](https://resend.com) unter *Domains* die Absenderdomain
+   anlegen (z. B. `okun-systems.com`) und die angezeigten DNS-Einträge
+   (SPF/DKIM) beim Domain-Anbieter setzen, bis Resend sie als *Verified* zeigt.
+2. Unter *API Keys* einen Schlüssel mit Berechtigung *Sending access* erzeugen.
+3. Auf Railway beim CRM-Dienst unter *Variables* setzen — danach startet der
+   Dienst neu:
 
 | Variable | Bedeutung |
 | --- | --- |
-| `SMTP_HOST` | Host des Postausgangs |
-| `SMTP_PORT` | Standard 587 (STARTTLS); 465 für implizites TLS |
-| `SMTP_SECURE` | `1` für implizites TLS, sonst weglassen |
-| `SMTP_USER` / `SMTP_PASSWORD` | Zugangsdaten |
-| `SMTP_FROM` | Absenderadresse |
-| `SMTP_FROM_NAME` | Optionaler Absendername |
+| `RESEND_API_KEY` | Schlüssel aus Resend (`re_…`) |
+| `MAIL_FROM` | Absenderadresse auf der bestätigten Domain, z. B. `einladung@okun-systems.com` |
+| `MAIL_FROM_NAME` | Optionaler Absendername, Standard „OKUN CRM“ |
 
-Ohne diese Variablen funktioniert das Backoffice unverändert — der
-Einladungslink wird dann angezeigt statt verschickt. Postausgänge der
-einzelnen Mandanten werden davon unabhängig in deren Einstellungen verbunden.
+Antworten auf eine Team-Einladung gehen an die Person, die eingeladen hat.
+Statt Resend geht auch ein beliebiger SMTP-Postausgang (`SMTP_HOST`,
+`SMTP_PORT` — Standard 587, 465 für implizites TLS mit `SMTP_SECURE=1` —,
+`SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_FROM_NAME`); ist
+`RESEND_API_KEY` gesetzt, hat Resend Vorrang.
+
+Ohne Postausgang funktioniert alles unverändert — der Einladungslink wird dann
+angezeigt statt verschickt; Team-Einladungen gehen notfalls über den
+Postausgang, den die Organisation selbst unter *Integrationen* verbunden hat.
+Schlägt der Versand fehl (etwa wegen einer nicht bestätigten Domain), nennt
+die Oberfläche den Grund und zeigt den Link zum Weitergeben.
 
 ### Anmelde-E-Mail eines Kontos ändern
 

@@ -343,38 +343,38 @@ export function roleMatrix() {
  * Scheitert der Versand, scheitert nicht die Einladung: Der Link existiert und
  * bleibt gültig, der Grund wird zurückgegeben und angezeigt.
  */
+/**
+ * Eine Einladung ist eine Systemnachricht: Sie geht über den Postausgang des
+ * Betriebs (Resend), wenn er eingerichtet ist — unabhängig davon, ob die
+ * Organisation selbst schon ein Postfach verbunden hat. Sonst über deren
+ * eigenen Postausgang; fehlt auch der, wird nur der Link angezeigt.
+ * Antworten gehen in jedem Fall an die Person, die eingeladen hat.
+ */
 async function deliverInvitation(
   ctx: ActorContext,
   input: { to: string; inviteUrl: string; expiresAt: Date },
 ): Promise<{ sent: boolean; reason?: string }> {
+  const { invitationMail } = await import("@/server/integrations/invitation-mail");
+  const mail = invitationMail({
+    organizationName: ctx.organizationName,
+    inviterName: ctx.name,
+    inviteUrl: input.inviteUrl,
+    expiresAt: input.expiresAt,
+  });
+
+  const { platformMailIntended, sendPlatformEmail } = await import("@/server/integrations/platform-mail");
+  if (platformMailIntended()) {
+    return sendPlatformEmail({ to: input.to, replyTo: ctx.email, ...mail });
+  }
+
   try {
     const { resolveEmailTransport } = await import("@/server/integrations/email");
     const resolution = await resolveEmailTransport(ctx);
     if (!resolution.ok) return { sent: false, reason: resolution.reason };
-
-    const until = input.expiresAt.toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
-    await resolution.transport.send({
-      from: resolution.fromAddress,
-      to: [input.to],
-      subject: `Einladung zu OKUN CRM — ${ctx.organizationName}`,
-      html: `<p>Guten Tag,</p><p>${escapeForEmail(ctx.name)} lädt Sie zu <strong>${escapeForEmail(ctx.organizationName)}</strong> in OKUN CRM ein.</p><p><a href="${input.inviteUrl}">Zugang einrichten</a></p><p style="color:#6B7280;font-size:12px;">Der Link gilt bis zum ${until} und kann nur einmal verwendet werden.</p><p style="color:#6B7280;font-size:11px;">Powered by OKUN Software</p>`,
-      text: [
-        "Guten Tag,",
-        "",
-        `${ctx.name} lädt Sie zu ${ctx.organizationName} in OKUN CRM ein.`,
-        "",
-        input.inviteUrl,
-        "",
-        `Der Link gilt bis zum ${until} und kann nur einmal verwendet werden.`,
-      ].join("\n"),
-    });
+    await resolution.transport.send({ from: resolution.fromAddress, to: [input.to], ...mail });
     return { sent: true };
   } catch (error) {
     logError("invitation.mail_failed", error, { to: input.to });
     return { sent: false, reason: "Der Versand ist fehlgeschlagen — bitte den Link von Hand weitergeben." };
   }
-}
-
-function escapeForEmail(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
