@@ -57,6 +57,8 @@ pnpm seed:demo                  # legt „OKUN Demo GmbH" mit wenigen Beispiels�
 | `pnpm seed:demo` | Demo-Organisation für lokale Entwicklung |
 | `pnpm backfill:active-crm` | Bestandsdaten einmalig mit der Next Action Engine abgleichen |
 | `pnpm admin:set-email <alt> <neu>` | Anmelde-E-Mail eines Kontos ändern (Betrieb, siehe OPERATIONS) |
+| `pnpm admin:set-password <e-mail> [passwort]` | Passwort neu setzen (ohne Angabe zufällig), Sperre aufheben, Sitzungen beenden |
+| `pnpm admin:unlock <e-mail>` | Sperre nach Fehlversuchen aufheben, Passwort bleibt |
 | `pnpm platform:admin <befehl>` | Betreiberzugänge verwalten (siehe docs/PLATFORM.md) |
 
 ## Tech-Stack

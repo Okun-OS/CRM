@@ -25,6 +25,8 @@
     "backfill:active-crm": "tsx --conditions=react-server scripts/backfill-active-crm.ts",
     "start:migrate": "sh scripts/start-production.sh",
     "admin:set-email": "tsx --conditions=react-server scripts/set-user-email.ts",
+    "admin:set-password": "tsx --conditions=react-server scripts/set-user-password.ts",
+    "admin:unlock": "tsx --conditions=react-server scripts/set-user-password.ts --unlock",
     "platform:admin": "tsx --conditions=react-server scripts/platform-admin.ts",
     "mailwin:openapi": "tsx scripts/export-mailwin-openapi.ts",
     "mailwin:sandbox": "tsx --conditions=react-server scripts/mailwin-sandbox.ts"

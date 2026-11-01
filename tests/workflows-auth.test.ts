@@ -5,7 +5,7 @@ import { createWorkflow } from "@/server/services/workflows";
 import { createContact, getContact, updateContact } from "@/server/services/contacts";
 import { createDeal, changeDealStage } from "@/server/services/deals";
 import { hashPassword, verifyPassword, encryptSecret, decryptSecret, signPayload, hashToken } from "@/lib/crypto";
-import { login, register, changePassword } from "@/server/services/auth";
+import { login, register, changePassword, LOGIN_MAX_FAILED_ATTEMPTS } from "@/server/services/auth";
 import { acceptInvitation, inviteMember, readInvitation } from "@/server/services/users";
 import { renderTemplate, findUnknownPlaceholders, escapeHtml } from "@/lib/templates";
 import { createTemplate } from "@/server/services/emails";
@@ -204,7 +204,7 @@ describe("Authentifizierung", () => {
     const email = `sperre-${Date.now()}@example.test`;
     await register({ name: "Sperre", email, password: "EinSicheresPasswort1", organizationName: "Sperr GmbH" });
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    for (let attempt = 0; attempt < LOGIN_MAX_FAILED_ATTEMPTS; attempt += 1) {
       await login({ email, password: "falsch1234567" }).catch(() => undefined);
     }
 

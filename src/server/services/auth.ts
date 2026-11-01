@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
-import { Conflict, Unauthenticated, ValidationError } from "@/lib/api/errors";
+import { AppError, Conflict, Unauthenticated, ValidationError } from "@/lib/api/errors";
 import { logInfo, logWarn } from "@/lib/logger";
 import { registerSchema, loginSchema, changePasswordSchema, profileSchema } from "@/lib/schemas/auth";
 import type { ActorContext } from "@/lib/context";
@@ -15,8 +15,28 @@ import { createOrganizationSlug, provisionOrganization } from "./organizations";
  * temporarily locked after repeated failures. Login never reveals whether an
  * e-mail address exists.
  */
-const MAX_FAILED_ATTEMPTS = 8;
-const LOCK_DURATION_MS = 15 * 60 * 1000;
+
+/**
+ * Sperre nach Fehlversuchen: `LOGIN_MAX_FAILED_ATTEMPTS` falsche Passwörter
+ * innerhalb von `LOGIN_FAILURE_WINDOW_MS` sperren das Konto für
+ * `LOGIN_LOCK_DURATION_MS`. Ältere Fehlversuche verfallen, und nach Ablauf
+ * einer Sperre beginnt die Zählung neu — sonst sperrte schon der erste
+ * Tippfehler danach wieder für eine Viertelstunde.
+ */
+export const LOGIN_MAX_FAILED_ATTEMPTS = 10;
+export const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+export const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
+
+/** „… bitte in 12 Minuten erneut versuchen.“ — mit der echten Restzeit statt „später“. */
+export function loginLockedMessage(remainingMs: number): string {
+  const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+  return `Zu viele Fehlversuche: Die Anmeldung ist vorübergehend gesperrt. Bitte in ${minutes === 1 ? "einer Minute" : `${minutes} Minuten`} erneut versuchen.`;
+}
+
+/** Fehler „gesperrt“ — erkennbar, damit die Route ihn nicht als weiteren Fehlversuch zählt. */
+export function loginLockedError(remainingMs: number) {
+  return new AppError("UNAUTHENTICATED", loginLockedMessage(remainingMs), { reason: "locked" });
+}
 
 export type AuthenticatedUser = {
   userId: string;
@@ -78,7 +98,7 @@ export async function register(input: z.input<typeof registerSchema>): Promise<A
 
 export async function login(input: z.input<typeof loginSchema>): Promise<AuthenticatedUser> {
   const data = loginSchema.parse(input);
-  const invalid = Unauthenticated("E-Mail-Adresse oder Passwort ist falsch.");
+  const invalid = new AppError("UNAUTHENTICATED", "E-Mail-Adresse oder Passwort ist falsch.", { reason: "invalid_credentials" });
 
   const user = await prisma.user.findFirst({
     where: { email: data.email, deletedAt: null },
@@ -89,6 +109,7 @@ export async function login(input: z.input<typeof loginSchema>): Promise<Authent
       passwordHash: true,
       failedLoginCount: true,
       lockedUntil: true,
+      lastFailedLoginAt: true,
       isPlatformAdmin: true,
     },
   });
@@ -99,21 +120,30 @@ export async function login(input: z.input<typeof loginSchema>): Promise<Authent
     throw invalid;
   }
 
-  if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-    throw Unauthenticated("Das Konto ist vorübergehend gesperrt. Bitte später erneut versuchen.");
+  const now = Date.now();
+  if (user.lockedUntil && user.lockedUntil.getTime() > now) {
+    throw loginLockedError(user.lockedUntil.getTime() - now);
   }
 
   const valid = await verifyPassword(data.password, user.passwordHash);
   if (!valid) {
-    const failedLoginCount = user.failedLoginCount + 1;
+    // Neu zählen, wenn eine Sperre abgelaufen ist oder der letzte Fehlversuch
+    // außerhalb des Fensters liegt.
+    const fresh =
+      Boolean(user.lockedUntil) ||
+      !user.lastFailedLoginAt ||
+      now - user.lastFailedLoginAt.getTime() > LOGIN_FAILURE_WINDOW_MS;
+    const failedLoginCount = fresh ? 1 : user.failedLoginCount + 1;
+    const locked = failedLoginCount >= LOGIN_MAX_FAILED_ATTEMPTS;
     await prisma.user.update({
       where: { id: user.id },
       data: {
         failedLoginCount,
-        lockedUntil: failedLoginCount >= MAX_FAILED_ATTEMPTS ? new Date(Date.now() + LOCK_DURATION_MS) : null,
+        lastFailedLoginAt: new Date(now),
+        lockedUntil: locked ? new Date(now + LOGIN_LOCK_DURATION_MS) : null,
       },
     });
-    logWarn("auth.login_failed", { userId: user.id, failedLoginCount });
+    logWarn("auth.login_failed", { userId: user.id, failedLoginCount, locked });
     throw invalid;
   }
 
@@ -142,7 +172,7 @@ export async function login(input: z.input<typeof loginSchema>): Promise<Authent
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() },
+    data: { failedLoginCount: 0, lockedUntil: null, lastFailedLoginAt: null, lastLoginAt: new Date() },
   });
 
   if (membership) {

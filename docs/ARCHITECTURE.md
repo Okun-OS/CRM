@@ -84,8 +84,10 @@ sodass eine Person später mehreren Organisationen angehören kann.
 - **CSRF**: Double-Submit. Ein lesbares `okun_csrf`-Cookie wird bei jeder
   schreibenden Anfrage als Header `x-okun-csrf` erwartet und gegen die Sitzung
   geprüft.
-- Fehlversuche werden gezählt; nach acht Versuchen ist das Konto 15 Minuten
-  gesperrt. Die Antwort verrät nie, ob eine E-Mail-Adresse existiert.
+- Fehlversuche werden gezählt; zehn innerhalb von 15 Minuten sperren das Konto
+  für 15 Minuten (danach beginnt die Zählung neu). Die Antwort verrät nie, ob
+  eine E-Mail-Adresse existiert. Entsperren und Passwort setzen über die
+  Konsole: `pnpm admin:unlock`, `pnpm admin:set-password`.
 - Ein Passwortwechsel widerruft alle anderen Sitzungen.
 - **2FA** ist im Modell (`User.twoFactorSecret`) vorbereitet, aber noch ohne
   Einrichtungsfluss.

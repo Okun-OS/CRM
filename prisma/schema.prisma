@@ -505,6 +505,9 @@ model User {
   lastLoginAt       DateTime?
   failedLoginCount  Int       @default(0)
   lockedUntil       DateTime?
+  /// Letzter Fehlversuch: Fehlversuche zählen nur innerhalb eines Fensters,
+  /// ein Tippfehler von letzter Woche soll heute nicht zur Sperre beitragen.
+  lastFailedLoginAt DateTime?
   /// Betreiber-Ebene (OKUN Software), bewusst getrennt von den Rollen
   /// innerhalb einer Organisation: Sie erlaubt die Verwaltung von Mandanten,
   /// aber keinen Zugriff auf deren CRM-Daten.

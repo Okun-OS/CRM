@@ -69,12 +69,24 @@ export function takeRateLimit({ key, limit, windowMs }: RateLimitRule): RateLimi
  * count — repeated successful logins from one account are normal, repeated
  * failed ones are not.
  */
-export function assertUnderRateLimit({ key, limit, windowMs }: RateLimitRule): void {
+export function assertUnderRateLimit(
+  { key, limit, windowMs }: RateLimitRule,
+  /** Eigene Meldung mit der Restzeit, z. B. für die Anmeldung. */
+  message?: (retryAfterMs: number) => string,
+): void {
+  const now = Date.now();
   const bucket = buckets.get(key);
-  if (bucket && bucket.resetAt >= Date.now() && bucket.count >= limit) {
-    throw RateLimited();
+  if (bucket && bucket.resetAt >= now && bucket.count >= limit) {
+    throw RateLimited(message?.(bucket.resetAt - now));
   }
   void windowMs;
+}
+
+/** Wie viele Fehlversuche das Fenster noch zulässt. */
+export function failuresLeft({ key, limit }: RateLimitRule): number {
+  const bucket = buckets.get(key);
+  if (!bucket || bucket.resetAt < Date.now()) return limit;
+  return Math.max(0, limit - bucket.count);
 }
 
 /** Counts one failed attempt against a bucket. */

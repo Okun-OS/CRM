@@ -240,6 +240,30 @@ Organisation des Kontos und beendet alle Sitzungen — danach ist eine
 Neuanmeldung mit der neuen Adresse und dem **bisherigen Passwort** nötig.
 Existiert die alte Adresse nicht, listet das Skript die vorhandenen Konten.
 
+### Passwort vergessen oder Konto gesperrt
+
+Das CRM verschickt keine E-Mails, ein „Passwort vergessen“ per Link gibt es
+deshalb nicht. Auf Railway im Reiter *Console* des CRM-Dienstes:
+
+```bash
+pnpm admin:set-password kontakt@example.com      # neues Zufallspasswort
+pnpm admin:unlock       kontakt@example.com      # nur entsperren, Passwort bleibt
+```
+
+`admin:set-password` zeigt das neue Passwort genau einmal in der Konsole, hebt
+eine Sperre auf, meldet alle Sitzungen des Kontos ab und schreibt einen
+Audit-Eintrag (bei Betreibern zusätzlich ins Betreiber-Protokoll). Danach
+anmelden und unter *Profil & Sicherheit* ein eigenes Passwort setzen. Ein
+eigenes Passwort lässt sich als zweites Argument übergeben
+(`"EigenesPasswort2026"`), landet dann aber im Befehlsverlauf der Konsole.
+Ist die Adresse unbekannt, listet das Skript die vorhandenen Konten.
+
+**Wann gesperrt wird:** 10 falsche Passwörter innerhalb von 15 Minuten sperren
+das Konto für 15 Minuten. Ältere Fehlversuche verfallen, nach Ablauf der Sperre
+beginnt die Zählung neu. Ab drei verbleibenden Versuchen warnt die Anmeldung,
+die Sperrmeldung nennt die Restzeit. Beides lautet für unbekannte Adressen
+gleich — die Anmeldung verrät weiterhin nicht, ob es ein Konto gibt.
+
 ## 6. Backups
 
 - **Datenbank**: regelmäßige Dumps (`pg_dump`), Wiederherstellung testen.
