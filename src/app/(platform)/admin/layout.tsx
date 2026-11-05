@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { getPlatformActor } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
 import { OkunCrmIcon, PoweredByOkunSoftware } from "@/components/brand/marks";
+import { SignOutButton } from "./sign-out-button";
 
 export const metadata: Metadata = { title: { default: "Betreiberverwaltung", template: "%s · Betreiberverwaltung" } };
 export const dynamic = "force-dynamic";
@@ -20,6 +22,13 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   // Kein Hinweis darauf, dass es diesen Bereich gibt: Wer nicht hierher
   // gehört, landet auf der Anmeldung wie bei jeder unbekannten Adresse.
   if (!actor) redirect("/login");
+
+  // „Zum CRM“ nur, wenn das Konto auch in einer Organisation arbeitet — ein
+  // reines Betreiberkonto landete sonst gleich wieder hier.
+  const hasWorkspace =
+    (await prisma.membership.count({
+      where: { userId: actor.userId, status: "ACTIVE", organization: { deletedAt: null, suspendedAt: null } },
+    })) > 0;
 
   return (
     <div className="flex min-h-dvh flex-col bg-ink-50">
@@ -44,9 +53,12 @@ export default async function PlatformLayout({ children }: { children: React.Rea
 
           <div className="flex items-center gap-3 text-2xs text-white/50">
             <span className="hidden sm:inline">{actor.email}</span>
-            <Link href="/dashboard" className="rounded-md border border-white/15 px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/5">
-              Zum CRM
-            </Link>
+            {hasWorkspace ? (
+              <Link href="/dashboard" className="rounded-md border border-white/15 px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/5">
+                Zum CRM
+              </Link>
+            ) : null}
+            <SignOutButton />
           </div>
         </div>
       </header>
