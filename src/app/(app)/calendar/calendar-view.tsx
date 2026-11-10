@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/misc";
-import { Drawer } from "@/components/ui/modal";
+import { ConfirmDialog, Drawer } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonText } from "@/components/ui/skeleton";
 import { MeetingForm } from "@/components/crm/forms/simple-forms";
@@ -42,6 +43,27 @@ export function CalendarView({ canWrite }: { canWrite: boolean }) {
   const [error, setError] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [selected, setSelected] = React.useState<Meeting | null>(null);
+  const [editing, setEditing] = React.useState<Meeting | null>(null);
+  const [deleting, setDeleting] = React.useState<Meeting | null>(null);
+  const [deletePending, setDeletePending] = React.useState(false);
+  const toast = useToast();
+
+  async function removeMeeting() {
+    if (!deleting) return;
+    setDeletePending(true);
+    try {
+      await api.delete(`/api/v1/meetings/${deleting.id}`);
+      toast.success("Termin gelöscht.");
+      setDeleting(null);
+      setSelected(null);
+      void load();
+      router.refresh();
+    } catch (cause) {
+      toast.error(cause instanceof ApiError ? cause.message : "Der Termin konnte nicht gelöscht werden.");
+    } finally {
+      setDeletePending(false);
+    }
+  }
 
   const range = React.useMemo(() => rangeFor(mode, anchor), [mode, anchor]);
 
@@ -152,9 +174,7 @@ export function CalendarView({ canWrite }: { canWrite: boolean }) {
           <div className="space-y-4 text-sm">
             <div>
               <p className="text-xs uppercase tracking-wide text-ink-400">Zeit</p>
-              <p className="text-ink-800">
-                {formatDateTime(selected.startAt)} – {formatTime(selected.endAt)}
-              </p>
+              <p className="text-ink-800">{formatSpan(selected)}</p>
             </div>
             {selected.location ? (
               <div>
@@ -195,9 +215,59 @@ export function CalendarView({ canWrite }: { canWrite: boolean }) {
                 </ul>
               </div>
             ) : null}
+            {canWrite ? (
+              <div className="flex gap-2 border-t border-ink-200 pt-4">
+                <Button
+                  variant="secondary"
+                  icon={<Pencil className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    setEditing(selected);
+                    setSelected(null);
+                  }}
+                >
+                  Bearbeiten
+                </Button>
+                <Button variant="ghost" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => setDeleting(selected)}>
+                  Löschen
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </Drawer>
+
+      <Drawer open={editing !== null} onClose={() => setEditing(null)} title="Termin bearbeiten">
+        {editing ? (
+          <MeetingForm
+            key={editing.id}
+            initial={{
+              id: editing.id,
+              title: editing.title,
+              startAt: editing.startAt,
+              endAt: editing.endAt,
+              location: editing.location,
+              meetingUrl: editing.meetingUrl,
+              description: editing.description,
+              ownerId: editing.owner?.id ?? null,
+            }}
+            onDone={() => {
+              setEditing(null);
+              void load();
+              router.refresh();
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        ) : null}
+      </Drawer>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onConfirm={() => void removeMeeting()}
+        loading={deletePending}
+        title="Termin löschen?"
+        description={deleting ? `„${deleting.title}“ am ${formatDate(deleting.startAt)} wird aus dem Kalender entfernt.` : ""}
+      />
     </div>
   );
 }
@@ -248,9 +318,13 @@ function MeetingList({ meetings, onSelect }: { meetings: Meeting[]; onSelect: (m
             onClick={() => onSelect(meeting)}
             className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-ink-50/60"
           >
-            <span className="w-28 shrink-0 text-xs text-ink-500">
+            <span className="w-32 shrink-0 text-xs text-ink-500">
               {formatDate(meeting.startAt)}
-              <span className="block text-2xs">{formatTime(meeting.startAt)}</span>
+              <span className="block text-2xs">
+                {multiDay(meeting)
+                  ? `${formatTime(meeting.startAt)} – ${formatDate(meeting.endAt)} ${formatTime(meeting.endAt)}`
+                  : `${formatTime(meeting.startAt)} – ${formatTime(meeting.endAt)}`}
+              </span>
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm text-ink-900">{meeting.title}</span>
@@ -275,7 +349,7 @@ function WeekGrid({ from, meetings, onSelect }: { from: Date; meetings: Meeting[
   return (
     <div className="grid grid-cols-1 divide-y divide-ink-100 sm:grid-cols-7 sm:divide-x sm:divide-y-0">
       {days.map((day) => {
-        const dayMeetings = meetings.filter((meeting) => sameDay(new Date(meeting.startAt), day));
+        const dayMeetings = meetingsOn(meetings, day);
         const isToday = sameDay(day, new Date());
         return (
           <div key={day.toISOString()} className={cn("min-h-[10rem] p-2", isToday && "bg-brand-50/40")}>
@@ -290,7 +364,7 @@ function WeekGrid({ from, meetings, onSelect }: { from: Date; meetings: Meeting[
                     onClick={() => onSelect(meeting)}
                     className="w-full rounded-md border border-brand-200 bg-white px-2 py-1 text-left text-2xs transition-colors hover:border-brand-400"
                   >
-                    <span className="block font-medium text-ink-800">{formatTime(meeting.startAt)}</span>
+                    <span className="block font-medium text-ink-800">{timeOnDay(meeting, day)}</span>
                     <span className="block truncate text-ink-600">{meeting.title}</span>
                   </button>
                 </li>
@@ -323,7 +397,7 @@ function MonthGrid({ anchor, meetings, onSelect }: { anchor: Date; meetings: Mee
       <div className="grid grid-cols-7">
         {cells.map((day, index) => {
           if (!day) return <div key={`empty-${index}`} className="min-h-[5.5rem] border-b border-r border-ink-100 bg-ink-50/30" />;
-          const dayMeetings = meetings.filter((meeting) => sameDay(new Date(meeting.startAt), day));
+          const dayMeetings = meetingsOn(meetings, day);
           const isToday = sameDay(day, new Date());
           return (
             <div key={day.toISOString()} className={cn("min-h-[5.5rem] border-b border-r border-ink-100 p-1.5", isToday && "bg-brand-50/40")}>
@@ -336,7 +410,7 @@ function MonthGrid({ anchor, meetings, onSelect }: { anchor: Date; meetings: Mee
                       onClick={() => onSelect(meeting)}
                       className="w-full truncate rounded bg-brand-500/10 px-1 py-0.5 text-left text-2xs text-brand-700 hover:bg-brand-500/20"
                     >
-                      {formatTime(meeting.startAt)} {meeting.title}
+                      {timeOnDay(meeting, day)} {meeting.title}
                     </button>
                   </li>
                 ))}
@@ -354,4 +428,34 @@ function MonthGrid({ anchor, meetings, onSelect }: { anchor: Date; meetings: Mee
 
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function multiDay(meeting: Meeting) {
+  return !sameDay(new Date(meeting.startAt), new Date(meeting.endAt));
+}
+
+/** Termine, die diesen Tag berühren — ein mehrtägiger Termin steht an jedem seiner Tage. */
+function meetingsOn(meetings: Meeting[], day: Date) {
+  const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+  const dayEnd = dayStart + 86_400_000;
+  return meetings.filter((meeting) => {
+    const start = new Date(meeting.startAt).getTime();
+    const end = new Date(meeting.endAt).getTime();
+    return start < dayEnd && (end > dayStart || start >= dayStart);
+  });
+}
+
+/** „09:00“ am ersten Tag, „bis 11:30“ am letzten, „ganztägig“ dazwischen. */
+function timeOnDay(meeting: Meeting, day: Date) {
+  const start = new Date(meeting.startAt);
+  const end = new Date(meeting.endAt);
+  if (sameDay(start, day)) return formatTime(meeting.startAt);
+  if (sameDay(end, day)) return `bis ${formatTime(meeting.endAt)}`;
+  return "ganztägig";
+}
+
+function formatSpan(meeting: Meeting) {
+  return multiDay(meeting)
+    ? `${formatDateTime(meeting.startAt)} – ${formatDateTime(meeting.endAt)}`
+    : `${formatDateTime(meeting.startAt)} – ${formatTime(meeting.endAt)}`;
 }

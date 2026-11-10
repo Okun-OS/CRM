@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Building2, Search, Sparkles, Target, Users, CornerDownLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { api } from "@/lib/api-client";
+import { Portal } from "@/components/ui/modal";
 
 type SearchResult = {
   type: "contact" | "company" | "lead" | "deal";
@@ -32,6 +33,12 @@ export function CommandPalette() {
   const [results, setResults] = React.useState<SearchResult[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [highlight, setHighlight] = React.useState(0);
+  // Erst nach dem Laden bekannt; bis dahin die Windows-Schreibweise.
+  const [isMac, setIsMac] = React.useState(false);
+  React.useEffect(() => {
+    setIsMac(/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent));
+  }, []);
+  const shortcut = isMac ? "⌘ K" : "Strg K";
 
   React.useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -97,94 +104,99 @@ export function CommandPalette() {
       >
         <Search className="h-4 w-4" />
         <span className="flex-1 text-left">Kontakte, Unternehmen, Deals suchen…</span>
-        <kbd className="hidden rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 text-2xs text-ink-500 sm:inline">
-          ⌘K
+        <kbd
+          title={`Tastenkürzel: Mit ${isMac ? "⌘ (Befehlstaste)" : "Strg"} + K öffnen Sie die Suche von überall`}
+          className="hidden whitespace-nowrap rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 font-sans text-2xs text-ink-500 sm:inline"
+        >
+          {shortcut}
         </kbd>
       </button>
 
       {open ? (
-        <div
-          className="fixed inset-0 z-[75] flex items-start justify-center bg-okun-950/45 p-4 pt-[12vh] animate-okun-fade"
-          onClick={() => setOpen(false)}
-        >
+        <Portal>
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Globale Suche"
-            className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-overlay animate-okun-rise"
-            onClick={(event) => event.stopPropagation()}
+            className="fixed inset-0 z-[75] flex items-start justify-center bg-okun-950/45 p-4 pt-[12vh] animate-okun-fade"
+            onClick={() => setOpen(false)}
           >
-            <div className="flex items-center gap-3 border-b border-ink-200 px-4">
-              <Search className="h-4 w-4 text-ink-400" />
-              <input
-                autoFocus
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    setHighlight((value) => Math.min(value + 1, results.length - 1));
-                  }
-                  if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setHighlight((value) => Math.max(value - 1, 0));
-                  }
-                  if (event.key === "Enter" && results[highlight]) go(results[highlight].href);
-                }}
-                placeholder="Suchen…"
-                className="h-12 flex-1 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
-              />
-            </div>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Globale Suche"
+              className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-overlay animate-okun-rise"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-ink-200 px-4">
+                <Search className="h-4 w-4 text-ink-400" />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setHighlight((value) => Math.min(value + 1, results.length - 1));
+                    }
+                    if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setHighlight((value) => Math.max(value - 1, 0));
+                    }
+                    if (event.key === "Enter" && results[highlight]) go(results[highlight].href);
+                  }}
+                  placeholder="Suchen…"
+                  className="h-12 flex-1 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
+                />
+              </div>
 
-            <div className="max-h-[22rem] overflow-y-auto p-2">
-              {query.trim().length < 2 ? (
-                <p className="px-3 py-6 text-center text-xs text-ink-500">
-                  Mindestens zwei Zeichen eingeben, um Kontakte, Unternehmen, Leads und Deals zu durchsuchen.
-                </p>
-              ) : loading && results.length === 0 ? (
-                <p className="px-3 py-6 text-center text-xs text-ink-500">Suche läuft…</p>
-              ) : results.length === 0 ? (
-                <p className="px-3 py-6 text-center text-xs text-ink-500">Keine Treffer für „{query}“.</p>
-              ) : (
-                <ul>
-                  {results.map((result, index) => (
-                    <li key={`${result.type}-${result.id}`}>
-                      <button
-                        type="button"
-                        onMouseEnter={() => setHighlight(index)}
-                        onClick={() => go(result.href)}
-                        className={cn(
-                          "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors",
-                          index === highlight ? "bg-brand-50" : "hover:bg-ink-50",
-                        )}
-                      >
-                        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-ink-100 text-ink-500">
-                          {TYPE_META[result.type].icon}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-ink-900">{result.title}</span>
-                          {result.subtitle ? (
-                            <span className="block truncate text-xs text-ink-500">{result.subtitle}</span>
-                          ) : null}
-                        </span>
-                        <span className="text-2xs uppercase tracking-wide text-ink-400">
-                          {TYPE_META[result.type].label}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+              <div className="max-h-[22rem] overflow-y-auto p-2">
+                {query.trim().length < 2 ? (
+                  <p className="px-3 py-6 text-center text-xs text-ink-500">
+                    Mindestens zwei Zeichen eingeben, um Kontakte, Unternehmen, Leads und Deals zu durchsuchen.
+                  </p>
+                ) : loading && results.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-xs text-ink-500">Suche läuft…</p>
+                ) : results.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-xs text-ink-500">Keine Treffer für „{query}“.</p>
+                ) : (
+                  <ul>
+                    {results.map((result, index) => (
+                      <li key={`${result.type}-${result.id}`}>
+                        <button
+                          type="button"
+                          onMouseEnter={() => setHighlight(index)}
+                          onClick={() => go(result.href)}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors",
+                            index === highlight ? "bg-brand-50" : "hover:bg-ink-50",
+                          )}
+                        >
+                          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-ink-100 text-ink-500">
+                            {TYPE_META[result.type].icon}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-ink-900">{result.title}</span>
+                            {result.subtitle ? (
+                              <span className="block truncate text-xs text-ink-500">{result.subtitle}</span>
+                            ) : null}
+                          </span>
+                          <span className="text-2xs uppercase tracking-wide text-ink-400">
+                            {TYPE_META[result.type].label}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
-            <div className="flex items-center justify-between border-t border-ink-200 bg-ink-50/60 px-4 py-2 text-2xs text-ink-500">
-              <span className="flex items-center gap-1.5">
-                <CornerDownLeft className="h-3 w-3" /> Öffnen
-              </span>
-              <span>↑ ↓ Navigieren · Esc Schließen</span>
+              <div className="flex items-center justify-between border-t border-ink-200 bg-ink-50/60 px-4 py-2 text-2xs text-ink-500">
+                <span className="flex items-center gap-1.5">
+                  <CornerDownLeft className="h-3 w-3" /> Öffnen
+                </span>
+                <span>↑ ↓ Navigieren · Esc Schließen</span>
+              </div>
             </div>
           </div>
-        </div>
+        </Portal>
       ) : null}
     </>
   );

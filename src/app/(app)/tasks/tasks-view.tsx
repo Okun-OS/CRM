@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ import { Pagination } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { TaskForm } from "@/components/crm/forms/simple-forms";
 import { api, ApiError } from "@/lib/api-client";
-import { formatRelative } from "@/lib/format";
+import { formatDateTime, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 type Task = {
@@ -25,11 +25,21 @@ type Task = {
   status: string;
   priority: string;
   dueAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
   isOverdue: boolean;
   owner: { id: string; name: string } | null;
   contact: { id: string; name: string } | null;
   company: { id: string; name: string } | null;
   deal: { id: string; name: string } | null;
+  lead: { id: string; name: string } | null;
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  OPEN: "Offen",
+  IN_PROGRESS: "In Arbeit",
+  COMPLETED: "Erledigt",
+  CANCELLED: "Abgebrochen",
 };
 
 type Result = {
@@ -60,6 +70,7 @@ export function TasksView({ canWrite }: { canWrite: boolean }) {
   const [creating, setCreating] = React.useState(false);
   const [editing, setEditing] = React.useState<Task | null>(null);
   const [deleting, setDeleting] = React.useState<Task | null>(null);
+  const [viewing, setViewing] = React.useState<Task | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -78,8 +89,11 @@ export function TasksView({ canWrite }: { canWrite: boolean }) {
   }, [load]);
 
   async function toggle(task: Task) {
+    const completing = task.status !== "COMPLETED";
     try {
-      await api.patch(`/api/v1/tasks/${task.id}`, { status: task.status === "COMPLETED" ? "OPEN" : "COMPLETED" });
+      const updated = await api.patch<Task>(`/api/v1/tasks/${task.id}`, { status: completing ? "COMPLETED" : "OPEN" });
+      if (completing) toast.success("Aufgabe erledigt", "Unter „Erledigt“ können Sie sie jederzeit wieder öffnen und ansehen.");
+      setViewing((current) => (current?.id === task.id ? { ...current, ...updated } : current));
       await load();
       router.refresh();
     } catch (cause) {
@@ -163,10 +177,10 @@ export function TasksView({ canWrite }: { canWrite: boolean }) {
                   <div className="min-w-0 flex-1">
                     <button
                       type="button"
-                      onClick={() => canWrite && setEditing(task)}
+                      onClick={() => setViewing(task)}
                       className={cn(
-                        "block max-w-full truncate text-left text-sm",
-                        task.status === "COMPLETED" ? "text-ink-400 line-through" : "text-ink-900 hover:text-brand-600",
+                        "block max-w-full truncate text-left text-sm hover:text-brand-600",
+                        task.status === "COMPLETED" ? "text-ink-400 line-through" : "text-ink-900",
                       )}
                     >
                       {task.title}
@@ -227,6 +241,97 @@ export function TasksView({ canWrite }: { canWrite: boolean }) {
           }}
           onCancel={() => setCreating(false)}
         />
+      </Drawer>
+
+      <Drawer open={viewing !== null} onClose={() => setViewing(null)} title={viewing?.title ?? "Aufgabe"}>
+        {viewing ? (
+          <div className="space-y-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={viewing.status === "COMPLETED" ? "success" : "neutral"}>{STATUS_LABELS[viewing.status] ?? viewing.status}</Badge>
+              <Badge tone={PRIORITY[viewing.priority]?.tone ?? "neutral"}>
+                Priorität {PRIORITY[viewing.priority]?.label ?? viewing.priority}
+              </Badge>
+            </div>
+            <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-xs">
+              <dt className="text-ink-400">Fällig</dt>
+              <dd className={viewing.isOverdue ? "font-medium text-danger-600" : "text-ink-800"}>
+                {viewing.dueAt ? formatDateTime(viewing.dueAt) : "Ohne Fälligkeit"}
+              </dd>
+              {viewing.completedAt ? (
+                <>
+                  <dt className="text-ink-400">Erledigt am</dt>
+                  <dd className="text-ink-800">{formatDateTime(viewing.completedAt)}</dd>
+                </>
+              ) : null}
+              <dt className="text-ink-400">Verantwortlich</dt>
+              <dd className="text-ink-800">{viewing.owner?.name ?? "Niemand"}</dd>
+              <dt className="text-ink-400">Angelegt am</dt>
+              <dd className="text-ink-800">{formatDateTime(viewing.createdAt)}</dd>
+              {viewing.contact || viewing.company || viewing.deal || viewing.lead ? (
+                <>
+                  <dt className="text-ink-400">Gehört zu</dt>
+                  <dd className="flex flex-col gap-0.5">
+                    {viewing.contact ? (
+                      <Link href={`/contacts/${viewing.contact.id}`} className="text-brand-600 hover:text-brand-700">
+                        Kontakt: {viewing.contact.name}
+                      </Link>
+                    ) : null}
+                    {viewing.company ? (
+                      <Link href={`/companies/${viewing.company.id}`} className="text-brand-600 hover:text-brand-700">
+                        Unternehmen: {viewing.company.name}
+                      </Link>
+                    ) : null}
+                    {viewing.deal ? (
+                      <Link href={`/deals/${viewing.deal.id}`} className="text-brand-600 hover:text-brand-700">
+                        Deal: {viewing.deal.name}
+                      </Link>
+                    ) : null}
+                    {viewing.lead ? (
+                      <Link href={`/leads/${viewing.lead.id}`} className="text-brand-600 hover:text-brand-700">
+                        Lead: {viewing.lead.name}
+                      </Link>
+                    ) : null}
+                  </dd>
+                </>
+              ) : null}
+            </dl>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-ink-400">Beschreibung</p>
+              <p className="mt-1 whitespace-pre-wrap text-ink-700">{viewing.description || "Keine Beschreibung."}</p>
+            </div>
+            {canWrite ? (
+              <div className="flex flex-wrap gap-2 border-t border-ink-200 pt-4">
+                <Button
+                  variant="secondary"
+                  icon={viewing.status === "COMPLETED" ? <RotateCcw className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  onClick={() => void toggle(viewing)}
+                >
+                  {viewing.status === "COMPLETED" ? "Wieder öffnen" : "Als erledigt markieren"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  icon={<Pencil className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    setEditing(viewing);
+                    setViewing(null);
+                  }}
+                >
+                  Bearbeiten
+                </Button>
+                <Button
+                  variant="ghost"
+                  icon={<Trash2 className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    setDeleting(viewing);
+                    setViewing(null);
+                  }}
+                >
+                  Löschen
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </Drawer>
 
       <Drawer open={editing !== null} onClose={() => setEditing(null)} title="Aufgabe bearbeiten">

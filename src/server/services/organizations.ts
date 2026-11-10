@@ -6,6 +6,7 @@ import { assertPermission, type ActorContext } from "@/lib/context";
 import { scope } from "@/lib/tenant";
 import { writeAudit } from "@/lib/audit";
 import { Conflict } from "@/lib/api/errors";
+import { normaliseDomain } from "./companies";
 
 /**
  * Organizations are the tenant boundary. A new organization is provisioned with
@@ -46,7 +47,14 @@ export const DEFAULT_PIPELINE = {
 
 export const organizationSettingsSchema = z.object({
   name: requiredString("Name ist erforderlich.", 120),
-  domain: z.string().trim().max(160).optional(),
+  // „https://www.beispiel.de/“ und „beispiel.de“ meinen dasselbe; gespeichert
+  // wird die reine Domain, wie bei Unternehmen.
+  domain: z
+    .string()
+    .trim()
+    .max(160)
+    .optional()
+    .transform((value) => (value === undefined ? undefined : (normaliseDomain(value) ?? ""))),
   industry: z.string().trim().max(120).optional(),
   currency: z.string().length(3).default("EUR"),
   timezone: z.string().max(60).default("Europe/Berlin"),
@@ -177,8 +185,14 @@ export async function updateOrganization(ctx: ActorContext, input: z.input<typeo
     action: "organization.updated",
     entityType: "Organization",
     entityId: organization.id,
-    before: { name: before?.name, currency: before?.currency, timezone: before?.timezone },
-    after: { name: organization.name, currency: organization.currency, timezone: organization.timezone },
+    before: { name: before?.name, domain: before?.domain, industry: before?.industry, currency: before?.currency, timezone: before?.timezone },
+    after: {
+      name: organization.name,
+      domain: organization.domain,
+      industry: organization.industry,
+      currency: organization.currency,
+      timezone: organization.timezone,
+    },
   });
 
   return getOrganization(ctx);

@@ -24,8 +24,8 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Einmal quer durch OKUN CRM",
         body:
           "Diese Einführung zeigt nicht nur, wo welcher Knopf sitzt. Sie legen dabei wirklich " +
-          "ein Unternehmen, einen Kontakt und eine Chance an — am Ende haben Sie etwas in der " +
-          "Hand, nicht nur zugesehen.",
+          "ein Unternehmen, einen Kontakt und eine Chance an. Am Ende haben Sie etwas in der " +
+          "Hand und nicht nur zugesehen.",
         why:
           "Ein Rundgang, den man nur anschaut, ist nach zehn Minuten vergessen. Etwas, das man " +
           "selbst getan hat, bleibt. Danach geht es weiter dorthin, wo neue Gespräche entstehen, " +
@@ -40,7 +40,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         placement: "bottom",
         title: "Sie behalten die Kontrolle",
         body:
-          "Mit „Speichern & beenden“ auf dieser Karte (oder Esc) hören Sie jederzeit auf — Ihr " +
+          "Mit „Speichern & beenden“ auf dieser Karte (oder Esc) hören Sie jederzeit auf. Ihr " +
           "Stand bleibt erhalten, auch über einen Geräte- oder Browserwechsel hinweg. Über " +
           "„Einführung“ hier oben setzen Sie die Tour später fort oder starten sie neu.",
         advance: { on: "manual" },
@@ -65,7 +65,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
           "Die Gliederung links ist nicht nach Datenbanktabellen sortiert, sondern nach " +
           "Arbeitsweise: CRM, Vertrieb, Kommunikation, Automatisierung, Berichte, Administration.",
         why:
-          "Wer morgens anfängt, sucht keine Tabelle — er sucht den nächsten Schritt. Deshalb " +
+          "Wer morgens anfängt, sucht keine Tabelle, sondern den nächsten Schritt. Deshalb " +
           "steht „Heute“ ganz oben und die Verwaltung ganz unten.",
         advance: { on: "manual" },
       },
@@ -88,7 +88,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         placement: "bottom",
         title: "Eine Suche für alles",
         body:
-          "Hier finden Sie Kontakte, Unternehmen, Leads und Deals gleichzeitig — ohne vorher zu " +
+          "Hier finden Sie Kontakte, Unternehmen, Leads und Deals gleichzeitig, ohne vorher zu " +
           "überlegen, in welcher Liste Sie suchen müssen.",
         optional: true,
         advance: { on: "manual" },
@@ -120,7 +120,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Warum wir mit dem Unternehmen anfangen",
         body:
           "Ein Kontakt ohne Unternehmen ist eine Visitenkarte. Ein Kontakt *mit* Unternehmen ist " +
-          "Teil eines Kundenbildes — Sie sehen später alle Menschen dort, alle laufenden Chancen " +
+          "Teil eines Kundenbildes: Sie sehen später alle Menschen dort, alle laufenden Chancen " +
           "und den gesamten Verlauf an einem Ort.",
         why:
           "Deshalb legen wir hier zuerst die Firma an und hängen den Menschen gleich daran. " +
@@ -146,7 +146,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         placement: "bottom",
         title: "Gespeicherte Ansichten",
         body:
-          "Filter, Spalten und Sortierung lassen sich als benannte Ansicht sichern — und fürs Team " +
+          "Filter, Spalten und Sortierung lassen sich als benannte Ansicht sichern und fürs Team " +
           "freigeben. „Kunden ohne Aktivität seit 60 Tagen“ ist dann ein Klick, keine Fleißarbeit.",
         optional: true,
         advance: { on: "manual" },
@@ -169,7 +169,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         placement: "left",
         title: "Der Name genügt zum Anfangen",
         body:
-          "Pflicht ist nur der Name. Alles andere können Sie jetzt oder später ausfüllen — das " +
+          "Pflicht ist nur der Name. Alles andere können Sie jetzt oder später ausfüllen. Das " +
           "System verlangt keine Vollständigkeit, bevor es nützlich wird.",
         why:
           "Formulare, die zwanzig Pflichtfelder verlangen, werden umgangen. Dann steht der Kunde " +
@@ -187,7 +187,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         body:
           "Sie dient dem System als Erkennungsmerkmal: Bei Import und Dublettenprüfung werden " +
           "Firmen darüber zusammengeführt, auch wenn der Name unterschiedlich geschrieben ist.",
-        why: "„Muster GmbH“, „Muster G.m.b.H.“ und „Muster“ sind dieselbe Firma — die Domain weiß das.",
+        why: "„Muster GmbH“, „Muster G.m.b.H.“ und „Muster“ sind dieselbe Firma. Die Domain weiß das.",
         optional: true,
         advance: { on: "manual" },
       },
@@ -196,7 +196,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="drawer"] button[type="submit"]',
         placement: "top",
         title: "Speichern",
-        body: "Der Name steht, das reicht. Speichern Sie — die neue Firmenakte öffnet sich, und es geht weiter.",
+        body: "Der Name steht, das reicht. Speichern Sie: Die neue Firmenakte öffnet sich, und es geht weiter.",
         waitingFor: "Warte darauf, dass das Unternehmen gespeichert ist",
         optional: true,
         skippable: true,
@@ -212,7 +212,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
   {
     id: "kontakte",
     title: "Kontakte",
-    summary: "Die Menschen — und warum die Verknüpfung zählt.",
+    summary: "Die Menschen und warum die Verknüpfung zählt.",
     route: "/contacts",
     requires: "contacts.read",
     steps: [
@@ -260,7 +260,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         why:
           "Außerdem erkennt das System Dubletten über die E-Mail-Adresse: Derselbe Mensch wird beim " +
           "nächsten Import nicht ein zweites Mal angelegt.",
-        waitingFor: "Tragen Sie eine E-Mail-Adresse ein — oder überspringen Sie, wenn Sie keine haben",
+        waitingFor: "Tragen Sie eine E-Mail-Adresse ein oder überspringen Sie, wenn Sie keine haben",
         optional: true,
         skippable: true,
         advance: { on: "filled" },
@@ -285,7 +285,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         placement: "left",
         title: "Lifecycle-Stufe: wie weit ist die Beziehung?",
         body:
-          "Von „Interessent“ bis „Kunde“. Die Stufen sind nicht fest einprogrammiert — Sie " +
+          "Von „Interessent“ bis „Kunde“. Die Stufen sind nicht fest einprogrammiert. Sie " +
           "definieren sie in den Einstellungen so, wie Ihr Vertrieb wirklich arbeitet.",
         optional: true,
         advance: { on: "manual" },
@@ -295,7 +295,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="drawer"] button[type="submit"]',
         placement: "top",
         title: "Speichern und weiter",
-        body: "Mehr braucht es nicht. Speichern Sie — die Kontaktakte öffnet sich, und dort geht es weiter.",
+        body: "Mehr braucht es nicht. Speichern Sie: Die Kontaktakte öffnet sich, und dort geht es weiter.",
         waitingFor: "Warte darauf, dass der Kontakt gespeichert ist",
         optional: true,
         skippable: true,
@@ -319,7 +319,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Die Detailseite ist das Herz des Systems",
         body:
           "Links die Stammdaten, in der Mitte der Verlauf, rechts der Zustand und die nächste " +
-          "Aktion. Alles, was jemals an diesem Menschen passiert ist, steht hier — auch das, was " +
+          "Aktion. Alles, was jemals an diesem Menschen passiert ist, steht hier, auch das, was " +
           "eine Kollegin getan hat.",
         why:
           "Damit ist Urlaubsvertretung kein Problem mehr: Wer die Akte öffnet, weiß in dreißig " +
@@ -332,7 +332,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         placement: "left",
         title: "Die nächste Aktion",
         body:
-          "Ein einziger, begründeter Vorschlag — nicht zwölf gleichrangige. Sie können ihn " +
+          "Ein einziger, begründeter Vorschlag statt zwölf gleichrangiger. Sie können ihn " +
           "erledigen, verschieben oder mit Begründung verwerfen.",
         why:
           "Eine Liste aus zwölf Vorschlägen ist keine Hilfe, sondern eine zweite Aufgabenliste. " +
@@ -347,7 +347,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Der Verlauf",
         body:
           "Notizen, Anrufe, E-Mails, Termine, Aufgaben und Feldänderungen in einer Spur. Legen " +
-          "Sie ruhig eine Notiz an — sie landet sofort oben.",
+          "Sie ruhig eine Notiz an. Sie landet sofort oben.",
         optional: true,
         advance: { on: "manual" },
       },
@@ -378,7 +378,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="list-create"]',
         placement: "bottom",
         title: "Legen Sie eine Chance an",
-        body: "Name, Pipeline, Stage und Wert — mehr braucht es nicht zum Start.",
+        body: "Name, Pipeline, Stage und Wert: Mehr braucht es nicht zum Start.",
         waitingFor: "Warte auf Ihren Klick auf „Deal erstellen“",
         requires: "deals.write",
         optional: true,
@@ -435,7 +435,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="drawer"] button[type="submit"]',
         placement: "top",
         title: "Speichern",
-        body: "Speichern Sie — danach sehen wir uns das Board an.",
+        body: "Speichern Sie, danach sehen wir uns das Board an.",
         waitingFor: "Warte darauf, dass der Deal gespeichert ist",
         optional: true,
         skippable: true,
@@ -465,7 +465,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         id: "verschieben",
         title: "Probieren Sie es aus",
         body:
-          "Ziehen Sie Ihre Karte eine Spalte weiter. Der Wechsel ist sofort gespeichert — und " +
+          "Ziehen Sie Ihre Karte eine Spalte weiter. Der Wechsel ist sofort gespeichert und " +
           "kann einen Workflow auslösen, den wir gleich bauen.",
         advance: { on: "manual" },
         cta: "Weiter",
@@ -485,7 +485,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         id: "was-ist-das",
         title: "Bis hierhin ging es um Menschen, die Sie schon kennen",
         body:
-          "Kontakte, Unternehmen, Chancen — das alles setzt voraus, dass jemand da ist. Dieser " +
+          "Kontakte, Unternehmen, Chancen: Das alles setzt voraus, dass jemand da ist. Dieser " +
           "Bereich ist die andere Richtung: Wie kommen überhaupt neue Gespräche zustande?",
         why:
           "Deshalb steht die Akquise nicht als zweites Programm daneben, sondern als Abschnitt " +
@@ -499,7 +499,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Der Trichter zeigt, was wirklich übrig bleibt",
         body:
           "Alle Balken teilen eine gemeinsame Skala. Deshalb sehen Sie den Absturz von Stufe zu " +
-          "Stufe — und rechts die Übergangsquote in Prozent.",
+          "Stufe und rechts die Übergangsquote in Prozent.",
         why:
           "Einzeln normierte Balken sehen nach gleichmäßigem Fortschritt aus, wo in Wahrheit neun " +
           "Zehntel wegfallen. Am Ende des Trichters stehen Pipeline und Umsatz, nicht die Zahl " +
@@ -516,7 +516,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
           "Ungesichtete Antworten, Interessierte ohne Termin, pausierte Postfächer. Jeder Eintrag " +
           "führt dorthin, wo er zu erledigen ist.",
         why:
-          "Ein Bericht sagt, was war. Das hier sagt, was jetzt jemand tun muss — dieselbe Idee wie " +
+          "Ein Bericht sagt, was war. Das hier sagt, was jetzt jemand tun muss. Dieselbe Idee wie " +
           "bei „Heute“, nur für die Akquise. Ist nichts offen, steht hier auch nichts.",
         advance: { on: "manual" },
         optional: true,
@@ -538,8 +538,8 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         placement: "bottom",
         title: "Ein Prospect ist noch kein Kontakt",
         body:
-          "Jemand, den Sie ansprechen möchten, aber der noch nie zugestimmt hat, steht hier — " +
-          "nicht zwischen Ihren Kontakten.",
+          "Jemand, den Sie ansprechen möchten, aber der noch nie zugestimmt hat, steht hier " +
+          "und nicht zwischen Ihren Kontakten.",
         why:
           "Wenn kalte Adressen und echte Kundenbeziehungen in einer Liste liegen, ist nach einem " +
           "halben Jahr niemandem mehr klar, woher eine Adresse kam und was mit ihr erlaubt ist. " +
@@ -567,7 +567,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         target: '[data-tour="prospect-create"]',
         placement: "left",
         title: "Legen Sie einen an",
-        body: "Zum Anlegen genügt der Firmenname. Zum Anschreiben braucht es mehr — dazu gleich.",
+        body: "Zum Anlegen genügt der Firmenname. Zum Anschreiben braucht es mehr, dazu gleich.",
         waitingFor: "Klicken Sie auf „Prospect anlegen“",
         advance: { on: "click" },
         optional: true,
@@ -593,11 +593,11 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Ohne E-Mail-Adresse kein Anschreiben",
         body:
           "Tragen Sie die Adresse des Ansprechpartners ein. Nur ein Prospect mit E-Mail-Adresse " +
-          "lässt sich in eine Sequenz aufnehmen — sonst lehnt das System die Aufnahme ab.",
+          "lässt sich in eine Sequenz aufnehmen, sonst lehnt das System die Aufnahme ab.",
         why:
           "Ohne Adresse lässt sich ein Prospect recherchieren und qualifizieren, aber nicht " +
           "ansprechen. Die Oberfläche sagt das offen, statt den Knopf ins Leere laufen zu lassen.",
-        waitingFor: "Tragen Sie eine E-Mail-Adresse ein — oder überspringen Sie, wenn Sie keine haben",
+        waitingFor: "Tragen Sie eine E-Mail-Adresse ein oder überspringen Sie, wenn Sie keine haben",
         optional: true,
         skippable: true,
         requires: "prospects.write",
@@ -610,7 +610,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Hier entsteht auch der Herkunftsnachweis",
         body:
           "Ergänzen Sie, was Sie sonst noch wissen, und speichern Sie. In der Akte steht danach je Feld, " +
-          "woher die Angabe kommt — hier: „manuell angelegt“.",
+          "woher die Angabe kommt, hier „manuell angelegt“.",
         why:
           "Wenn später jemand fragt, woher eine Adresse stammt, muss das System antworten können. " +
           "Eine Herkunft, die man nachträglich rekonstruieren muss, ist keine.",
@@ -639,7 +639,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
           "einen Abstand in Tagen.",
         why:
           "Die Aufgabenschritte sind der eigentliche Punkt: Automatisiert wird, was sich " +
-          "automatisieren lässt — vorbereitet wird, wo ein Mensch entscheiden soll. Eine " +
+          "automatisieren lässt. Vorbereitet wird, wo ein Mensch entscheiden soll. Eine " +
           "Aufgabe aus einer Sequenz ist eine gewöhnliche CRM-Aufgabe und erscheint dort, wo " +
           "Sie ohnehin hinsehen.",
         advance: { on: "manual" },
@@ -650,7 +650,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         placement: "left",
         title: "Neu heißt Entwurf",
         body:
-          "Eine neue Sequenz sendet nichts. Sie wird ausdrücklich aktiviert — und ohne " +
+          "Eine neue Sequenz sendet nichts. Sie wird ausdrücklich aktiviert, und ohne " +
           "eingerichtetes Postfach lässt sie sich gar nicht aktivieren.",
         why:
           "Eine halbfertige Sequenz darf nicht auf echte Menschen losgehen. Und eine, die aktiv " +
@@ -666,7 +666,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
           "Abwesenheitsnachricht stoppt sie ausdrücklich nicht.",
         why:
           "Wer geantwortet hat, ist keine Zielgruppe mehr, sondern ein Gespräch. Eine " +
-          "Urlaubsmeldung ist dagegen keine Antwort — würde sie die Sequenz beenden, wäre jeder " +
+          "Urlaubsmeldung ist dagegen keine Antwort. Würde sie die Sequenz beenden, wäre jeder " +
           "Sommer ein Datenverlust. Wo die Einordnung unklar ist, entscheidet das System nicht, " +
           "sondern legt die Nachricht einem Menschen vor.",
         advance: { on: "manual" },
@@ -689,7 +689,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Jedes Postfach hat Grenzen",
         body:
           "Tageslimit, Sendefenster mit Zeitzone, Wochentage und ein Mindestabstand zwischen zwei " +
-          "Nachrichten — mit Streuung, damit kein Takt entsteht.",
+          "Nachrichten, mit Streuung, damit kein Takt entsteht.",
         why:
           "Das ist kein Werkzeug für Massenversand. Wer tausend Adressen am Tag anschreibt, " +
           "verbrennt seine Domain und trifft niemanden. Qualität vor Menge, und zwar technisch " +
@@ -704,7 +704,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Die Sperrliste überlebt den Datensatz",
         body:
           "Eine Adresse oder eine ganze Domain sperren. Auch ein späterer Import kann die Sperre " +
-          "nicht umgehen — der Prospect wird gar nicht erst angelegt.",
+          "nicht umgehen. Der Prospect wird gar nicht erst angelegt.",
         why:
           "Wer einmal „nein“ gesagt hat, hat das gesagt. Wäre die Sperre nur ein Feld am " +
           "Datensatz, wäre sie beim nächsten Löschen und Neuimportieren weg.",
@@ -720,7 +720,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         why:
           "Das hängt von Land, Branche und Einzelfall ab und lässt sich technisch nicht " +
           "herstellen. Ein Haken „rechtssicher“ wäre eine Zusicherung, die kein Programm geben " +
-          "kann. Sie bekommen die Nachweise — die Bewertung bleibt bei Ihnen.",
+          "kann. Sie bekommen die Nachweise, die Bewertung bleibt bei Ihnen.",
         advance: { on: "manual" },
       },
     ],
@@ -737,8 +737,8 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         id: "aktionszentrum",
         title: "Hier fängt Ihr Arbeitstag an",
         body:
-          "Fällige nächste Aktionen, überfällige Aufgaben und stillstehende Vorgänge — " +
-          "zusammengeführt aus allen Objekten, sortiert nach Dringlichkeit.",
+          "Fällige nächste Aktionen, überfällige Aufgaben und stillstehende Vorgänge, " +
+          "zusammengeführt aus allen Objekten und sortiert nach Dringlichkeit.",
         why:
           "Das System rät dabei nicht. Jeder Eintrag geht auf ein Ereignis zurück, das wirklich " +
           "stattgefunden hat, und auf eine Regel, die Sie in den Einstellungen nachlesen können.",
@@ -770,8 +770,8 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         id: "aufbau",
         title: "Jeder Workflow hat denselben Aufbau",
         body:
-          "Auslöser — wann geht es los. Bedingungen — für welche Datensätze gilt es. Aktionen — " +
-          "was geschieht dann. Bis zu zehn Aktionen je Workflow.",
+          "Auslöser: Wann geht es los? Bedingungen: Für welche Datensätze gilt es? Aktionen: " +
+          "Was geschieht dann? Bis zu zehn Aktionen je Workflow.",
         why:
           "Weil Automatisierung sonst unkontrollierbar wird: Wer die drei Teile sieht, kann " +
           "vorhersagen, was die Regel tut, bevor sie auf echte Daten losgeht.",
@@ -803,7 +803,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         id: "bedingung",
         title: "Bedingungen sind der wichtigste Teil",
         body:
-          "Ohne Bedingung feuert ein Workflow für *jeden* Datensatz — auch für importierte. " +
+          "Ohne Bedingung feuert ein Workflow für *jeden* Datensatz, auch für importierte. " +
           "Eine Bedingung wie „Quelle ist gleich Website“ grenzt das ein.",
         why:
           "Der häufigste Automatisierungsfehler ist nicht die falsche Aktion, sondern die " +
@@ -815,7 +815,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Neu heißt inaktiv",
         body:
           "Ein frisch gespeicherter Workflow ist bewusst noch nicht scharf. Sie aktivieren ihn " +
-          "erst, wenn er fertig ist — mit einem Klick in der Liste.",
+          "erst, wenn er fertig ist, mit einem Klick in der Liste.",
         why: "Damit eine halbfertige Regel nicht schon auf echte Kundendaten losgeht.",
         advance: { on: "manual" },
       },
@@ -824,7 +824,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Jeder Lauf wird protokolliert",
         body:
           "Mit Status und einem Schritt-für-Schritt-Log jeder Aktion. Schlägt etwas fehl, steht " +
-          "dort, was und warum — der Workflow verschwindet nicht stillschweigend.",
+          "dort, was und warum. Der Workflow verschwindet nicht stillschweigend.",
         advance: { on: "manual" },
       },
     ],
@@ -877,7 +877,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Fast alles ist Einstellung, nicht Programmierung",
         body:
           "Eigene Felder, Pipelines und Stages, Lifecycle-Stufen, Lead-Status, Tags, Rollen, " +
-          "Teams — alles zur Laufzeit änderbar, ohne Entwickler.",
+          "Teams: alles zur Laufzeit änderbar, ohne Entwickler.",
         why:
           "Weil sich Ihr Vertriebsprozess ändern wird. Ein System, für das man dafür jemanden " +
           "beauftragen muss, wird stattdessen umgangen.",
@@ -901,7 +901,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
         title: "Import",
         body:
           "CSV hochladen, Spalten zuordnen, Dublettenstrategie wählen. Danach ein Ergebnisbericht " +
-          "mit Zahlen — nicht nur eine Erfolgsmeldung.",
+          "mit Zahlen statt nur einer Erfolgsmeldung.",
         optional: true,
         advance: { on: "manual" },
       },
@@ -932,7 +932,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
           "Gespräche über die Akquise entstehen, und wissen, wo Automatisierung, Auswertung und " +
           "Einrichtung sitzen.",
         why:
-          "Der sinnvollste nächste Schritt ist meist der Import Ihres Bestands — danach wird das " +
+          "Der sinnvollste nächste Schritt ist meist der Import Ihres Bestands. Danach wird das " +
           "System sofort nützlich, statt langsam zu wachsen.",
         advance: { on: "manual" },
         cta: "Tour beenden",

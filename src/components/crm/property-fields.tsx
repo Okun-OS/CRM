@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { PropertyDefinitionDTO } from "@/lib/properties";
-import { Field, Input, Select, Textarea, Checkbox } from "@/components/ui/field";
+import { DateTimeInput, Field, Input, Select, Textarea, Checkbox } from "@/components/ui/field";
 
 /**
  * Renders the organization's custom properties as real form controls, typed by
@@ -114,6 +114,8 @@ function PropertyField({
             );
           })}
         </div>
+      ) : definition.type === "DATETIME" ? (
+        <DateTimeInput {...common} value={typeof value === "string" ? value : null} onChange={(iso) => onChange(iso)} />
       ) : (
         <Input
           {...common}
@@ -134,8 +136,6 @@ function inputType(type: PropertyDefinitionDTO["type"]): string {
       return "number";
     case "DATE":
       return "date";
-    case "DATETIME":
-      return "datetime-local";
     case "EMAIL":
       return "email";
     case "URL":
@@ -149,9 +149,5 @@ function inputType(type: PropertyDefinitionDTO["type"]): string {
 
 function asString(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (typeof value === "string" && value.length >= 20 && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
-    // Date-time values arrive as ISO strings; the input needs a local value.
-    return value.slice(0, 16);
-  }
   return String(value);
 }

@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
+import { fromLocalInputValue, toLocalInputValue } from "@/lib/local-datetime";
 
 /** Form field wrapper: label, optional hint, inline validation message. */
 export function Field({
@@ -50,6 +51,28 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
   },
 );
 
+/**
+ * Datum + Uhrzeit. Nimmt einen ISO-Zeitpunkt entgegen und gibt einen zurück;
+ * angezeigt und eingegeben wird in Ortszeit (siehe `lib/local-datetime`).
+ */
+export function DateTimeInput({
+  value,
+  onChange,
+  ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> & {
+  value: string | null | undefined;
+  onChange: (iso: string | null) => void;
+}) {
+  return (
+    <Input
+      type="datetime-local"
+      value={toLocalInputValue(value)}
+      onChange={(event) => onChange(fromLocalInputValue(event.target.value))}
+      {...props}
+    />
+  );
+}
+
 export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
   function Textarea({ className, rows = 4, ...props }, ref) {
     return <textarea ref={ref} rows={rows} className={cn(CONTROL_BASE, "py-2 leading-relaxed", className)} {...props} />;
@@ -63,7 +86,7 @@ export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttrib
         ref={ref}
         className={cn(
           CONTROL_BASE,
-          "h-9 appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%236b7484%22><path d=%22M5.5 7.5l4.5 4.5 4.5-4.5%22 stroke=%22%236b7484%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22/></svg>')] bg-[length:18px] bg-[right_8px_center] bg-no-repeat pr-9",
+          "okun-select h-9 cursor-pointer appearance-none pr-9 disabled:cursor-not-allowed",
           className,
         )}
         {...props}

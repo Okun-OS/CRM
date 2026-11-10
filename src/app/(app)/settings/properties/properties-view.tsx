@@ -187,6 +187,9 @@ function PropertyForm({
     groupName: definition?.groupName ?? "",
   });
   const [options, setOptions] = React.useState(definition?.options ?? []);
+  // Der Schlüssel folgt der Bezeichnung, bis ihn jemand selbst ändert.
+  const [editingKey, setEditingKey] = React.useState(false);
+  const [keyTouched, setKeyTouched] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
@@ -238,8 +241,9 @@ function PropertyForm({
             setValues((current) => ({
               ...current,
               label,
-              // Derive the technical key from the label while creating.
-              key: definition ? current.key : slugifyKey(label),
+              // Beim Anlegen wird der Schlüssel aus der Bezeichnung abgeleitet —
+              // nicht mehr, sobald er von Hand angepasst wurde.
+              key: definition || keyTouched ? current.key : slugifyKey(label),
             }));
           }}
           autoFocus
@@ -247,21 +251,50 @@ function PropertyForm({
         />
       </Field>
 
-      <Field
-        label="Technischer Schlüssel"
-        htmlFor="property-key"
-        error={fieldErrors.key}
-        hint="Wird in Filtern, Importen und der API verwendet und kann später nicht geändert werden."
-        required
-      >
-        <Input
-          id="property-key"
-          value={values.key}
-          onChange={(event) => setValues({ ...values, key: event.target.value })}
-          disabled={Boolean(definition)}
+      {editingKey && !definition ? (
+        <Field
+          label="Technischer Schlüssel"
+          htmlFor="property-key"
+          error={fieldErrors.key}
+          hint="Nur Kleinbuchstaben, Ziffern und Unterstriche. Wird in Filtern, Importen und der API verwendet und kann später nicht geändert werden."
           required
-        />
-      </Field>
+        >
+          <Input
+            id="property-key"
+            value={values.key}
+            onChange={(event) => {
+              setKeyTouched(true);
+              setValues({ ...values, key: event.target.value });
+            }}
+            autoFocus
+            required
+          />
+        </Field>
+      ) : (
+        <div className="-mt-2 space-y-1">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
+            <span>
+              Technischer Schlüssel:{" "}
+              <code className="rounded bg-ink-100 px-1.5 py-0.5 font-mono text-2xs text-ink-700">{values.key || "…"}</code>
+            </span>
+            {definition ? (
+              <span>(nicht mehr änderbar)</span>
+            ) : (
+              <>
+                <span>wird automatisch aus der Bezeichnung erzeugt</span>
+                <button type="button" className="font-medium text-brand-600 hover:text-brand-700" onClick={() => setEditingKey(true)}>
+                  Anpassen
+                </button>
+              </>
+            )}
+          </p>
+          {fieldErrors.key ? (
+            <p className="text-xs text-danger-600" role="alert">
+              {fieldErrors.key}
+            </p>
+          ) : null}
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Typ" htmlFor="property-type" error={fieldErrors.type}>
@@ -360,14 +393,15 @@ function PropertyForm({
 }
 
 function slugifyKey(value: string): string {
+  // Umlaute zuerst: Nach dem Zerlegen (NFD) wäre aus „ä“ schon „a“ geworden.
   return value
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
     .replace(/ä/g, "ae")
     .replace(/ö/g, "oe")
     .replace(/ü/g, "ue")
     .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 48);

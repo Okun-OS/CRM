@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { DateTimeInput, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { useReference } from "@/components/app/reference-provider";
 import { PropertyFields } from "@/components/crm/property-fields";
 import { api } from "@/lib/api-client";
@@ -111,11 +111,10 @@ export function LeadForm({
             <Input id="source" value={values.source ?? ""} onChange={(event) => set("source", event.target.value)} />
           </Field>
           <Field label="Nächster Schritt" htmlFor="nextStepAt" error={fieldErrors.nextStepAt}>
-            <Input
+            <DateTimeInput
               id="nextStepAt"
-              type="datetime-local"
-              value={values.nextStepAt ? String(values.nextStepAt).slice(0, 16) : ""}
-              onChange={(event) => set("nextStepAt", event.target.value || null)}
+              value={values.nextStepAt ? String(values.nextStepAt) : null}
+              onChange={(nextStepAt) => set("nextStepAt", nextStepAt)}
             />
           </Field>
           <Field label="Owner" htmlFor="ownerId" error={fieldErrors.ownerId}>

@@ -195,8 +195,9 @@ test("9 · Berechtigungen und Audit Log sind sichtbar", async ({ page }) => {
   await page.goto("/settings/roles");
   await expect(page.getByText("contacts.write")).toBeVisible();
 
+  // Das Protokoll spricht Deutsch; der technische Name steht unter „Technische Details“.
   await page.goto("/settings/audit");
-  await expect(page.getByText("contact.created").first()).toBeVisible();
+  await expect(page.getByText("Kontakt angelegt").first()).toBeVisible();
 });
 
 test("10 · Abmelden und erneut anmelden", async ({ page }) => {

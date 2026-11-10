@@ -1,9 +1,22 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "./button";
+
+/**
+ * Hängt ein Overlay direkt an `<body>`. Ein Vorfahr mit `backdrop-filter`
+ * (die obere Leiste hat `backdrop-blur`) oder `transform` wird sonst zum
+ * Bezugsrahmen für `position: fixed`: Ein Fenster aus der Leiste füllte dann
+ * nur die Leiste statt des Bildschirms.
+ */
+export function Portal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  return mounted ? createPortal(children, document.body) : null;
+}
 
 /** Centred dialog for focused tasks and confirmations. */
 export function Modal({
@@ -30,27 +43,29 @@ export function Modal({
   const width = size === "sm" ? "max-w-md" : size === "lg" ? "max-w-3xl" : "max-w-xl";
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-okun-950/45 p-4 pt-[10vh] animate-okun-fade">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className={cn("w-full rounded-xl bg-white shadow-overlay animate-okun-rise", width)}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold text-ink-900">{title}</h2>
-            {description ? <p className="mt-0.5 text-xs text-ink-500">{description}</p> : null}
+    <Portal>
+      <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-okun-950/45 p-4 pt-[10vh] animate-okun-fade">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          className={cn("w-full rounded-xl bg-white shadow-overlay animate-okun-rise", width)}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-4">
+            <div>
+              <h2 className="text-base font-semibold text-ink-900">{title}</h2>
+              {description ? <p className="mt-0.5 text-xs text-ink-500">{description}</p> : null}
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Dialog schließen">
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Dialog schließen">
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="px-5 py-4">{children}</div>
+          {footer ? <div className="flex justify-end gap-2 border-t border-ink-200 px-5 py-3.5">{footer}</div> : null}
         </div>
-        <div className="px-5 py-4">{children}</div>
-        {footer ? <div className="flex justify-end gap-2 border-t border-ink-200 px-5 py-3.5">{footer}</div> : null}
       </div>
-    </div>
+    </Portal>
   );
 }
 
@@ -77,31 +92,33 @@ export function Drawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-okun-950/45 animate-okun-fade">
-      <button type="button" className="flex-1 cursor-default" aria-label="Schließen" onClick={onClose} />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        data-tour="drawer"
-        className={cn(
-          "flex h-full w-full flex-col bg-white shadow-overlay animate-okun-drawer",
-          width === "lg" ? "max-w-2xl" : "max-w-lg",
-        )}
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold text-ink-900">{title}</h2>
-            {description ? <p className="mt-0.5 text-xs text-ink-500">{description}</p> : null}
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Schließen">
-            <X className="h-4 w-4" />
-          </Button>
-        </header>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer ? <footer className="flex justify-end gap-2 border-t border-ink-200 px-5 py-3.5">{footer}</footer> : null}
-      </aside>
-    </div>
+    <Portal>
+      <div className="fixed inset-0 z-[70] flex justify-end bg-okun-950/45 animate-okun-fade">
+        <button type="button" className="flex-1 cursor-default" aria-label="Schließen" onClick={onClose} />
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          data-tour="drawer"
+          className={cn(
+            "flex h-full w-full flex-col bg-white shadow-overlay animate-okun-drawer",
+            width === "lg" ? "max-w-2xl" : "max-w-lg",
+          )}
+        >
+          <header className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-4">
+            <div>
+              <h2 className="text-base font-semibold text-ink-900">{title}</h2>
+              {description ? <p className="mt-0.5 text-xs text-ink-500">{description}</p> : null}
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Schließen">
+              <X className="h-4 w-4" />
+            </Button>
+          </header>
+          <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          {footer ? <footer className="flex justify-end gap-2 border-t border-ink-200 px-5 py-3.5">{footer}</footer> : null}
+        </aside>
+      </div>
+    </Portal>
   );
 }
 

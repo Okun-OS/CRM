@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { DateTimeInput, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { useReference, useContactOptions } from "@/components/app/reference-provider";
 import { api } from "@/lib/api-client";
 import { cleanPayload, FormError, useRecordForm } from "./form-kit";
@@ -13,6 +13,20 @@ export type RecordLinks = {
   dealId?: string;
   leadId?: string;
 };
+
+const HOUR_MS = 3_600_000;
+
+/**
+ * Verschiebt den Beginn und nimmt das Ende mit: Die bisherige Dauer bleibt,
+ * bei fehlender oder ungültiger Dauer wird es eine Stunde.
+ */
+function moveStart<T extends { startAt: string | null; endAt: string | null }>(values: T, startAt: string | null): T {
+  if (!startAt) return { ...values, startAt };
+  const previousStart = values.startAt ? new Date(values.startAt).getTime() : NaN;
+  const previousEnd = values.endAt ? new Date(values.endAt).getTime() : NaN;
+  const duration = previousEnd - previousStart > 0 ? previousEnd - previousStart : HOUR_MS;
+  return { ...values, startAt, endAt: new Date(new Date(startAt).getTime() + duration).toISOString() };
+}
 
 /** Task creation and editing. */
 export function TaskForm({
@@ -40,7 +54,7 @@ export function TaskForm({
     description: initial?.description ?? "",
     status: initial?.status ?? "OPEN",
     priority: initial?.priority ?? "MEDIUM",
-    dueAt: initial?.dueAt ? initial.dueAt.slice(0, 16) : "",
+    dueAt: initial?.dueAt ?? null,
     ownerId: initial?.ownerId ?? "",
   });
 
@@ -78,12 +92,7 @@ export function TaskForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Fällig am" htmlFor="dueAt" error={fieldErrors.dueAt}>
-          <Input
-            id="dueAt"
-            type="datetime-local"
-            value={values.dueAt}
-            onChange={(event) => setValues({ ...values, dueAt: event.target.value })}
-          />
+          <DateTimeInput id="dueAt" value={values.dueAt} onChange={(dueAt) => setValues({ ...values, dueAt })} />
         </Field>
         <Field label="Priorität" htmlFor="priority">
           <Select
@@ -186,7 +195,7 @@ export function ActivityForm({ links, onDone, onCancel }: { links: RecordLinks; 
     direction: "OUTBOUND",
     outcome: "",
     durationMinutes: "",
-    occurredAt: new Date().toISOString().slice(0, 16),
+    occurredAt: new Date().toISOString() as string | null,
   });
 
   const { pending, formError, fieldErrors, handleSubmit } = useRecordForm({
@@ -237,11 +246,10 @@ export function ActivityForm({ links, onDone, onCancel }: { links: RecordLinks; 
           </Select>
         </Field>
         <Field label="Zeitpunkt" htmlFor="occurredAt" error={fieldErrors.occurredAt}>
-          <Input
+          <DateTimeInput
             id="occurredAt"
-            type="datetime-local"
             value={values.occurredAt}
-            onChange={(event) => setValues({ ...values, occurredAt: event.target.value })}
+            onChange={(occurredAt) => setValues({ ...values, occurredAt })}
           />
         </Field>
         <Field label="Richtung" htmlFor="direction">
@@ -299,7 +307,16 @@ export function MeetingForm({
   onCancel,
 }: {
   links?: RecordLinks;
-  initial?: { id?: string; title?: string; startAt?: string; endAt?: string; location?: string | null; meetingUrl?: string | null; description?: string | null };
+  initial?: {
+    id?: string;
+    title?: string;
+    startAt?: string;
+    endAt?: string;
+    location?: string | null;
+    meetingUrl?: string | null;
+    description?: string | null;
+    ownerId?: string | null;
+  };
   onDone: () => void;
   onCancel?: () => void;
 }) {
@@ -308,16 +325,17 @@ export function MeetingForm({
   const [values, setValues] = React.useState({
     title: initial?.title ?? "",
     description: initial?.description ?? "",
-    startAt: (initial?.startAt ?? defaultStart.toISOString()).slice(0, 16),
-    endAt: (initial?.endAt ?? new Date(defaultStart.getTime() + 3_600_000).toISOString()).slice(0, 16),
+    startAt: (initial?.startAt ?? defaultStart.toISOString()) as string | null,
+    endAt: (initial?.endAt ?? new Date(defaultStart.getTime() + HOUR_MS).toISOString()) as string | null,
     location: initial?.location ?? "",
     meetingUrl: initial?.meetingUrl ?? "",
-    ownerId: "",
+    ownerId: initial?.ownerId ?? "",
   });
 
   const { pending, formError, fieldErrors, handleSubmit } = useRecordForm({
     submit: async () => {
-      const payload = cleanPayload({ ...values, ...links });
+      // Beim Bearbeiten heißt „— mir zuweisen —“ nicht „Owner entfernen“.
+      const payload = cleanPayload({ ...values, ownerId: initial?.id && !values.ownerId ? undefined : values.ownerId, ...links });
       return initial?.id ? api.patch(`/api/v1/meetings/${initial.id}`, payload) : api.post("/api/v1/meetings", payload);
     },
     onSuccess: onDone,
@@ -334,22 +352,10 @@ export function MeetingForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Beginn" htmlFor="startAt" error={fieldErrors.startAt} required>
-          <Input
-            id="startAt"
-            type="datetime-local"
-            value={values.startAt}
-            onChange={(event) => setValues({ ...values, startAt: event.target.value })}
-            required
-          />
+          <DateTimeInput id="startAt" value={values.startAt} onChange={(startAt) => setValues(moveStart(values, startAt))} required />
         </Field>
         <Field label="Ende" htmlFor="endAt" error={fieldErrors.endAt} required>
-          <Input
-            id="endAt"
-            type="datetime-local"
-            value={values.endAt}
-            onChange={(event) => setValues({ ...values, endAt: event.target.value })}
-            required
-          />
+          <DateTimeInput id="endAt" value={values.endAt} onChange={(endAt) => setValues({ ...values, endAt })} required />
         </Field>
         <Field label="Ort" htmlFor="location" error={fieldErrors.location}>
           <Input id="location" value={values.location ?? ""} onChange={(event) => setValues({ ...values, location: event.target.value })} />

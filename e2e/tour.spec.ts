@@ -110,10 +110,10 @@ test("4 · lässt sich abbrechen und drängt sich danach nicht erneut auf", asyn
   await expect(card(page)).toHaveCount(0);
 });
 
-test("5 · lässt sich über das Benutzermenü neu starten", async ({ page }) => {
+test("5 · lässt sich über den Knopf „Einführung“ neu starten", async ({ page }) => {
   await login(page);
-  await page.locator('[data-tour="topbar-user"]').click();
-  await page.getByText("Einführung starten").click();
+  await page.locator('[data-tour="topbar-tour"]').click();
+  await page.getByText(/^Tour (neu )?starten$/).click();
 
   await expect(card(page)).toBeVisible({ timeout: 10_000 });
   await expect(card(page)).toContainText("Einmal quer durch OKUN CRM");

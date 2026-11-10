@@ -199,7 +199,7 @@ export function TourOverlay() {
           <p className="text-2xs font-medium uppercase tracking-wider text-brand-600">Einführung pausiert</p>
           <h2 className="mt-1 text-sm font-semibold text-ink-900">Kapitel „{chapter.title}“ wartet</h2>
           <p className="mt-1.5 text-xs leading-relaxed text-ink-600">
-            Sie haben die Seite gewechselt. Sehen Sie sich in Ruhe um — die Einführung macht weiter,
+            Sie haben die Seite gewechselt. Sehen Sie sich in Ruhe um. Die Einführung macht weiter,
             sobald Sie zurückkehren.
           </p>
           <div className="mt-3 flex items-center justify-end gap-1.5">

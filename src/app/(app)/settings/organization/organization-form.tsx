@@ -72,7 +72,7 @@ export function OrganizationForm({ organization }: { organization: Organization 
               <Field label="Name" htmlFor="org-name" error={fieldErrors.name} required>
                 <Input id="org-name" value={values.name} onChange={(event) => setValues({ ...values, name: event.target.value })} required />
               </Field>
-              <Field label="Domain" htmlFor="org-domain" error={fieldErrors.domain}>
+              <Field label="Domain" htmlFor="org-domain" error={fieldErrors.domain} hint="Ohne „www.“ und „https://“, z. B. beispiel.de">
                 <Input id="org-domain" value={values.domain} onChange={(event) => setValues({ ...values, domain: event.target.value })} placeholder="beispiel.de" />
               </Field>
               <Field label="Branche" htmlFor="org-industry" error={fieldErrors.industry}>

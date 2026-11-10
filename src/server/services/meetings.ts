@@ -95,7 +95,10 @@ export async function listMeetings(ctx: ActorContext, query: z.infer<typeof meet
     where: {
       ...scope(ctx),
       deletedAt: null,
-      startAt: { gte: query.from, lte: query.to },
+      // Alles, was den Zeitraum berührt — auch ein Termin vom 10. bis 25.11.
+      // erscheint in der Woche vom 17.11., obwohl er vorher beginnt.
+      startAt: { lte: query.to },
+      endAt: { gte: query.from },
       ...(query.ownerId ? { ownerId: query.ownerId } : {}),
       ...(query.contactId ? { contactId: query.contactId } : {}),
       ...(query.companyId ? { companyId: query.companyId } : {}),

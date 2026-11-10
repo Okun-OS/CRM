@@ -65,7 +65,7 @@ export function CompanyForm({
           <Field label="Firmenname" htmlFor="name" error={fieldErrors.name} required className="sm:col-span-2">
             <Input id="name" value={values.name ?? ""} onChange={(event) => set("name", event.target.value)} autoFocus required />
           </Field>
-          <Field label="Domain" htmlFor="domain" error={fieldErrors.domain} hint="Ohne https:// – z. B. beispiel.de">
+          <Field label="Domain" htmlFor="domain" error={fieldErrors.domain} hint="Ohne „www.“ und „https://“, z. B. beispiel.de">
             <Input id="domain" value={values.domain ?? ""} onChange={(event) => set("domain", event.target.value)} />
           </Field>
           <Field label="Branche" htmlFor="industry" error={fieldErrors.industry}>
