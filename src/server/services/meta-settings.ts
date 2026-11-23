@@ -318,6 +318,12 @@ const importSchema = z.object({
     .array(z.string().trim().regex(/^\d{5,30}$/, "Eine Formular-ID besteht nur aus Ziffern."))
     .max(20)
     .optional(),
+  /**
+   * Einsendungen, deren Lead im CRM gelöscht wurde, neu anlegen. Ohne diese
+   * Wahl bleiben gelöschte Leads gelöscht — ein Import soll nichts
+   * zurückholen, das jemand absichtlich entfernt hat.
+   */
+  restoreDeleted: z.boolean().optional(),
 });
 
 /**
@@ -351,12 +357,15 @@ export async function importExistingMetaLeads(ctx: ActorContext, id: string, inp
   }
 
   const startedAt = new Date();
-  const perForm: { id: string; name: string; found: number; added: number; completed: number }[] = [];
+  const perForm: { id: string; name: string; found: number; added: number; completed: number; restored: number }[] = [];
   let found = 0;
   let added = 0;
   let completed = 0;
+  let restored = 0;
+  /** Gelöscht und nicht neu angelegt — die Oberfläche bietet dann die Option an. */
+  let deleted = 0;
   for (const form of forms) {
-    const entry = { id: form.id, name: form.name, found: 0, added: 0, completed: 0 };
+    const entry = { id: form.id, name: form.name, found: 0, added: 0, completed: 0, restored: 0 };
     perForm.push(entry);
     try {
       for await (const batch of fetchMetaFormLeads(form.id, token, data.since ?? undefined)) {
@@ -382,17 +391,44 @@ export async function importExistingMetaLeads(ctx: ActorContext, id: string, inp
             entry.added++;
           } catch (error) {
             if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
-            // Schon im CRM: fehlende Angaben ergänzen (etwa Name aus einer
-            // eigenen Frage, die eine frühere Version nicht erkannt hat).
             const known = await prisma.metaLeadEvent.findUnique({
               where: { leadgenId: lead.id },
-              select: { organizationId: true, leadId: true, status: true },
+              select: { id: true, organizationId: true, leadId: true, status: true },
             });
-            if (known?.organizationId === ctx.organizationId && known.leadId && (known.status === "CREATED" || known.status === "MERGED")) {
-              if (await completeMetaLead(ctx.organizationId, ctx.userId, known.leadId, lead.field_data)) {
+            if (known?.organizationId !== ctx.organizationId || (known.status !== "CREATED" && known.status !== "MERGED")) continue;
+            const live = known.leadId
+              ? await prisma.lead.findFirst({ where: { id: known.leadId, organizationId: ctx.organizationId, deletedAt: null }, select: { id: true } })
+              : null;
+            if (live) {
+              // Schon im CRM: fehlende Angaben ergänzen (etwa Name aus einer
+              // eigenen Frage, die eine frühere Version nicht erkannt hat).
+              if (await completeMetaLead(ctx.organizationId, ctx.userId, live.id, lead.field_data)) {
                 completed++;
                 entry.completed++;
               }
+            } else if (data.restoreDeleted) {
+              // Lead wurde gelöscht und soll neu entstehen: dieselbe Meldung
+              // noch einmal durchlaufen lassen, wie eine frisch importierte.
+              await prisma.metaLeadEvent.update({
+                where: { id: known.id },
+                data: {
+                  status: "PENDING",
+                  attempts: 0,
+                  nextAttemptAt: null,
+                  leadId: null,
+                  error: null,
+                  summary: Prisma.DbNull,
+                  processedAt: null,
+                  origin: "import",
+                  rawLead: raw as unknown as Prisma.InputJsonValue,
+                  importedById: ctx.userId,
+                  receivedAt: new Date(),
+                },
+              });
+              restored++;
+              entry.restored++;
+            } else {
+              deleted++;
             }
           }
         }
@@ -409,13 +445,30 @@ export async function importExistingMetaLeads(ctx: ActorContext, id: string, inp
     action: "meta_leads.imported",
     entityType: "IntegrationConnection",
     entityId: page.pageId,
-    after: { page: page.pageName, forms: perForm.map((form) => form.name), found, added, completed, since: data.since?.toISOString() ?? null },
+    after: {
+      page: page.pageName,
+      forms: perForm.map((form) => form.name),
+      found,
+      added,
+      completed,
+      restored,
+      since: data.since?.toISOString() ?? null,
+    },
   });
 
-  if (added > 0) {
+  if (added + restored > 0) {
     void processImportedMetaLeads(ctx.organizationId, ctx.userId, startedAt).catch((error) =>
       logError("meta.import_processing_failed", error, { organizationId: ctx.organizationId }),
     );
   }
-  return { forms: perForm, found, added, alreadyKnown: found - added, completed, limited: found >= IMPORT_LIMIT };
+  return {
+    forms: perForm,
+    found,
+    added,
+    alreadyKnown: found - added - restored,
+    completed,
+    restored,
+    deleted,
+    limited: found >= IMPORT_LIMIT,
+  };
 }

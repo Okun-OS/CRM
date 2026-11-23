@@ -457,11 +457,13 @@ function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promis
 }
 
 type ImportResult = {
-  forms: { id: string; name: string; found: number; added: number; completed: number }[];
+  forms: { id: string; name: string; found: number; added: number; completed: number; restored: number }[];
   found: number;
   added: number;
   alreadyKnown: number;
   completed: number;
+  restored: number;
+  deleted: number;
   limited: boolean;
 };
 
@@ -471,6 +473,7 @@ function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: b
   const [since, setSince] = React.useState("");
   const [formIds, setFormIds] = React.useState("");
   const [needsFormIds, setNeedsFormIds] = React.useState(false);
+  const [restoreDeleted, setRestoreDeleted] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<ImportResult | null>(null);
@@ -478,6 +481,7 @@ function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: b
   function close() {
     setResult(null);
     setError(null);
+    setRestoreDeleted(false);
     onClose();
   }
 
@@ -494,6 +498,7 @@ function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: b
       const response = await api.post<ImportResult>(`/api/v1/settings/meta/pages/${page.id}/import`, {
         since: sinceValue,
         formIds: formIds.split(/[,;\s]+/).filter(Boolean),
+        restoreDeleted,
       });
       setResult(response);
       await onImported();
@@ -530,10 +535,12 @@ function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: b
     >
       {result ? (
         <div className="space-y-3 text-sm text-ink-700">
-          {result.added > 0 ? (
+          {result.added + result.restored > 0 ? (
             <p>
-              <strong>{result.added}</strong> {result.added === 1 ? "Einsendung wird" : "Einsendungen werden"} jetzt übernommen
-              {result.alreadyKnown > 0 ? `, ${result.alreadyKnown} waren schon im CRM` : ""}. Sie erhalten eine Meldung in der Glocke,
+              <strong>{result.added + result.restored}</strong>{" "}
+              {result.added + result.restored === 1 ? "Einsendung wird" : "Einsendungen werden"} jetzt übernommen
+              {result.restored > 0 ? `, davon ${result.restored} zuvor gelöschte` : ""}
+              {result.alreadyKnown > 0 ? `; ${result.alreadyKnown} waren schon im CRM` : ""}. Sie erhalten eine Meldung in der Glocke,
               sobald alles angelegt ist.
             </p>
           ) : (
@@ -545,10 +552,19 @@ function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: b
               fehlende Angaben wie Name, E-Mail oder Telefon ergänzt.
             </p>
           ) : null}
+          {result.deleted > 0 ? (
+            <p className="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-800">
+              {result.deleted === 1 ? "Eine Einsendung gehört" : `${result.deleted} Einsendungen gehören`} zu Leads, die im CRM gelöscht
+              wurden, und {result.deleted === 1 ? "wurde" : "wurden"} übersprungen. Um sie neu anzulegen, den Import noch einmal mit
+              „Gelöschte Leads erneut anlegen“ starten.
+            </p>
+          ) : null}
           <ul className="space-y-1 text-xs text-ink-600">
             {result.forms.map((form) => (
               <li key={form.id}>
-                {form.name}: {form.found} gefunden, {form.added} neu{form.completed ? `, ${form.completed} ergänzt` : ""}
+                {form.name}: {form.found} gefunden, {form.added} neu
+                {form.restored ? `, ${form.restored} wieder angelegt` : ""}
+                {form.completed ? `, ${form.completed} ergänzt` : ""}
               </li>
             ))}
           </ul>
@@ -583,6 +599,15 @@ function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: b
               <Input id="import-forms" value={formIds} onChange={(event) => setFormIds(event.target.value)} placeholder="123456789012345" />
             </Field>
           ) : null}
+          <label className="flex items-start gap-2 text-sm text-ink-800">
+            <Checkbox className="mt-0.5" checked={restoreDeleted} onChange={(event) => setRestoreDeleted(event.target.checked)} />
+            <span>
+              Gelöschte Leads erneut anlegen
+              <span className="block text-xs text-ink-500">
+                Einsendungen, deren Lead im CRM gelöscht wurde, werden neu angelegt. Ohne Haken bleiben gelöschte Leads gelöscht.
+              </span>
+            </span>
+          </label>
           <p className="text-xs leading-relaxed text-ink-500">
             Übernommene Leads behalten ihr ursprüngliches Eingangsdatum und bekommen keine einzelne E-Mail. Was schon im CRM ist,
             wird übersprungen, ein zweiter Import holt also nur Neues.

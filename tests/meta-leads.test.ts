@@ -14,6 +14,7 @@ import {
   updateMetaPage,
 } from "@/server/services/meta-settings";
 import { GET as verifyWebhook, POST as postWebhook } from "@/app/api/integrations/meta/webhook/route";
+import { deleteLead } from "@/server/services/leads";
 import { createTestOrganization } from "./setup/factories";
 
 /**
@@ -528,8 +529,8 @@ describe("Bestehende Leads importieren", () => {
     const result = await importExistingMetaLeads(ctx, page.id, {});
     expect(result).toMatchObject({ found: 3, added: 3, alreadyKnown: 0, limited: false });
     expect(result.forms).toEqual([
-      { id: "111111", name: "Rückruf", found: 2, added: 2, completed: 0 },
-      { id: "222222", name: "Angebot", found: 1, added: 1, completed: 0 },
+      { id: "111111", name: "Rückruf", found: 2, added: 2, completed: 0, restored: 0 },
+      { id: "222222", name: "Angebot", found: 1, added: 1, completed: 0, restored: 0 },
     ]);
 
     await vi.waitFor(
@@ -584,6 +585,39 @@ describe("Bestehende Leads importieren", () => {
 
     // Ein dritter Lauf hat nichts mehr zu ergänzen.
     expect(await importExistingMetaLeads(ctx, page.id, {})).toMatchObject({ completed: 0 });
+  });
+
+  it("legt gelöschte Leads nur auf ausdrücklichen Wunsch neu an", async () => {
+    const { ctx, page, pageId, organization } = await connectedWorkspace();
+    stubForms(pageId);
+    const summaries = () => prisma.notification.count({ where: { userId: ctx.userId, type: "IMPORT_COMPLETED", organizationId: organization.id } });
+    await importExistingMetaLeads(ctx, page.id, {});
+    await vi.waitFor(async () => expect(await summaries()).toBe(1), { timeout: 15_000, interval: 100 });
+
+    // Annas Lead (zwei Einsendungen) wird gelöscht.
+    const anna = await prisma.lead.findFirstOrThrow({ where: { organizationId: organization.id, lastName: "Eins" } });
+    await deleteLead(ctx, anna.id);
+
+    // Ohne Haken bleibt er gelöscht — die Oberfläche weist darauf hin.
+    const skipped = await importExistingMetaLeads(ctx, page.id, {});
+    expect(skipped).toMatchObject({ found: 3, added: 0, restored: 0, deleted: 2, alreadyKnown: 3 });
+    expect(await prisma.lead.count({ where: { organizationId: organization.id, deletedAt: null } })).toBe(1);
+
+    // Mit Haken entsteht er neu, beide Einsendungen wieder an einem Lead.
+    const restored = await importExistingMetaLeads(ctx, page.id, { restoreDeleted: true });
+    expect(restored).toMatchObject({ found: 3, added: 0, restored: 2, deleted: 0, alreadyKnown: 1 });
+    await vi.waitFor(async () => expect(await summaries()).toBe(2), { timeout: 15_000, interval: 100 });
+    const live = await prisma.lead.findMany({ where: { organizationId: organization.id, deletedAt: null }, orderBy: { createdAt: "asc" } });
+    expect(live.map((lead) => [lead.firstName, lead.lastName, lead.createdAt.toISOString()])).toEqual([
+      ["Anna", "Eins", "2026-08-01T09:00:00.000Z"],
+      ["Bernd", "Zwei", "2026-08-02T10:00:00.000Z"],
+    ]);
+    expect(live[0].id).not.toBe(anna.id);
+    expect(await prisma.note.count({ where: { leadId: live[0].id } })).toBe(2);
+    expect(resendMails()).toHaveLength(0);
+
+    // Danach ist alles wieder „schon im CRM“.
+    expect(await importExistingMetaLeads(ctx, page.id, { restoreDeleted: true })).toMatchObject({ added: 0, restored: 0, deleted: 0 });
   });
 
   it("grenzt auf einen Zeitraum ein und fragt nach der Formular-ID, wenn Meta die Liste verweigert", async () => {

@@ -142,7 +142,13 @@ Zeitraum wählbar (alles, 30 oder 90 Tage, ab Datum). Ein zweiter Import
 Angaben (Name, E-Mail, Telefon, Firma, Position), etwa wenn eine frühere
 Version eine eigene Frage nicht erkannt hat. Was schon dasteht, auch von Hand
 Eingetragenes, bleibt unverändert; nur der Platzhalter „Unbekannt“ gilt als
-leer. Je Lauf höchstens 5000 Einsendungen. Gibt Meta
+leer.
+
+Im CRM gelöschte Leads bleiben beim Import gelöscht (das CRM merkt sich jede
+Einsendung, damit nichts doppelt entsteht). Mit dem Haken **„Gelöschte Leads
+erneut anlegen“** laufen ihre Einsendungen noch einmal durch und entstehen
+neu, mehrere Einsendungen derselben Person wieder an einem Lead. Ohne Haken
+nennt das Ergebnis, wie viele wegen Löschung übersprungen wurden. Je Lauf höchstens 5000 Einsendungen. Gibt Meta
 die Liste der Formulare nicht heraus, fragt das CRM nach der Formular-ID
 (Werbeanzeigenmanager → Formulare). Wie weit zurück Meta Einsendungen über
 die Schnittstelle herausgibt, ist in Metas Doku nicht festgelegt.

@@ -8,7 +8,14 @@ export const POST = route<{ id: string }>(
     importExistingMetaLeads(
       ctx,
       params.id,
-      await readBody(req, z.object({ since: z.string().nullable().optional(), formIds: z.array(z.string()).optional() })),
+      await readBody(
+        req,
+        z.object({
+          since: z.string().nullable().optional(),
+          formIds: z.array(z.string()).optional(),
+          restoreDeleted: z.boolean().optional(),
+        }),
+      ),
     ),
   { permission: "settings.manage" },
 );
