@@ -8,11 +8,11 @@ import { logError, logInfo, logWarn } from "@/lib/logger";
 import type { ActorContext } from "@/lib/context";
 import { emailField } from "@/lib/schemas/crm";
 import { contextForApiKey } from "./api-keys";
-import { createLead } from "./leads";
+import { createLead, updateLead } from "./leads";
 import { createNote } from "./notes";
 import { notify } from "./notifications";
 import { fetchMetaFormName, fetchMetaLead, MetaApiError, type MetaLead } from "@/server/integrations/meta";
-import { leadNotificationMail, type LeadNotificationInput } from "@/server/integrations/lead-notification-mail";
+import { answerLine, leadNotificationMail, type LeadNotificationInput } from "@/server/integrations/lead-notification-mail";
 
 /**
  * Meta Lead Ads → CRM.
@@ -110,18 +110,125 @@ export async function recordMetaWebhook(payload: unknown): Promise<{ recorded: s
 
 /* ── 2. Abholen und anlegen ────────────────────────────────────────────── */
 
-/** Bekannte Meta-Fragen → Lead-Felder. Alles andere landet als Antwort in der Notiz. */
-const STANDARD_FIELDS: Record<string, "fullName" | "firstName" | "lastName" | "email" | "phone" | "companyName" | "jobTitle"> = {
-  full_name: "fullName",
-  first_name: "firstName",
-  last_name: "lastName",
-  email: "email",
-  work_email: "email",
-  phone_number: "phone",
-  work_phone_number: "phone",
-  company_name: "companyName",
-  job_title: "jobTitle",
+type LeadField = "fullName" | "firstName" | "lastName" | "email" | "phone" | "companyName" | "jobTitle";
+
+/**
+ * Fragen → Lead-Felder. Metas Standardfragen heißen `full_name`, `email` …;
+ * eigene Fragen tragen als Schlüssel ihren Text („Vollständiger Name“ →
+ * `vollständiger_name`). Verglichen wird deshalb der vereinfachte Schlüssel
+ * (klein, ohne Umlaute und Sonderzeichen, ohne „Ihr/Ihre/Dein …“ davor).
+ * Alles andere landet als Antwort in der Notiz.
+ */
+const FIELD_SYNONYMS: Record<LeadField, string[]> = {
+  fullName: [
+    "full_name",
+    "name",
+    "vollstaendiger_name",
+    "voller_name",
+    "kompletter_name",
+    "vor_und_nachname",
+    "vor_und_zuname",
+    "vorname_und_nachname",
+    "vorname_nachname",
+    "kontaktname",
+    "ansprechpartner",
+    "ansprechpartnerin",
+  ],
+  firstName: ["first_name", "firstname", "vorname"],
+  lastName: ["last_name", "lastname", "surname", "nachname", "familienname", "zuname"],
+  email: [
+    "email",
+    "work_email",
+    "e_mail",
+    "email_adresse",
+    "e_mail_adresse",
+    "emailadresse",
+    "mail",
+    "mail_adresse",
+    "geschaeftliche_e_mail",
+    "geschaeftliche_email",
+    "geschaeftliche_e_mail_adresse",
+  ],
+  phone: [
+    "phone_number",
+    "work_phone_number",
+    "phone",
+    "mobile",
+    "mobile_number",
+    "telefon",
+    "telefonnummer",
+    "telefon_nummer",
+    "handy",
+    "handynummer",
+    "mobil",
+    "mobilnummer",
+    "mobilfunknummer",
+    "rufnummer",
+    "whatsapp",
+    "whatsapp_nummer",
+  ],
+  companyName: [
+    "company_name",
+    "company",
+    "firma",
+    "firmenname",
+    "name_der_firma",
+    "unternehmen",
+    "unternehmensname",
+    "name_des_unternehmens",
+    "betrieb",
+  ],
+  jobTitle: ["job_title", "position", "jobtitel", "berufsbezeichnung", "beruf", "funktion", "rolle"],
 };
+
+const FIELD_BY_KEY = new Map<string, LeadField>(
+  (Object.entries(FIELD_SYNONYMS) as [LeadField, string[]][]).flatMap(([field, keys]) => keys.map((key) => [key, field] as const)),
+);
+
+const LEADING_WORDS = new Set(["ihr", "ihre", "ihren", "dein", "deine", "deinen", "your", "bitte", "wie", "lautet", "ist", "please"]);
+
+/** `Wie lautet Ihre E-Mail-Adresse?` → `e_mail_adresse` */
+export function normaliseMetaKey(key: string): string {
+  const parts = key
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  while (parts.length > 1 && LEADING_WORDS.has(parts[0])) parts.shift();
+  return parts.join("_");
+}
+
+function looksLikePhone(value: string): boolean {
+  return /^[+()\d\s/.-]+$/.test(value) && value.replace(/\D/g, "").length >= 6;
+}
+
+/**
+ * Feld für eine Frage: erst die bekannten Schlüssel, dann Fragen, die nach
+ * E-Mail oder Telefon klingen — die aber nur, wenn die Antwort auch so aussieht.
+ */
+function fieldFor(name: string, value: string): LeadField | null {
+  const key = normaliseMetaKey(name);
+  const known = FIELD_BY_KEY.get(key);
+  if (known) return known;
+  if (/(^|_)e?_?mail(_|$)|email/.test(key) && emailField.safeParse(value).success) return "email";
+  if (/telefon|phone|handy|mobilnummer|mobilfunk|rufnummer|whatsapp/.test(key) && looksLikePhone(value)) return "phone";
+  return null;
+}
+
+/**
+ * Antwortoptionen kommen als Schlüssel (`zeit_im_arbeitsalltag_sparen`) —
+ * lesbar machen, ohne echte Eingaben (Adressen, Links, Sätze) anzufassen.
+ */
+function readableOption(value: string): string {
+  if (!value.includes("_") || /\s/.test(value) || value.includes("@") || /^https?:/i.test(value)) return value;
+  const text = value.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : value;
+}
 
 const ANSWER_LABELS: Record<string, string> = {
   city: "Ort",
@@ -171,16 +278,28 @@ export function mapMetaFields(fieldData: MetaLead["field_data"]): MappedMetaLead
   let fullName: string | null = null;
 
   for (const field of fieldData ?? []) {
-    const value = (field.values ?? []).map((item) => String(item).trim()).filter(Boolean).join(", ");
+    const items = (field.values ?? []).map((item) => String(item).trim()).filter(Boolean);
+    const value = items.join(", ");
     if (!value) continue;
-    const target = STANDARD_FIELDS[field.name];
-    if (target === "fullName") fullName = value;
+    const answer = { label: ANSWER_LABELS[field.name] ?? humanizeQuestion(field.name), value: items.map(readableOption).join(", ") };
+    const target = fieldFor(field.name, value);
+    if (target === "fullName" && !fullName) fullName = value.slice(0, 160);
     else if (target === "email") {
       const email = emailField.safeParse(value);
       if (email.success && !result.email) result.email = email.data;
       else result.answers.push({ label: ANSWER_LABELS[field.name] ?? "E-Mail", value });
-    } else if (target && !result[target]) result[target] = value.slice(0, MAX_LENGTH[target]);
-    else result.answers.push({ label: ANSWER_LABELS[field.name] ?? humanizeQuestion(field.name), value });
+    } else if (target && target !== "fullName" && !result[target]) result[target] = value.slice(0, MAX_LENGTH[target]);
+    else result.answers.push(answer);
+  }
+
+  // Keine E-Mail-Frage erkannt, aber genau eine Antwort ist eine Adresse:
+  // Das ist mit großer Sicherheit die E-Mail der Person.
+  if (!result.email) {
+    const addresses = result.answers.filter((row) => emailField.safeParse(row.value).success);
+    if (addresses.length === 1) {
+      result.email = emailField.parse(addresses[0].value);
+      result.answers = result.answers.filter((row) => row !== addresses[0]);
+    }
   }
 
   if (fullName && !result.firstName && !result.lastName) {
@@ -200,7 +319,7 @@ function platformLabel(platform: string | undefined): string {
 }
 
 function displayName(mapped: MappedMetaLead): string {
-  return [mapped.firstName, mapped.lastName].filter(Boolean).join(" ") || mapped.companyName || mapped.email || mapped.phone || "Unbekannt";
+  return [mapped.firstName, mapped.lastName].filter(Boolean).join(" ") || mapped.companyName || mapped.email || mapped.phone || UNKNOWN_NAME;
 }
 
 function leadUrl(leadId: string): string {
@@ -221,6 +340,56 @@ async function systemContext(organizationId: string, preferUserId: string | null
     },
     { preferCreator: true },
   );
+}
+
+/** Platzhalter, wenn eine Einsendung weder Name noch Firma, E-Mail oder Telefon enthält. */
+const UNKNOWN_NAME = "Unbekannt";
+
+/**
+ * Ergänzt einen schon übernommenen Lead um Angaben aus der Einsendung, die
+ * beim ersten Mal nicht erkannt wurden (z. B. eigene Fragen wie
+ * „Vollständiger Name“). Überschreibt nichts, was schon dasteht, auch keine
+ * Änderung von Hand; nur der Platzhalter „Unbekannt“ gilt als leer.
+ */
+export async function completeMetaLead(
+  organizationId: string,
+  userId: string | null,
+  leadId: string,
+  fieldData: MetaLead["field_data"],
+): Promise<boolean> {
+  const lead = await prisma.lead.findFirst({
+    where: { id: leadId, organizationId, deletedAt: null, convertedAt: null },
+    select: { firstName: true, lastName: true, email: true, phone: true, companyName: true, jobTitle: true, contactId: true },
+  });
+  if (!lead) return false;
+  const mapped = mapMetaFields(fieldData);
+  const update: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string;
+    phone?: string;
+    companyName?: string;
+    jobTitle?: string;
+    contactId?: string;
+  } = {};
+  if (!lead.firstName && lead.lastName === UNKNOWN_NAME && (mapped.lastName || mapped.firstName)) {
+    update.lastName = mapped.lastName ?? mapped.firstName;
+    update.firstName = mapped.lastName ? mapped.firstName : null;
+  }
+  if (!lead.email && mapped.email) update.email = mapped.email;
+  if (!lead.phone && mapped.phone) update.phone = mapped.phone;
+  if (!lead.companyName && mapped.companyName) update.companyName = mapped.companyName;
+  if (!lead.jobTitle && mapped.jobTitle) update.jobTitle = mapped.jobTitle;
+  if (update.email && !lead.contactId) {
+    const contact = await prisma.contact.findFirst({
+      where: { organizationId, deletedAt: null, email: { equals: update.email, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (contact) update.contactId = contact.id;
+  }
+  if (Object.keys(update).length === 0) return false;
+  await updateLead(await systemContext(organizationId, userId), leadId, update);
+  return true;
 }
 
 /** Erster nicht abschließender Lead-Status („Neu“). */
@@ -320,7 +489,7 @@ async function importEvent(event: {
     const identified = Boolean(mapped.lastName || mapped.companyName || mapped.email || mapped.phone);
     const created = await createLead(ctx, {
       firstName: identified ? mapped.firstName : null,
-      lastName: identified ? mapped.lastName : (mapped.firstName ?? "Unbekannt"),
+      lastName: identified ? mapped.lastName : (mapped.firstName ?? UNKNOWN_NAME),
       email: mapped.email,
       phone: mapped.phone,
       companyName: mapped.companyName,
@@ -342,7 +511,7 @@ async function importEvent(event: {
   const noteLines = [
     existing ? `Erneute Anfrage über ${origin[0].value}.` : `Eingegangen über ${origin[0].value}.`,
     ...(imported ? ["(Nachträglich aus Meta übernommen.)"] : []),
-    ...(mapped.answers.length ? ["", "Antworten aus dem Formular:", ...mapped.answers.map((row) => `• ${row.label}: ${row.value}`)] : []),
+    ...(mapped.answers.length ? ["", "Antworten aus dem Formular:", ...mapped.answers.map((row) => `• ${answerLine(row)}`)] : []),
     "",
     ...origin.slice(1).map((row) => `${row.label}: ${row.value}`),
   ];

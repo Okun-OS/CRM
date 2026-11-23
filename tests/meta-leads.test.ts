@@ -311,7 +311,8 @@ describe("Webhook", () => {
     });
     const note = await prisma.note.findFirstOrThrow({ where: { leadId: lead.id } });
     expect(note.body).toContain("Instagram-Formular „Rückruf anfordern“");
-    expect(note.body).toContain("Wann dürfen wir anrufen?: Vormittags");
+    // Nach einem Fragezeichen kein Doppelpunkt.
+    expect(note.body).toContain("Wann dürfen wir anrufen? Vormittags");
     expect(note.body).toContain("Kampagne: Herbstaktion 2026");
     expect(await prisma.notification.count({ where: { userId: ctx.userId, type: "LEAD_RECEIVED", entityId: lead.id } })).toBe(1);
 
@@ -396,6 +397,55 @@ describe("Fehler und Wiederholung", () => {
 });
 
 describe("Zuordnung der Formularfelder", () => {
+  it("erkennt eigene Fragen auf Deutsch und macht Antwortoptionen lesbar", () => {
+    expect(
+      mapMetaFields([
+        { name: "was_möchten_sie_in_ihrem_unternehmen_verbessern?", values: ["zeit_im_arbeitsalltag_sparen"] },
+        { name: "telefonnummer", values: ["+4368864111317"] },
+        { name: "vollständiger_name", values: ["Wardak Ajmal"] },
+        {
+          name: "was_trifft_auf_ihr_unternehmen_zu?",
+          values: ["viele_abläufe_laufen_noch_manuell", "wir_möchten_ki_einsetzen,_wissen_aber_nicht_wo"],
+        },
+        { name: "e-mail-adresse", values: ["wardak@example.com"] },
+      ]),
+    ).toEqual({
+      firstName: "Wardak",
+      lastName: "Ajmal",
+      email: "wardak@example.com",
+      phone: "+4368864111317",
+      companyName: null,
+      jobTitle: null,
+      answers: [
+        { label: "Was möchten sie in ihrem unternehmen verbessern?", value: "Zeit im arbeitsalltag sparen" },
+        {
+          label: "Was trifft auf ihr unternehmen zu?",
+          value: "Viele abläufe laufen noch manuell, Wir möchten ki einsetzen, wissen aber nicht wo",
+        },
+      ],
+    });
+  });
+
+  it("ordnet frei formulierte Fragen nur zu, wenn die Antwort passt", () => {
+    const mapped = mapMetaFields([
+      { name: "Wie lautet Ihre Handynummer?", values: ["0170 1234567"] },
+      { name: "nutzen_sie_schon_ein_telefonsystem?", values: ["ja"] },
+      { name: "Ihr Vorname", values: ["Lea"] },
+      { name: "Nachname", values: ["Muster"] },
+      { name: "Firmenname", values: ["Muster GmbH"] },
+      { name: "kontakt", values: ["lea@muster.de"] },
+    ]);
+    expect(mapped).toMatchObject({
+      firstName: "Lea",
+      lastName: "Muster",
+      phone: "0170 1234567",
+      companyName: "Muster GmbH",
+      // Keine E-Mail-Frage erkannt, aber genau eine Antwort ist eine Adresse.
+      email: "lea@muster.de",
+      answers: [{ label: "Nutzen sie schon ein telefonsystem?", value: "ja" }],
+    });
+  });
+
   it("erkennt Standardfragen und hält alles andere als Antwort fest", () => {
     expect(
       mapMetaFields([
@@ -478,8 +528,8 @@ describe("Bestehende Leads importieren", () => {
     const result = await importExistingMetaLeads(ctx, page.id, {});
     expect(result).toMatchObject({ found: 3, added: 3, alreadyKnown: 0, limited: false });
     expect(result.forms).toEqual([
-      { id: "111111", name: "Rückruf", found: 2, added: 2 },
-      { id: "222222", name: "Angebot", found: 1, added: 1 },
+      { id: "111111", name: "Rückruf", found: 2, added: 2, completed: 0 },
+      { id: "222222", name: "Angebot", found: 1, added: 1, completed: 0 },
     ]);
 
     await vi.waitFor(
@@ -504,7 +554,36 @@ describe("Bestehende Leads importieren", () => {
 
     // Ein zweiter Import findet dieselben Einsendungen und übernimmt nichts doppelt.
     const again = await importExistingMetaLeads(ctx, page.id, {});
-    expect(again).toMatchObject({ found: 3, added: 0, alreadyKnown: 3 });
+    expect(again).toMatchObject({ found: 3, added: 0, alreadyKnown: 3, completed: 0 });
+  });
+
+  it("ergänzt beim erneuten Import Angaben, die beim ersten Mal nicht erkannt wurden — ohne Handänderungen zu überschreiben", async () => {
+    const { ctx, page, pageId, organization } = await connectedWorkspace();
+    stubForms(pageId);
+    await importExistingMetaLeads(ctx, page.id, {});
+    await vi.waitFor(
+      async () => {
+        expect(await prisma.notification.count({ where: { userId: ctx.userId, type: "IMPORT_COMPLETED", organizationId: organization.id } })).toBe(1);
+      },
+      { timeout: 15_000, interval: 100 },
+    );
+    const [anna, bernd] = await prisma.lead.findMany({ where: { organizationId: organization.id }, orderBy: { createdAt: "asc" } });
+
+    // So sahen Leads aus, deren Fragen eine frühere Version nicht kannte …
+    await prisma.lead.update({ where: { id: anna.id }, data: { firstName: null, lastName: "Unbekannt", email: null } });
+    // … und hier hat jemand den Namen schon von Hand eingetragen.
+    await prisma.lead.update({ where: { id: bernd.id }, data: { firstName: null, lastName: "Zwei-Handschrift", email: null } });
+
+    const again = await importExistingMetaLeads(ctx, page.id, {});
+    expect(again).toMatchObject({ added: 0, completed: 2 });
+    const after = await prisma.lead.findMany({ where: { organizationId: organization.id }, orderBy: { createdAt: "asc" } });
+    expect(after.map((lead) => [lead.firstName, lead.lastName, lead.email])).toEqual([
+      ["Anna", "Eins", `anna-${pageId}@kunde.de`.toLowerCase()],
+      [null, "Zwei-Handschrift", `bernd-${pageId}@kunde.de`.toLowerCase()],
+    ]);
+
+    // Ein dritter Lauf hat nichts mehr zu ergänzen.
+    expect(await importExistingMetaLeads(ctx, page.id, {})).toMatchObject({ completed: 0 });
   });
 
   it("grenzt auf einen Zeitraum ein und fragt nach der Formular-ID, wenn Meta die Liste verweigert", async () => {

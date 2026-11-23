@@ -457,10 +457,11 @@ function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promis
 }
 
 type ImportResult = {
-  forms: { id: string; name: string; found: number; added: number }[];
+  forms: { id: string; name: string; found: number; added: number; completed: number }[];
   found: number;
   added: number;
   alreadyKnown: number;
+  completed: number;
   limited: boolean;
 };
 
@@ -509,7 +510,7 @@ function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: b
       open={open}
       onClose={close}
       title="Bestehende Leads importieren"
-      description={`Übernimmt Formular-Einsendungen von „${page.pageName}“, die vor dem Verbinden eingegangen sind.`}
+      description={`Übernimmt Formular-Einsendungen von „${page.pageName}“, die vor dem Verbinden eingegangen sind. Leads, die schon im CRM sind, werden um fehlende Angaben wie Name, E-Mail oder Telefon ergänzt.`}
       footer={
         result ? (
           <Button variant="primary" onClick={close}>
@@ -529,15 +530,25 @@ function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: b
     >
       {result ? (
         <div className="space-y-3 text-sm text-ink-700">
-          <p>
-            <strong>{result.added}</strong> {result.added === 1 ? "Einsendung wird" : "Einsendungen werden"} jetzt übernommen
-            {result.alreadyKnown > 0 ? `, ${result.alreadyKnown} waren schon im CRM` : ""}. Sie erhalten eine Meldung in der Glocke, sobald
-            alles angelegt ist.
-          </p>
+          {result.added > 0 ? (
+            <p>
+              <strong>{result.added}</strong> {result.added === 1 ? "Einsendung wird" : "Einsendungen werden"} jetzt übernommen
+              {result.alreadyKnown > 0 ? `, ${result.alreadyKnown} waren schon im CRM` : ""}. Sie erhalten eine Meldung in der Glocke,
+              sobald alles angelegt ist.
+            </p>
+          ) : (
+            <p>Keine neuen Einsendungen{result.alreadyKnown > 0 ? `: Alle ${result.alreadyKnown} waren schon im CRM` : ""}.</p>
+          )}
+          {result.completed > 0 ? (
+            <p>
+              Bei <strong>{result.completed}</strong> {result.completed === 1 ? "Lead, der schon im CRM war, wurden" : "Leads, die schon im CRM waren, wurden"}{" "}
+              fehlende Angaben wie Name, E-Mail oder Telefon ergänzt.
+            </p>
+          ) : null}
           <ul className="space-y-1 text-xs text-ink-600">
             {result.forms.map((form) => (
               <li key={form.id}>
-                {form.name}: {form.found} gefunden, {form.added} neu
+                {form.name}: {form.found} gefunden, {form.added} neu{form.completed ? `, ${form.completed} ergänzt` : ""}
               </li>
             ))}
           </ul>

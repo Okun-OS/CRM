@@ -12,7 +12,15 @@ und einem Knopf zur Akte.
    App-Geheimnis signiert. Das CRM prüft die Signatur und antwortet sofort.
 2. Das CRM holt die Angaben mit dem gespeicherten Seiten-Token ab
    (`GET /{leadgen_id}`) und legt den Lead an:
-   - Name, E-Mail, Telefon, Unternehmen und Position aus den Standardfragen.
+   - Name, E-Mail, Telefon, Unternehmen und Position aus den Standardfragen
+     (`full_name`, `email`, `phone_number` …) und aus eigenen Fragen wie
+     „Vollständiger Name“, „Telefonnummer“, „E-Mail-Adresse“, „Vorname“,
+     „Firma“ (deutsch und englisch, auch mit „Ihr/Ihre …“ davor). Fragen, die
+     nur nach Telefon oder E-Mail *klingen*, zählen nur, wenn die Antwort auch
+     wie eine Nummer bzw. Adresse aussieht.
+   - Antwortoptionen kommen von Meta als Schlüssel
+     (`zeit_im_arbeitsalltag_sparen`); in Notiz und E-Mail stehen sie lesbar
+     („Zeit im arbeitsalltag sparen“).
    - Quelle `Meta Lead Ads (Facebook)` bzw. `(Instagram)`, Status „Neu“.
    - Verantwortlich ist die in den Einstellungen gewählte Person, sonst die
      Person, die verbunden hat.
@@ -130,7 +138,11 @@ kennt, über denselben Weg wie live gemeldete Leads, mit drei Unterschieden:
   auch über die 90 Tage hinaus.
 
 Zeitraum wählbar (alles, 30 oder 90 Tage, ab Datum). Ein zweiter Import
-übernimmt nur, was neu ist. Je Lauf höchstens 5000 Einsendungen. Gibt Meta
+übernimmt nur, was neu ist, und ergänzt bei schon übernommenen Leads fehlende
+Angaben (Name, E-Mail, Telefon, Firma, Position), etwa wenn eine frühere
+Version eine eigene Frage nicht erkannt hat. Was schon dasteht, auch von Hand
+Eingetragenes, bleibt unverändert; nur der Platzhalter „Unbekannt“ gilt als
+leer. Je Lauf höchstens 5000 Einsendungen. Gibt Meta
 die Liste der Formulare nicht heraus, fragt das CRM nach der Formular-ID
 (Werbeanzeigenmanager → Formulare). Wie weit zurück Meta Einsendungen über
 die Schnittstelle herausgibt, ist in Metas Doku nicht festgelegt.

@@ -74,7 +74,7 @@ export function leadNotificationMail(input: LeadNotificationInput): { subject: s
   </table>
 </body></html>`;
 
-  const textRows = (items: { label: string; value: string }[]) => items.map((row) => `${row.label}: ${row.value}`);
+  const textRows = (items: { label: string; value: string }[]) => items.map(answerLine);
   const text = [
     input.test ? "PROBE AUS DEN EINSTELLUNGEN, KEIN ECHTER LEAD" : null,
     input.repeat ? "Erneute Anfrage zu einem offenen Lead" : "Ein neuer Lead ist eingegangen",
@@ -89,6 +89,11 @@ export function leadNotificationMail(input: LeadNotificationInput): { subject: s
     .join("\n");
 
   return { subject, html, text };
+}
+
+/** „Frage?: Antwort“ liest sich holprig — nach Fragezeichen kein Doppelpunkt. */
+export function answerLine(row: { label: string; value: string }): string {
+  return `${row.label}${/[?:]$/.test(row.label) ? "" : ":"} ${row.value}`;
 }
 
 function escapeHtml(value: string): string {

@@ -25,7 +25,7 @@ import {
   unsubscribePage,
 } from "@/server/integrations/meta";
 import { Prisma } from "@/generated/prisma/client";
-import { processImportedMetaLeads, processMetaLeadEvent, sendLeadNotification, type ImportedMetaLead } from "./meta-leads";
+import { completeMetaLead, processImportedMetaLeads, processMetaLeadEvent, sendLeadNotification, type ImportedMetaLead } from "./meta-leads";
 
 /**
  * Einstellungen → Integrationen → Meta Lead Ads.
@@ -351,11 +351,12 @@ export async function importExistingMetaLeads(ctx: ActorContext, id: string, inp
   }
 
   const startedAt = new Date();
-  const perForm: { id: string; name: string; found: number; added: number }[] = [];
+  const perForm: { id: string; name: string; found: number; added: number; completed: number }[] = [];
   let found = 0;
   let added = 0;
+  let completed = 0;
   for (const form of forms) {
-    const entry = { id: form.id, name: form.name, found: 0, added: 0 };
+    const entry = { id: form.id, name: form.name, found: 0, added: 0, completed: 0 };
     perForm.push(entry);
     try {
       for await (const batch of fetchMetaFormLeads(form.id, token, data.since ?? undefined)) {
@@ -381,6 +382,18 @@ export async function importExistingMetaLeads(ctx: ActorContext, id: string, inp
             entry.added++;
           } catch (error) {
             if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+            // Schon im CRM: fehlende Angaben ergänzen (etwa Name aus einer
+            // eigenen Frage, die eine frühere Version nicht erkannt hat).
+            const known = await prisma.metaLeadEvent.findUnique({
+              where: { leadgenId: lead.id },
+              select: { organizationId: true, leadId: true, status: true },
+            });
+            if (known?.organizationId === ctx.organizationId && known.leadId && (known.status === "CREATED" || known.status === "MERGED")) {
+              if (await completeMetaLead(ctx.organizationId, ctx.userId, known.leadId, lead.field_data)) {
+                completed++;
+                entry.completed++;
+              }
+            }
           }
         }
         if (found >= IMPORT_LIMIT) break;
@@ -396,7 +409,7 @@ export async function importExistingMetaLeads(ctx: ActorContext, id: string, inp
     action: "meta_leads.imported",
     entityType: "IntegrationConnection",
     entityId: page.pageId,
-    after: { page: page.pageName, forms: perForm.map((form) => form.name), found, added, since: data.since?.toISOString() ?? null },
+    after: { page: page.pageName, forms: perForm.map((form) => form.name), found, added, completed, since: data.since?.toISOString() ?? null },
   });
 
   if (added > 0) {
@@ -404,5 +417,5 @@ export async function importExistingMetaLeads(ctx: ActorContext, id: string, inp
       logError("meta.import_processing_failed", error, { organizationId: ctx.organizationId }),
     );
   }
-  return { forms: perForm, found, added, alreadyKnown: found - added, limited: found >= IMPORT_LIMIT };
+  return { forms: perForm, found, added, alreadyKnown: found - added, completed, limited: found >= IMPORT_LIMIT };
 }
