@@ -2,8 +2,16 @@ import { createHmac, randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { mapMetaFields, processDueMetaLeads, processMetaLeadEvent, recordMetaWebhook } from "@/server/services/meta-leads";
-import { connectMetaPages, lookupMetaPages, retryMetaLeadEvent, sendMetaTestNotification, updateMetaPage } from "@/server/services/meta-settings";
+import {
+  connectMetaPages,
+  importExistingMetaLeads,
+  lookupMetaPages,
+  retryMetaLeadEvent,
+  sendMetaTestNotification,
+  updateMetaPage,
+} from "@/server/services/meta-settings";
 import { GET as verifyWebhook, POST as postWebhook } from "@/app/api/integrations/meta/webhook/route";
 import { createTestOrganization } from "./setup/factories";
 
@@ -320,5 +328,101 @@ describe("Test-E-Mail", () => {
     const result = await sendMetaTestNotification(ctx, page.id);
     expect(result.sent).toBe(true);
     expect(resendMails()[0].subject).toBe("[Test] Neuer Lead: Erika Musterfrau");
+  });
+});
+
+describe("Bestehende Leads importieren", () => {
+  /** Zwei Formulare, eines mit zwei Seiten; eine Person hat in beiden geantwortet. */
+  function stubForms(pageId: string, options: { formsUnavailable?: boolean } = {}) {
+    const original = globalThis.fetch;
+    const lead = (id: string, name: string, email: string, created: string) => ({
+      id,
+      created_time: created,
+      form_id: id.startsWith("A") ? "111111" : "222222",
+      platform: "fb",
+      field_data: [
+        { name: "full_name", values: [name] },
+        { name: "email", values: [email] },
+      ],
+    });
+    vi.stubGlobal("fetch", async (input: string, init?: RequestInit) => {
+      const url = new URL(input);
+      const path = url.pathname.replace(/^\/v[\d.]+\//, "");
+      if (path === `${pageId}/leadgen_forms`) {
+        calls.push({ method: "GET", url, body: "" });
+        if (options.formsUnavailable) return json({ error: { message: "(#100) Unsupported get request", code: 100 } }, 400);
+        return json({ data: [{ id: "111111", name: "Rückruf" }, { id: "222222", name: "Angebot" }] });
+      }
+      if (path === "111111/leads") {
+        calls.push({ method: "GET", url, body: "" });
+        return url.searchParams.get("after")
+          ? json({ data: [lead(`A2-${pageId}`, "Bernd Zwei", `bernd-${pageId}@kunde.de`, "2026-08-02T10:00:00+0000")] })
+          : json({
+              data: [lead(`A1-${pageId}`, "Anna Eins", `anna-${pageId}@kunde.de`, "2026-08-01T09:00:00+0000")],
+              paging: { cursors: { after: "WEITER" }, next: "https://graph.facebook.com/next" },
+            });
+      }
+      if (path === "222222/leads") {
+        calls.push({ method: "GET", url, body: "" });
+        return json({ data: [lead(`B1-${pageId}`, "Anna Eins", `anna-${pageId}@kunde.de`, "2026-09-15T12:00:00+0000")] });
+      }
+      if (path === "111111" || path === "222222") return json({ id: path, name: path === "111111" ? "Rückruf" : "Angebot" });
+      return original(input, init);
+    });
+  }
+
+  it("übernimmt alle Einsendungen ohne Einzel-E-Mail, mit Eingangsdatum und Abschlussmeldung", async () => {
+    const { ctx, page, pageId, organization } = await connectedWorkspace();
+    stubForms(pageId);
+    calls = [];
+
+    const result = await importExistingMetaLeads(ctx, page.id, {});
+    expect(result).toMatchObject({ found: 3, added: 3, alreadyKnown: 0, limited: false });
+    expect(result.forms).toEqual([
+      { id: "111111", name: "Rückruf", found: 2, added: 2 },
+      { id: "222222", name: "Angebot", found: 1, added: 1 },
+    ]);
+
+    await vi.waitFor(
+      async () => {
+        expect(await prisma.notification.count({ where: { userId: ctx.userId, type: "IMPORT_COMPLETED", organizationId: organization.id } })).toBe(1);
+      },
+      { timeout: 15_000, interval: 100 },
+    );
+
+    const leads = await prisma.lead.findMany({ where: { organizationId: organization.id }, orderBy: { createdAt: "asc" } });
+    expect(leads.map((lead) => [lead.firstName, lead.lastName, lead.createdAt.toISOString()])).toEqual([
+      ["Anna", "Eins", "2026-08-01T09:00:00.000Z"],
+      ["Bernd", "Zwei", "2026-08-02T10:00:00.000Z"],
+    ]);
+    // Annas zweite Einsendung hängt an ihrem Lead statt einen zweiten anzulegen.
+    expect(await prisma.note.count({ where: { leadId: leads[0].id } })).toBe(2);
+    expect(resendMails()).toHaveLength(0);
+    expect(await prisma.notification.count({ where: { userId: ctx.userId, type: "LEAD_RECEIVED", organizationId: organization.id } })).toBe(0);
+    const summary = await prisma.notification.findFirstOrThrow({ where: { userId: ctx.userId, type: "IMPORT_COMPLETED", organizationId: organization.id } });
+    expect(summary.body).toBe("2 neu angelegt, 1 zu offenen Leads hinzugefügt");
+    expect(await prisma.metaLeadEvent.count({ where: { organizationId: organization.id, rawLead: { not: Prisma.DbNull } } })).toBe(0);
+
+    // Ein zweiter Import findet dieselben Einsendungen und übernimmt nichts doppelt.
+    const again = await importExistingMetaLeads(ctx, page.id, {});
+    expect(again).toMatchObject({ found: 3, added: 0, alreadyKnown: 3 });
+  });
+
+  it("grenzt auf einen Zeitraum ein und fragt nach der Formular-ID, wenn Meta die Liste verweigert", async () => {
+    const { ctx, page, pageId } = await connectedWorkspace();
+    stubForms(pageId, { formsUnavailable: true });
+
+    await expect(importExistingMetaLeads(ctx, page.id, {})).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      details: { fields: { formIds: expect.any(String) } },
+    });
+
+    calls = [];
+    const result = await importExistingMetaLeads(ctx, page.id, { formIds: ["222222"], since: "2026-09-01" });
+    expect(result).toMatchObject({ found: 1, added: 1, forms: [{ id: "222222", name: "Angebot", found: 1, added: 1 }] });
+    const request = calls.find((call) => call.url.pathname.endsWith("222222/leads"))!;
+    expect(JSON.parse(request.url.searchParams.get("filtering")!)).toEqual([
+      { field: "time_created", operator: "GREATER_THAN", value: Math.floor(new Date("2026-09-01").getTime() / 1000) },
+    ]);
   });
 });

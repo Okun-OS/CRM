@@ -206,3 +206,55 @@ export async function fetchMetaFormName(formId: string, pageToken: string): Prom
     return null;
   }
 }
+
+export type MetaLeadForm = { id: string; name: string; status: string | null; leadsCount: number | null };
+
+/**
+ * Lead-Formulare einer Seite. Meta dokumentiert das Lesen dieser Liste nicht
+ * eindeutig — scheitert es, fragt die Oberfläche nach der Formular-ID.
+ */
+export async function listMetaLeadForms(pageId: string, pageToken: string): Promise<MetaLeadForm[]> {
+  const forms: MetaLeadForm[] = [];
+  let after: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const result = await graph<{
+      data?: { id: string; name?: string; status?: string; leads_count?: number }[];
+      paging?: { cursors?: { after?: string }; next?: string };
+    }>("GET", `${pageId}/leadgen_forms`, pageToken, { fields: "id,name,status,leads_count", limit: 100, after });
+    for (const form of result.data ?? []) {
+      forms.push({ id: form.id, name: form.name ?? form.id, status: form.status ?? null, leadsCount: form.leads_count ?? null });
+    }
+    after = result.paging?.next ? result.paging.cursors?.after : undefined;
+    if (!after) break;
+  }
+  return forms;
+}
+
+/**
+ * Alle Einsendungen eines Formulars, seitenweise (je 100). `since` grenzt auf
+ * neuere Einsendungen ein. Lehnt Meta die Kampagnenfelder ab (Code 100), geht
+ * es mit den Grundfeldern weiter.
+ */
+export async function* fetchMetaFormLeads(formId: string, pageToken: string, since?: Date): AsyncGenerator<MetaLead[]> {
+  let fields = LEAD_FIELDS_WITH_AD;
+  let after: string | undefined;
+  const filtering = since
+    ? JSON.stringify([{ field: "time_created", operator: "GREATER_THAN", value: Math.floor(since.getTime() / 1000) }])
+    : undefined;
+  for (let page = 0; page < 500; page++) {
+    let result: { data?: MetaLead[]; paging?: { cursors?: { after?: string }; next?: string } };
+    try {
+      result = await graph("GET", `${formId}/leads`, pageToken, { fields, limit: 100, after, filtering });
+    } catch (error) {
+      if (error instanceof MetaApiError && error.code === 100 && fields !== LEAD_FIELDS) {
+        fields = LEAD_FIELDS;
+        page--;
+        continue;
+      }
+      throw error;
+    }
+    if (result.data?.length) yield result.data;
+    after = result.paging?.next ? result.paging.cursors?.after : undefined;
+    if (!after) return;
+  }
+}

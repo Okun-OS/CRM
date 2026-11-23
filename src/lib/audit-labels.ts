@@ -101,6 +101,7 @@ const ACTIONS: Record<string, string> = {
   "active_crm.settings_updated": "Einstellungen des aktiven CRM geändert",
   "reply.reclassified": "Antwort neu eingestuft",
   "prospects.imported": "Prospects importiert",
+  "meta_leads.imported": "Meta-Leads importiert",
   "import.completed": "Import abgeschlossen",
   "recall.set": "Wiedervorlage gesetzt",
   "sequence.enrolled": "In Sequenz aufgenommen",

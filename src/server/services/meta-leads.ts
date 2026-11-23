@@ -246,14 +246,28 @@ async function activeMember(organizationId: string, userId: string | null | unde
 export type MetaLeadOutcome = { status: "CREATED" | "MERGED"; leadId: string; emailSent: boolean; emailReason: string | null };
 
 /** Holt eine gemeldete Einsendung ab und legt sie im CRM an. Wirft bei Fehlern. */
-async function importEvent(event: { id: string; organizationId: string; pageId: string; leadgenId: string; formId: string | null }) {
+/** Beim Import mitgegebener Formularname — erspart einen Abruf je Lead. */
+export type ImportedMetaLead = MetaLead & { _formName?: string | null };
+
+async function importEvent(event: {
+  id: string;
+  organizationId: string;
+  pageId: string;
+  leadgenId: string;
+  formId: string | null;
+  origin: string;
+  rawLead: unknown;
+}) {
   const page = await prisma.metaLeadPage.findUnique({ where: { pageId: event.pageId } });
   if (!page || page.organizationId !== event.organizationId) throw new Error("Die Facebook-Seite ist nicht mehr verbunden.");
   const token = decryptSecret(page.tokenCipher);
+  // Ein Import bringt keine Einzel-E-Mails: 80 alte Leads sind keine 80 Neuigkeiten.
+  const imported = event.origin === "import";
 
-  const raw = await fetchMetaLead(event.leadgenId, token);
+  const prefetched = (event.rawLead ?? null) as ImportedMetaLead | null;
+  const raw: ImportedMetaLead = prefetched ?? (await fetchMetaLead(event.leadgenId, token));
   const formId = raw.form_id ?? event.formId;
-  const formName = formId ? await fetchMetaFormName(formId, token) : null;
+  const formName = raw._formName !== undefined ? raw._formName : formId ? await fetchMetaFormName(formId, token) : null;
   const mapped = mapMetaFields(raw.field_data);
   const platform = platformLabel(raw.platform);
 
@@ -283,7 +297,8 @@ async function importEvent(event: { id: string; organizationId: string; pageId: 
           convertedAt: null,
           email: { equals: mapped.email, mode: "insensitive" },
           status: { notIn: terminal },
-          createdAt: { gte: new Date(Date.now() - MERGE_WINDOW_DAYS * 86_400_000) },
+          // Beim Import gilt jeder offene Lead der Person — auch ein älterer.
+          ...(imported ? {} : { createdAt: { gte: new Date(Date.now() - MERGE_WINDOW_DAYS * 86_400_000) } }),
         },
         orderBy: { createdAt: "desc" },
         select: { id: true },
@@ -317,10 +332,16 @@ async function importEvent(event: { id: string; organizationId: string; pageId: 
       companyId: contact?.companyId ?? undefined,
     });
     leadId = created.id;
+    // Beim Import zählt, wann die Anfrage wirklich kam — nicht der Importtag.
+    const submittedAt = raw.created_time ? new Date(raw.created_time) : null;
+    if (imported && submittedAt && !Number.isNaN(submittedAt.getTime())) {
+      await prisma.lead.update({ where: { id: leadId }, data: { createdAt: submittedAt } });
+    }
   }
 
   const noteLines = [
     existing ? `Erneute Anfrage über ${origin[0].value}.` : `Eingegangen über ${origin[0].value}.`,
+    ...(imported ? ["(Nachträglich aus Meta übernommen.)"] : []),
     ...(mapped.answers.length ? ["", "Antworten aus dem Formular:", ...mapped.answers.map((row) => `• ${row.label}: ${row.value}`)] : []),
     "",
     ...origin.slice(1).map((row) => `${row.label}: ${row.value}`),
@@ -328,27 +349,29 @@ async function importEvent(event: { id: string; organizationId: string; pageId: 
   await createNote(ctx, { leadId, body: noteLines.join("\n") });
 
   const name = displayName(mapped);
-  await notify(ctx, {
-    userId: owner,
-    type: "LEAD_RECEIVED",
-    title: existing ? `Erneute Anfrage: ${name}` : `Neuer Lead: ${name}`,
-    body: origin[0].value,
-    link: `/leads/${leadId}`,
-    entityType: "Lead",
-    entityId: leadId,
-  });
-
-  const mail = await sendLeadNotification(ctx, page.notifyEmails, {
-    leadName: name,
-    leadUrl: leadUrl(leadId),
-    email: mapped.email,
-    phone: mapped.phone,
-    companyName: mapped.companyName,
-    jobTitle: mapped.jobTitle,
-    answers: mapped.answers,
-    origin,
-    repeat: Boolean(existing),
-  });
+  let mail: { sent: boolean; reason?: string } = { sent: false, reason: "Import: keine Einzel-E-Mail." };
+  if (!imported) {
+    await notify(ctx, {
+      userId: owner,
+      type: "LEAD_RECEIVED",
+      title: existing ? `Erneute Anfrage: ${name}` : `Neuer Lead: ${name}`,
+      body: origin[0].value,
+      link: `/leads/${leadId}`,
+      entityType: "Lead",
+      entityId: leadId,
+    });
+    mail = await sendLeadNotification(ctx, page.notifyEmails, {
+      leadName: name,
+      leadUrl: leadUrl(leadId),
+      email: mapped.email,
+      phone: mapped.phone,
+      companyName: mapped.companyName,
+      jobTitle: mapped.jobTitle,
+      answers: mapped.answers,
+      origin,
+      repeat: Boolean(existing),
+    });
+  }
 
   return {
     outcome: { status: existing ? ("MERGED" as const) : ("CREATED" as const), leadId, emailSent: mail.sent, emailReason: mail.reason ?? null },
@@ -433,6 +456,8 @@ export async function processMetaLeadEvent(eventId: string, now = new Date()): P
           status: outcome.status,
           leadId: outcome.leadId,
           summary: summary as Prisma.InputJsonValue,
+          // Die Angaben stehen jetzt am Lead; keine zweite Kopie aufbewahren.
+          rawLead: Prisma.DbNull,
           error: null,
           nextAttemptAt: null,
           processedAt: new Date(),
@@ -482,4 +507,40 @@ export async function processDueMetaLeads(limit = 20, now = new Date()): Promise
   let done = 0;
   for (const event of due) if (await processMetaLeadEvent(event.id, now)) done++;
   return done;
+}
+
+/**
+ * Arbeitet einen Import im Hintergrund ab und meldet am Ende im CRM, wie
+ * viele Leads übernommen wurden. Bricht der Server ab, macht der
+ * Zustell-Worker mit dem Rest weiter — nur die Abschlussmeldung fehlt dann.
+ */
+export async function processImportedMetaLeads(organizationId: string, userId: string, startedAt: Date): Promise<void> {
+  const where = { organizationId, origin: "import", importedById: userId, receivedAt: { gte: startedAt } };
+  for (let round = 0; round < 500; round++) {
+    const due = await prisma.metaLeadEvent.findMany({
+      where: { ...where, status: { in: ["PENDING", "FAILED"] }, attempts: { lt: MAX_ATTEMPTS }, OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: new Date() } }] },
+      orderBy: { receivedAt: "asc" },
+      take: 25,
+      select: { id: true },
+    });
+    if (due.length === 0) break;
+    for (const event of due) await processMetaLeadEvent(event.id);
+  }
+
+  const counts = await prisma.metaLeadEvent.groupBy({ by: ["status"], where, _count: true });
+  const count = (status: string) => counts.find((row) => row.status === status)?._count ?? 0;
+  const ctx = await systemContext(organizationId, userId);
+  await notify(ctx, {
+    userId,
+    type: "IMPORT_COMPLETED",
+    title: "Meta-Leads übernommen",
+    body: [
+      `${count("CREATED")} neu angelegt`,
+      count("MERGED") ? `${count("MERGED")} zu offenen Leads hinzugefügt` : null,
+      count("FAILED") ? `${count("FAILED")} fehlgeschlagen (Details unter Integrationen → Meta Lead Ads)` : null,
+    ]
+      .filter(Boolean)
+      .join(", "),
+    link: "/leads",
+  });
 }

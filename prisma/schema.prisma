@@ -2352,6 +2352,13 @@ model MetaLeadEvent {
   /// Nächster Versuch; dient beim Verarbeiten zugleich als Reservierung.
   nextAttemptAt  DateTime?
   leadId         String?
+  /// „webhook“ (live gemeldet) oder „import“ (nachträglich übernommen —
+  /// ohne Einzel-E-Mail, mit dem ursprünglichen Eingangszeitpunkt).
+  origin         String         @default("webhook")
+  /// Beim Import schon abgeholte Angaben; erspart den zweiten Abruf.
+  rawLead        Json?
+  /// Wer den Import gestartet hat — bekommt am Ende die Zusammenfassung.
+  importedById   String?
   /// Name aus dem Formular und Herkunft — für das Protokoll in den Einstellungen.
   summary        Json?
   error          String?

@@ -2,16 +2,17 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, Copy, ExternalLink, Mail, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, Download, ExternalLink, Mail, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime as formatDateTimeNow } from "@/lib/format";
+import { useHydrated } from "@/components/ui/use-hydrated";
 import { useReference } from "@/components/app/reference-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ConfirmDialog } from "@/components/ui/modal";
+import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { DataTable, Td, Th, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 
@@ -31,6 +32,7 @@ type Page = {
 type LeadEvent = {
   id: string;
   pageId: string;
+  origin: string;
   status: "PENDING" | "CREATED" | "MERGED" | "FAILED";
   attempts: number;
   leadId: string | null;
@@ -157,19 +159,16 @@ function SetupCard({ overview, onCopy }: { overview: Overview; onCopy: (value: s
               <code className="font-mono">META_WEBHOOK_VERIFY_TOKEN</code> eine beliebige lange Zeichenfolge wählen.
             </li>
             <li>Das Produkt <strong>Webhooks</strong> hinzufügen und wie oben beschrieben einrichten.</li>
-            <li>Die App auf <strong>Live</strong> stellen (dafür verlangt Meta die Adresse Ihrer Datenschutzerklärung).</li>
             <li>Im Abschnitt unten mit einem Zugriffstoken die Facebook-Seite verbinden.</li>
             <li>
-              Mit dem{" "}
-              <a
-                href="https://developers.facebook.com/tools/lead-ads-testing"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-brand-600 hover:underline"
-              >
-                Lead-Ads-Testtool
-              </a>{" "}
-              einen Testlead abschicken. Er erscheint nach wenigen Sekunden unten und als Lead im CRM.
+              Testen: Im Entwicklungsmodus liest die App nur Leads von Personen mit einer Rolle in der App. Füllen Sie das
+              Formular also selbst aus, etwa über die Vorschau der Anzeige. Der Lead erscheint nach wenigen Sekunden unten
+              und im CRM.
+            </li>
+            <li>
+              Für echte Leads: Bei Meta die App-Prüfung für <code className="font-mono">leads_retrieval</code> und{" "}
+              <code className="font-mono">pages_manage_ads</code> sowie die Unternehmensverifizierung beantragen, danach die
+              App auf <strong>Live</strong> stellen.
             </li>
           </ol>
         </details>
@@ -296,12 +295,15 @@ function ConnectCard({ overview, onConnected }: { overview: Overview; onConnecte
 }
 
 function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promise<void> }) {
+  const hydrated = useHydrated();
+  const formatDateTime = (value: string) => (hydrated ? formatDateTimeNow(value) : "");
   const toast = useToast();
   const { data } = useReference();
   const [ownerId, setOwnerId] = React.useState(page.ownerId ?? "");
   const [emails, setEmails] = React.useState(page.notifyEmails.join(", "));
   const [busy, setBusy] = React.useState<"save" | "test" | "toggle" | "remove" | null>(null);
   const [removing, setRemoving] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
 
   async function save() {
     setBusy("save");
@@ -421,7 +423,12 @@ function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promis
         <Button size="sm" icon={<Mail className="h-3.5 w-3.5" />} loading={busy === "test"} onClick={() => void test()}>
           Test-E-Mail senden
         </Button>
+        <Button size="sm" icon={<Download className="h-3.5 w-3.5" />} onClick={() => setImporting(true)}>
+          Bestehende Leads importieren
+        </Button>
       </div>
+
+      <ImportDialog page={page} open={importing} onClose={() => setImporting(false)} onImported={onChanged} />
 
       <ConfirmDialog
         open={removing}
@@ -436,7 +443,135 @@ function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promis
   );
 }
 
+type ImportResult = {
+  forms: { id: string; name: string; found: number; added: number }[];
+  found: number;
+  added: number;
+  alreadyKnown: number;
+  limited: boolean;
+};
+
+/** Übernimmt Einsendungen, die vor dem Verbinden eingegangen sind. */
+function ImportDialog({ page, open, onClose, onImported }: { page: Page; open: boolean; onClose: () => void; onImported: () => Promise<void> }) {
+  const [range, setRange] = React.useState<"all" | "30" | "90" | "date">("all");
+  const [since, setSince] = React.useState("");
+  const [formIds, setFormIds] = React.useState("");
+  const [needsFormIds, setNeedsFormIds] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [result, setResult] = React.useState<ImportResult | null>(null);
+
+  function close() {
+    setResult(null);
+    setError(null);
+    onClose();
+  }
+
+  async function start() {
+    setBusy(true);
+    setError(null);
+    const sinceValue =
+      range === "all"
+        ? null
+        : range === "date"
+          ? since || null
+          : new Date(Date.now() - Number(range) * 86_400_000).toISOString();
+    try {
+      const response = await api.post<ImportResult>(`/api/v1/settings/meta/pages/${page.id}/import`, {
+        since: sinceValue,
+        formIds: formIds.split(/[,;\s]+/).filter(Boolean),
+      });
+      setResult(response);
+      await onImported();
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.fields.formIds) setNeedsFormIds(true);
+      setError(cause instanceof ApiError ? cause.message : "Der Import ist fehlgeschlagen.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title="Bestehende Leads importieren"
+      description={`Übernimmt Formular-Einsendungen von „${page.pageName}“, die vor dem Verbinden eingegangen sind.`}
+      footer={
+        result ? (
+          <Button variant="primary" onClick={close}>
+            Fertig
+          </Button>
+        ) : (
+          <>
+            <Button onClick={close} disabled={busy}>
+              Abbrechen
+            </Button>
+            <Button variant="primary" loading={busy} disabled={range === "date" && !since} onClick={() => void start()}>
+              Importieren
+            </Button>
+          </>
+        )
+      }
+    >
+      {result ? (
+        <div className="space-y-3 text-sm text-ink-700">
+          <p>
+            <strong>{result.added}</strong> {result.added === 1 ? "Einsendung wird" : "Einsendungen werden"} jetzt übernommen
+            {result.alreadyKnown > 0 ? `, ${result.alreadyKnown} waren schon im CRM` : ""}. Sie erhalten eine Meldung in der Glocke, sobald
+            alles angelegt ist.
+          </p>
+          <ul className="space-y-1 text-xs text-ink-600">
+            {result.forms.map((form) => (
+              <li key={form.id}>
+                {form.name}: {form.found} gefunden, {form.added} neu
+              </li>
+            ))}
+          </ul>
+          {result.limited ? (
+            <p className="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-800">
+              Es waren mehr als 5000 Einsendungen. Den Rest übernimmt ein weiterer Import.
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {error ? <p className="rounded-md bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p> : null}
+          <Field label="Zeitraum" htmlFor="import-range">
+            <Select id="import-range" value={range} onChange={(event) => setRange(event.target.value as typeof range)}>
+              <option value="all">Alles, was Meta noch liefert</option>
+              <option value="30">Letzte 30 Tage</option>
+              <option value="90">Letzte 90 Tage</option>
+              <option value="date">Ab einem Datum</option>
+            </Select>
+          </Field>
+          {range === "date" ? (
+            <Field label="Ab" htmlFor="import-since">
+              <Input id="import-since" type="date" value={since} onChange={(event) => setSince(event.target.value)} />
+            </Field>
+          ) : null}
+          {needsFormIds ? (
+            <Field
+              label="Formular-ID"
+              htmlFor="import-forms"
+              hint="Im Werbeanzeigenmanager unter „Formulare“ (Formularbibliothek) die ID des Formulars kopieren. Mehrere mit Komma trennen."
+            >
+              <Input id="import-forms" value={formIds} onChange={(event) => setFormIds(event.target.value)} placeholder="123456789012345" />
+            </Field>
+          ) : null}
+          <p className="text-xs leading-relaxed text-ink-500">
+            Übernommene Leads behalten ihr ursprüngliches Eingangsdatum und bekommen keine einzelne E-Mail. Was schon im CRM ist,
+            wird übersprungen, ein zweiter Import holt also nur Neues.
+          </p>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function EventsCard({ events, pages, onChanged }: { events: LeadEvent[]; pages: Page[]; onChanged: () => Promise<void> }) {
+  const hydrated = useHydrated();
+  const formatDateTime = (value: string) => (hydrated ? formatDateTimeNow(value) : "");
   const toast = useToast();
   const [retrying, setRetrying] = React.useState<string | null>(null);
   const pageName = (pageId: string) => pages.find((page) => page.pageId === pageId)?.pageName;
@@ -501,6 +636,7 @@ function EventsCard({ events, pages, onChanged }: { events: LeadEvent[]; pages: 
                 </Td>
                 <Td className="text-xs">
                   <Badge tone={STATUS[event.status].tone}>{STATUS[event.status].label}</Badge>
+                  {event.origin === "import" ? <Badge tone="neutral">Import</Badge> : null}
                   {event.status === "FAILED" ? (
                     <span className="mt-1 block max-w-xs text-2xs text-danger-700">
                       {event.error}

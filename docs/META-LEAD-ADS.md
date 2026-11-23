@@ -64,7 +64,9 @@ Railway startet den Dienst danach neu.
    (steht auch zum Kopieren in den CRM-Einstellungen),
    *Bestätigungs-Token*: der Wert von `META_WEBHOOK_VERIFY_TOKEN`.
 3. Das Feld **leadgen** abonnieren.
-4. Die App auf **Live** stellen.
+4. Für echte Leads: App-Prüfung und Unternehmensverifizierung beantragen und
+   die App danach auf **Live** stellen (siehe „Zugriff und Prüfung durch
+   Meta“). Zum Testen geht es vorher schon im Entwicklungsmodus.
 
 ### 4. Seite im CRM verbinden
 
@@ -86,20 +88,46 @@ Die Person, deren Token verwendet wird, braucht auf der Seite die Aufgabe
 
 ### 5. Testen
 
-Mit dem [Lead-Ads-Testtool](https://developers.facebook.com/tools/lead-ads-testing)
-Seite und Formular wählen und einen Testlead abschicken. Er erscheint nach
-wenigen Sekunden in den Einstellungen unter „Zuletzt eingegangen“ und als
-Lead im CRM, die E-Mail geht an die eingestellten Adressen. Je Formular kann
-es nur einen Testlead geben; vor dem nächsten den alten im Testtool löschen.
+Im Entwicklungsmodus das eigene Formular selbst ausfüllen (Vorschau der
+Anzeige), mit einem Konto, das in der App eine Rolle hat. Ist die App live,
+geht es auch mit dem
+[Lead-Ads-Testtool](https://developers.facebook.com/tools/lead-ads-testing)
+(je Formular ein Testlead; vor dem nächsten den alten löschen). Der Lead
+erscheint nach wenigen Sekunden in den Einstellungen unter „Zuletzt
+eingegangen“ und im CRM, die E-Mail geht an die eingestellten Adressen.
+
+## Bestehende Leads importieren
+
+In den Einstellungen bei der verbundenen Seite: **Bestehende Leads
+importieren**. Das CRM holt die Einsendungen aller Lead-Formulare der Seite
+(`GET /{form-id}/leads`, seitenweise) und übernimmt jede, die es noch nicht
+kennt, über denselben Weg wie live gemeldete Leads, mit drei Unterschieden:
+
+- keine einzelne E-Mail und kein Hinweis je Lead, stattdessen am Ende eine
+  Zusammenfassung in der Glocke („12 neu angelegt, 2 zu offenen Leads
+  hinzugefügt“);
+- der Lead trägt das ursprüngliche Eingangsdatum;
+- eine Person mit mehreren Einsendungen wird zu einem Lead zusammengeführt,
+  auch über die 90 Tage hinaus.
+
+Zeitraum wählbar (alles, 30 oder 90 Tage, ab Datum). Ein zweiter Import
+übernimmt nur, was neu ist. Je Lauf höchstens 5000 Einsendungen. Gibt Meta
+die Liste der Formulare nicht heraus, fragt das CRM nach der Formular-ID
+(Werbeanzeigenmanager → Formulare). Wie weit zurück Meta Einsendungen über
+die Schnittstelle herausgibt, ist in Metas Doku nicht festgelegt.
 
 ## Zugriff und Prüfung durch Meta
 
-Für die eigene Seite genügt der **Standardzugriff**: Er gilt für Personen,
-die in der App eine Rolle haben (Administrator, Entwickler, Tester). Eine
-App-Prüfung durch Meta ist dafür nicht nötig. Sollen später auch Kunden des
-CRM ihre eigenen Seiten verbinden, braucht die App **Advanced Access** für
-die Berechtigungen oben, und damit eine Unternehmensverifizierung und eine
-App-Prüfung durch Meta.
+Laut Metas Doku zu Lead Ads (Stand November 2026):
+
+- **Entwicklungsmodus:** Die App liest nur Leads, die von Personen mit einer
+  Rolle in der App abgeschickt wurden. Zum Testen reicht das: das eigene
+  Formular selbst ausfüllen, etwa über die Vorschau der Anzeige.
+- **Echte Leads:** Dafür muss die App **live** sein, und Meta verlangt eine
+  **App-Prüfung** für `leads_retrieval` und `pages_manage_ads` sowie die
+  **Unternehmensverifizierung** (Handelsregisterauszug o. Ä.). Für die
+  Prüfung will Meta eine kurze Bildschirmaufnahme sehen: Seite im CRM
+  verbinden, Testlead abschicken, Lead erscheint im CRM.
 
 ## Technik
 

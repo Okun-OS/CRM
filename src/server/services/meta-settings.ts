@@ -8,9 +8,12 @@ import { assertFound, scope } from "@/lib/tenant";
 import { writeAudit } from "@/lib/audit";
 import { Conflict, ValidationError } from "@/lib/api/errors";
 import { emailField } from "@/lib/schemas/crm";
-import { logWarn } from "@/lib/logger";
+import { logError, logWarn } from "@/lib/logger";
 import {
   exchangeForLongLivedToken,
+  fetchMetaFormLeads,
+  fetchMetaFormName,
+  listMetaLeadForms,
   listMetaPages,
   META_REQUIRED_PERMISSIONS,
   metaGraphVersion,
@@ -19,7 +22,8 @@ import {
   subscribePage,
   unsubscribePage,
 } from "@/server/integrations/meta";
-import { processMetaLeadEvent, sendLeadNotification } from "./meta-leads";
+import { Prisma } from "@/generated/prisma/client";
+import { processImportedMetaLeads, processMetaLeadEvent, sendLeadNotification, type ImportedMetaLead } from "./meta-leads";
 
 /**
  * Einstellungen → Integrationen → Meta Lead Ads.
@@ -61,6 +65,7 @@ export async function getMetaOverview(ctx: ActorContext) {
       id: event.id,
       pageId: event.pageId,
       status: event.status,
+      origin: event.origin,
       attempts: event.attempts,
       leadId: event.leadId,
       summary: (event.summary ?? null) as Record<string, unknown> | null,
@@ -271,4 +276,106 @@ export async function retryMetaLeadEvent(ctx: ActorContext, id: string) {
   const outcome = await processMetaLeadEvent(event.id);
   const after = await prisma.metaLeadEvent.findUniqueOrThrow({ where: { id: event.id }, select: { status: true, error: true, leadId: true } });
   return { ok: Boolean(outcome), status: after.status, error: after.error, leadId: after.leadId };
+}
+
+/* ── Bestehende Leads übernehmen ───────────────────────────────────────── */
+
+/** Höchstens so viele Einsendungen je Import — reicht für Jahre an Formularen. */
+const IMPORT_LIMIT = 5000;
+
+const importSchema = z.object({
+  /** Nur Einsendungen ab diesem Tag; ohne Angabe alle, die Meta noch liefert. */
+  since: z.coerce.date().nullable().optional(),
+  /** Formular-IDs, falls Meta die Liste der Formulare nicht herausgibt. */
+  formIds: z
+    .array(z.string().trim().regex(/^\d{5,30}$/, "Eine Formular-ID besteht nur aus Ziffern."))
+    .max(20)
+    .optional(),
+});
+
+/**
+ * Holt alle Einsendungen der Formulare einer Seite und hält jede, die das CRM
+ * noch nicht kennt, zur Übernahme fest. Angelegt wird danach im Hintergrund —
+ * ohne Einzel-E-Mail, mit dem ursprünglichen Eingangszeitpunkt. Ein zweiter
+ * Import übernimmt nur, was neu dazugekommen ist.
+ */
+export async function importExistingMetaLeads(ctx: ActorContext, id: string, input: z.input<typeof importSchema>) {
+  assertPermission(ctx, "settings.manage");
+  const data = importSchema.parse(input);
+  const page = assertFound(await prisma.metaLeadPage.findFirst({ where: { id, ...scope(ctx) } }), "Die Seite wurde nicht gefunden.");
+  const token = decryptSecret(page.tokenCipher);
+
+  let forms: { id: string; name: string }[];
+  if (data.formIds?.length) {
+    forms = [];
+    for (const formId of Array.from(new Set(data.formIds))) forms.push({ id: formId, name: (await fetchMetaFormName(formId, token)) ?? formId });
+  } else {
+    try {
+      forms = (await listMetaLeadForms(page.pageId, token)).map((form) => ({ id: form.id, name: form.name }));
+    } catch (error) {
+      // Ist das Token ungültig, hilft auch eine Formular-ID nicht weiter.
+      if (error instanceof MetaApiError && error.tokenInvalid) throw ValidationError(error.message);
+      throw ValidationError(
+        `Meta hat die Liste der Formulare nicht herausgegeben (${error instanceof Error ? error.message : "unbekannter Grund"}). Bitte die Formular-ID angeben.`,
+        { fields: { formIds: "Formular-ID aus dem Werbeanzeigenmanager → Formulare" } },
+      );
+    }
+    if (forms.length === 0) throw ValidationError("Diese Seite hat keine Lead-Formulare.");
+  }
+
+  const startedAt = new Date();
+  const perForm: { id: string; name: string; found: number; added: number }[] = [];
+  let found = 0;
+  let added = 0;
+  for (const form of forms) {
+    const entry = { id: form.id, name: form.name, found: 0, added: 0 };
+    perForm.push(entry);
+    try {
+      for await (const batch of fetchMetaFormLeads(form.id, token, data.since ?? undefined)) {
+        for (const lead of batch) {
+          if (found >= IMPORT_LIMIT) break;
+          found++;
+          entry.found++;
+          const raw: ImportedMetaLead = { ...lead, form_id: lead.form_id ?? form.id, _formName: form.name };
+          try {
+            await prisma.metaLeadEvent.create({
+              data: {
+                organizationId: ctx.organizationId,
+                pageId: page.pageId,
+                leadgenId: lead.id,
+                formId: raw.form_id,
+                adId: lead.ad_id ?? null,
+                origin: "import",
+                rawLead: raw as unknown as Prisma.InputJsonValue,
+                importedById: ctx.userId,
+              },
+            });
+            added++;
+            entry.added++;
+          } catch (error) {
+            if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+          }
+        }
+        if (found >= IMPORT_LIMIT) break;
+      }
+    } catch (error) {
+      throw ValidationError(
+        `Die Einsendungen von „${form.name}“ ließen sich nicht abrufen: ${error instanceof Error ? error.message : "unbekannter Fehler"}`,
+      );
+    }
+  }
+
+  await writeAudit(ctx, {
+    action: "meta_leads.imported",
+    entityType: "IntegrationConnection",
+    entityId: page.pageId,
+    after: { page: page.pageName, forms: perForm.map((form) => form.name), found, added, since: data.since?.toISOString() ?? null },
+  });
+
+  if (added > 0) {
+    void processImportedMetaLeads(ctx.organizationId, ctx.userId, startedAt).catch((error) =>
+      logError("meta.import_processing_failed", error, { organizationId: ctx.organizationId }),
+    );
+  }
+  return { forms: perForm, found, added, alreadyKnown: found - added, limited: found >= IMPORT_LIMIT };
 }
