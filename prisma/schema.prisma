@@ -270,6 +270,8 @@ enum WorkflowExecutionStatus {
 }
 
 enum NotificationType {
+  /// Ein neuer Lead ist von außen eingegangen (z. B. Meta Lead Ads).
+  LEAD_RECEIVED
   TASK_ASSIGNED
   TASK_DUE
   DEAL_ASSIGNED
@@ -485,6 +487,8 @@ model Organization {
   integrationRequests   IntegrationRequestLog[]
   recordSuggestions     RecordSuggestion[]
   integrationSettings   IntegrationSetting[]
+  metaLeadPages         MetaLeadPage[]
+  metaLeadEvents        MetaLeadEvent[]
   activeCrmSetting      ActiveCrmSetting?
   activeCrmRules        ActiveCrmRuleSetting[]
 
@@ -2292,4 +2296,70 @@ model IntegrationSetting {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@id([organizationId, integration])
+}
+
+/// ─── Meta Lead Ads ──────────────────────────────────────────────────────────
+
+/// Eine Facebook-Seite, deren Lead-Formulare (Facebook und Instagram) ins CRM
+/// laufen. Eine Seite gehört genau einem Arbeitsbereich — darüber ordnet der
+/// Webhook eingehende Leads zu.
+model MetaLeadPage {
+  id             String   @id @default(cuid())
+  organizationId String
+  pageId         String   @unique
+  pageName       String
+  /// AES-256-GCM verschlüsseltes Seiten-Token. Wird nie ausgeliefert.
+  tokenCipher    String
+  /// Wem neue Leads gehören; ohne Angabe die Person, die verbunden hat.
+  ownerId        String?
+  /// Bei jedem neuen Lead geht eine E-Mail an diese Adressen.
+  notifyEmails   String[]
+  isActive       Boolean  @default(true)
+  connectedById  String?
+  lastLeadAt     DateTime?
+  lastErrorAt    DateTime?
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+enum MetaLeadStatus {
+  /// Gemeldet, noch nicht abgeholt.
+  PENDING
+  /// Als neuer Lead angelegt.
+  CREATED
+  /// Zu einem offenen Lead derselben Person hinzugefügt.
+  MERGED
+  /// Abholen oder Anlegen ist gescheitert; wird erneut versucht.
+  FAILED
+}
+
+/// Jede von Meta gemeldete Formular-Einsendung, genau einmal. Meta wiederholt
+/// Meldungen bis zu 36 Stunden — `leadgenId` verhindert doppelte Leads.
+model MetaLeadEvent {
+  id             String         @id @default(cuid())
+  organizationId String
+  pageId         String
+  leadgenId      String         @unique
+  formId         String?
+  adId           String?
+  status         MetaLeadStatus @default(PENDING)
+  attempts       Int            @default(0)
+  /// Nächster Versuch; dient beim Verarbeiten zugleich als Reservierung.
+  nextAttemptAt  DateTime?
+  leadId         String?
+  /// Name aus dem Formular und Herkunft — für das Protokoll in den Einstellungen.
+  summary        Json?
+  error          String?
+  receivedAt     DateTime       @default(now())
+  processedAt    DateTime?
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([organizationId, receivedAt])
 }

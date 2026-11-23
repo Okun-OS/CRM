@@ -30,6 +30,7 @@ Vorlage: `.env.example`.
 | `STORAGE_LOCAL_PATH` | nein | Ablagepfad für Dateien (Standard `./storage`) |
 | `TRUST_PROXY` | nein | `1` nur hinter einem vertrauenswürdigen Proxy: erst dann wird `X-Forwarded-For` ausgewertet |
 | `RESEND_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` | nein | Versand von Einladungen über Resend — siehe „Betreiberzugang und Postausgang“ |
+| `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN` | nein | Meta Lead Ads: Leads aus Facebook-/Instagram-Formularen — siehe [docs/META-LEAD-ADS.md](META-LEAD-ADS.md) |
 | `NODE_ENV` | ja | `production` im Betrieb (aktiviert HSTS und strengere CSP) |
 
 Schlüssel erzeugen:

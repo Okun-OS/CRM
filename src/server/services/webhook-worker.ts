@@ -4,13 +4,15 @@ import { logError, logInfo } from "@/lib/logger";
 import { processDueWebhookDeliveries } from "./webhooks";
 import { purgeExpiredIdempotencyRecords } from "@/server/mailwin/idempotency";
 import { announceDueNextActions } from "@/server/mailwin/webhooks";
+import { processDueMetaLeads } from "./meta-leads";
 
 /**
  * Hintergrundarbeit im Serverprozess.
  *
  * Webhook-Zustellungen (vor allem an Mailwin) sollen nicht davon abhängen, ob
  * jemand einen externen Cron eingerichtet hat: Fällige Zustellungen werden
- * alle 15 Sekunden versucht, fällig gewordene nächste Aktionen jede Minute an
+ * alle 15 Sekunden versucht (ebenso Meta-Leads, deren Abholen gescheitert
+ * ist), fällig gewordene nächste Aktionen jede Minute an
  * Mailwin gemeldet (`lead.next_action_due`), abgelaufene Idempotenz-Einträge
  * und alte Aufrufprotokolle einmal pro Stunde entfernt.
  *
@@ -38,6 +40,12 @@ export function startWebhookWorker(): void {
       await processDueWebhookDeliveries(100);
     } catch (error) {
       logError("webhook_worker.delivery_failed", error);
+    }
+    try {
+      // Meta-Leads, deren Abholen beim ersten Mal gescheitert ist.
+      await processDueMetaLeads();
+    } catch (error) {
+      logError("webhook_worker.meta_leads_failed", error);
     } finally {
       delivering = false;
     }

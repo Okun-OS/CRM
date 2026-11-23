@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { getActor } from "@/lib/auth/session";
 import { can } from "@/lib/context";
 import Link from "next/link";
-import { ChevronRight, Mail } from "lucide-react";
+import { ChevronRight, Mail, Megaphone } from "lucide-react";
+import { prisma } from "@/lib/db";
 import { listConnections } from "@/server/services/integrations";
 import { listMailwinKeys } from "@/server/mailwin/settings";
 import { formatDateTime } from "@/lib/format";
@@ -44,6 +45,12 @@ export default async function IntegrationsPage() {
         description="Was verbunden ist, arbeitet. Was nicht umgesetzt ist, sagt es — statt einen Knopf anzubieten, der ins Leere führt."
       />
       <MailwinCard actorKeys={await listMailwinKeys(actor)} />
+      <MetaCard
+        pages={await prisma.metaLeadPage.findMany({
+          where: { organizationId: actor.organizationId },
+          select: { pageName: true, isActive: true, lastLeadAt: true, lastError: true },
+        })}
+      />
       <IntegrationsView initial={await listConnections(actor)} />
     </div>
   );
@@ -81,6 +88,44 @@ function MailwinCard({ actorKeys }: { actorKeys: Awaited<ReturnType<typeof listM
               KI-E-Mail-Assistent: legt aus E-Mails Leads an, schlägt Kontakte nach und protokolliert Nachrichten in der Zeitleiste.
             </span>
             {lastUsed ? <span className="mt-1 block text-2xs text-ink-500">Zuletzt aktiv: {formatDateTime(lastUsed)}</span> : null}
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-ink-400" />
+        </Link>
+      </CardBody>
+    </Card>
+  );
+}
+
+/** Werbung: Leads aus Facebook- und Instagram-Formularen. */
+function MetaCard({ pages }: { pages: { pageName: string; isActive: boolean; lastLeadAt: Date | null; lastError: string | null }[] }) {
+  const lastLead = pages.map((page) => page.lastLeadAt?.toISOString()).filter(Boolean).sort().pop() ?? null;
+  const failing = pages.some((page) => page.lastError);
+
+  return (
+    <Card>
+      <CardHeader title="Werbung" />
+      <CardBody className="p-0">
+        <Link href="/settings/integrations/meta" className="flex flex-wrap items-center gap-4 px-4 py-4 transition-colors hover:bg-ink-50">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+            <Megaphone className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-ink-900">Meta Lead Ads</span>
+              {pages.length === 0 ? (
+                <Badge tone="neutral">Nicht verbunden</Badge>
+              ) : failing ? (
+                <Badge tone="danger" dot>Fehler</Badge>
+              ) : (
+                <Badge tone="success" dot>
+                  {pages.map((page) => page.pageName).join(", ")}
+                </Badge>
+              )}
+            </span>
+            <span className="mt-1 block text-xs text-ink-600">
+              Leads aus Facebook- und Instagram-Formularen automatisch ins CRM, mit E-Mail bei jedem neuen Lead.
+            </span>
+            {lastLead ? <span className="mt-1 block text-2xs text-ink-500">Letzter Lead: {formatDateTime(lastLead)}</span> : null}
           </span>
           <ChevronRight className="h-4 w-4 shrink-0 text-ink-400" />
         </Link>
