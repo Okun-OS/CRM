@@ -8,6 +8,7 @@ import {
   connectMetaPages,
   importExistingMetaLeads,
   lookupMetaPages,
+  noPagesMessage,
   retryMetaLeadEvent,
   sendMetaTestNotification,
   updateMetaPage,
@@ -28,6 +29,17 @@ let leads: Record<string, unknown> = {};
 let leadError: { status: number; body: unknown } | null = null;
 let extendedFieldsRejected = false;
 
+/** Was das nachgebildete Facebook-Konto hinter dem Nutzer-Token zeigt. */
+type Account = {
+  pages: { id: string; name: string; access_token?: string }[];
+  permissions: { permission: string; status: string }[] | null;
+  granularScopes: { scope: string; target_ids?: string[] }[] | null;
+  businesses: string[];
+  ownedPages: Record<string, { id: string; name: string }[]>;
+  pageNodes: Record<string, { id: string; name?: string; access_token?: string }>;
+};
+let account: Account;
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
@@ -37,6 +49,14 @@ beforeEach(() => {
   leads = {};
   leadError = null;
   extendedFieldsRejected = false;
+  account = {
+    pages: [{ id: "PAGE1", name: "OKUN Systems", access_token: "SEITEN_TOKEN" }],
+    permissions: null,
+    granularScopes: null,
+    businesses: [],
+    ownedPages: {},
+    pageNodes: {},
+  };
   process.env.META_APP_ID = "1234567890";
   process.env.META_APP_SECRET = APP_SECRET;
   process.env.META_WEBHOOK_VERIFY_TOKEN = "bestaetigung-123";
@@ -50,9 +70,14 @@ beforeEach(() => {
 
     const path = url.pathname.replace(/^\/v[\d.]+\//, "");
     if (path === "oauth/access_token") return json({ access_token: "LANGLEBIG", token_type: "bearer" });
-    if (path === "me/accounts") {
-      return json({ data: [{ id: "PAGE1", name: "OKUN Systems", access_token: "SEITEN_TOKEN" }] });
+    if (path === "me/accounts") return json({ data: account.pages });
+    if (path === "me/permissions" && account.permissions) return json({ data: account.permissions });
+    if (path === "debug_token" && account.granularScopes) return json({ data: { is_valid: true, granular_scopes: account.granularScopes } });
+    if (path === "me/businesses" && account.permissions) return json({ data: account.businesses.map((id) => ({ id })) });
+    if (path.endsWith("/owned_pages") || path.endsWith("/client_pages")) {
+      return json({ data: path.endsWith("/owned_pages") ? (account.ownedPages[path.split("/")[0]] ?? []) : [] });
     }
+    if (account.pageNodes[path]) return json(account.pageNodes[path]);
     if (path.endsWith("/subscribed_apps")) return json({ success: true });
     if (path.startsWith("FORM")) return json({ id: path, name: "Rückruf anfordern" });
     if (leadError) return json(leadError.body, leadError.status);
@@ -126,7 +151,10 @@ describe("Seite verbinden", () => {
   it("tauscht das Token, abonniert die Seite und speichert nur das Seiten-Token verschlüsselt", async () => {
     const { ctx } = await createTestOrganization();
     const found = await lookupMetaPages(ctx, { accessToken: "KURZLEBIGES_NUTZER_TOKEN_1234567890" });
-    expect(found).toEqual([{ id: "PAGE1", name: "OKUN Systems", connected: false, connectedElsewhere: false }]);
+    expect(found).toEqual({
+      pages: [{ id: "PAGE1", name: "OKUN Systems", connected: false, connectedElsewhere: false }],
+      missingPermissions: [],
+    });
     expect(JSON.stringify(found)).not.toContain("SEITEN_TOKEN");
 
     await prisma.metaLeadPage.deleteMany({ where: { pageId: "PAGE1" } });
@@ -143,6 +171,77 @@ describe("Seite verbinden", () => {
     expect(page.tokenCipher).not.toContain("SEITEN_TOKEN");
     expect(page).toMatchObject({ organizationId: ctx.organizationId, notifyEmails: [ctx.email], ownerId: ctx.userId });
     await prisma.metaLeadPage.delete({ where: { pageId: "PAGE1" } });
+  });
+
+  const ALL = ["leads_retrieval", "pages_manage_metadata", "pages_show_list", "pages_read_engagement", "pages_manage_ads", "ads_management", "business_management"];
+  const granted = (...names: string[]) => names.map((permission) => ({ permission, status: "granted" }));
+
+  it("findet Seiten eines Business-Portfolios, die me/accounts nicht liefert", async () => {
+    const { ctx } = await createTestOrganization();
+    const pageId = `PAGEB${randomUUID().slice(0, 8)}`;
+    account.pages = [];
+    account.permissions = granted(...ALL);
+    account.businesses = ["BIZ1"];
+    account.ownedPages = { BIZ1: [{ id: pageId, name: "OKUN im Portfolio" }] };
+    account.pageNodes = { [pageId]: { id: pageId, name: "OKUN im Portfolio", access_token: "PORTFOLIO_SEITEN_TOKEN" } };
+
+    const found = await lookupMetaPages(ctx, { accessToken: "KURZLEBIGES_NUTZER_TOKEN_1234567890" });
+    expect(found).toEqual({ pages: [{ id: pageId, name: "OKUN im Portfolio", connected: false, connectedElsewhere: false }], missingPermissions: [] });
+
+    await connectMetaPages(ctx, { accessToken: "KURZLEBIGES_NUTZER_TOKEN_1234567890", pageIds: [pageId] });
+    const subscribe = calls.find((call) => call.url.pathname.endsWith(`${pageId}/subscribed_apps`))!;
+    expect(new URLSearchParams(subscribe.body).get("access_token")).toBe("PORTFOLIO_SEITEN_TOKEN");
+    await prisma.metaLeadPage.delete({ where: { pageId } });
+  });
+
+  it("fragt die beim Bestätigen gewählten Seiten direkt ab (granular_scopes)", async () => {
+    const { ctx } = await createTestOrganization();
+    account.pages = [];
+    account.permissions = granted(...ALL.filter((name) => name !== "business_management"));
+    account.granularScopes = [{ scope: "pages_show_list", target_ids: ["PAGEG"] }, { scope: "leads_retrieval", target_ids: ["PAGEG"] }];
+    account.pageNodes = { PAGEG: { id: "PAGEG", name: "Gewählte Seite", access_token: "GEWAEHLT_TOKEN" } };
+
+    const found = await lookupMetaPages(ctx, { accessToken: "KURZLEBIGES_NUTZER_TOKEN_1234567890" });
+    expect(found.pages.map((page) => page.name)).toEqual(["Gewählte Seite"]);
+    // debug_token geht mit dem App-Token, das eingefügte Token ist nur Gegenstand der Prüfung.
+    const debug = calls.find((call) => call.url.pathname.endsWith("/debug_token"))!;
+    expect(debug.url.searchParams.get("access_token")).toBe(`1234567890|${APP_SECRET}`);
+    expect(debug.url.searchParams.get("input_token")).toBe("LANGLEBIG");
+  });
+
+  it("warnt, wenn dem Token eine Berechtigung für das Abholen fehlt", async () => {
+    const { ctx } = await createTestOrganization();
+    account.permissions = granted("pages_show_list", "pages_manage_metadata", "pages_read_engagement");
+    const found = await lookupMetaPages(ctx, { accessToken: "KURZLEBIGES_NUTZER_TOKEN_1234567890" });
+    expect(found.pages).toHaveLength(1);
+    expect(found.missingPermissions).toEqual(["leads_retrieval", "pages_manage_ads", "ads_management"]);
+  });
+
+  it("sagt genau, warum keine Seite erreichbar ist", async () => {
+    const { ctx } = await createTestOrganization();
+    account.pages = [];
+    account.permissions = granted(...ALL.filter((name) => name !== "business_management"));
+    await expect(lookupMetaPages(ctx, { accessToken: "KURZLEBIGES_NUTZER_TOKEN_1234567890" })).rejects.toThrow(/business_management/);
+
+    account.permissions = [...granted("leads_retrieval"), { permission: "pages_show_list", status: "declined" }];
+    await expect(lookupMetaPages(ctx, { accessToken: "KURZLEBIGES_NUTZER_TOKEN_1234567890" })).rejects.toThrow(
+      /pages_show_list abgelehnt.*Unternehmensintegrationen/,
+    );
+
+    // Seite sichtbar, aber ohne Seiten-Token: Die Person hat keinen vollen Zugriff.
+    account.permissions = granted(...ALL);
+    account.pages = [{ id: "PAGEX", name: "Fremde Seite" }];
+    account.pageNodes = { PAGEX: { id: "PAGEX", name: "Fremde Seite" } };
+    await expect(lookupMetaPages(ctx, { accessToken: "KURZLEBIGES_NUTZER_TOKEN_1234567890" })).rejects.toThrow(
+      /sieht „Fremde Seite“, aber Meta gibt dafür kein Seiten-Token heraus/,
+    );
+
+    // Alles erlaubt, trotzdem nichts: Auswahl beim Bestätigen zurücksetzen.
+    expect(noPagesMessage({ grant: { granted: ALL, declined: [], pageIds: [], businessIds: [] }, withoutToken: [] })).toMatch(
+      /Unternehmensintegrationen die App entfernen/,
+    );
+    // me/permissions nicht lesbar: allgemeiner Hinweis statt Absturz.
+    expect(noPagesMessage({ grant: null, withoutToken: [] })).toMatch(/keine Facebook-Seite erreichbar/);
   });
 });
 

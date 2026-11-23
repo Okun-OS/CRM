@@ -181,6 +181,7 @@ function ConnectCard({ overview, onConnected }: { overview: Overview; onConnecte
   const toast = useToast();
   const [token, setToken] = React.useState("");
   const [pages, setPages] = React.useState<{ id: string; name: string; connected: boolean; connectedElsewhere: boolean }[] | null>(null);
+  const [missingPermissions, setMissingPermissions] = React.useState<string[]>([]);
   const [selected, setSelected] = React.useState<string[]>([]);
   const [busy, setBusy] = React.useState<"lookup" | "connect" | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -189,11 +190,16 @@ function ConnectCard({ overview, onConnected }: { overview: Overview; onConnecte
     setBusy("lookup");
     setError(null);
     try {
-      const found = await api.post<typeof pages>("/api/v1/settings/meta/pages/lookup", { accessToken: token });
-      setPages(found);
-      setSelected((found ?? []).filter((page) => !page.connected && !page.connectedElsewhere).map((page) => page.id).slice(0, 1));
+      const found = await api.post<{ pages: NonNullable<typeof pages>; missingPermissions: string[] }>(
+        "/api/v1/settings/meta/pages/lookup",
+        { accessToken: token },
+      );
+      setPages(found.pages);
+      setMissingPermissions(found.missingPermissions);
+      setSelected(found.pages.filter((page) => !page.connected && !page.connectedElsewhere).map((page) => page.id).slice(0, 1));
     } catch (cause) {
       setPages(null);
+      setMissingPermissions([]);
       setError(cause instanceof ApiError ? cause.message : "Die Seiten konnten nicht geladen werden.");
     } finally {
       setBusy(null);
@@ -208,6 +214,7 @@ function ConnectCard({ overview, onConnected }: { overview: Overview; onConnecte
       toast.success("Verbunden", result.connected.join(", "));
       setToken("");
       setPages(null);
+      setMissingPermissions([]);
       setSelected([]);
       await onConnected();
     } catch (cause) {
@@ -233,7 +240,7 @@ function ConnectCard({ overview, onConnected }: { overview: Overview; onConnecte
           label="Zugriffstoken"
           htmlFor="meta-token"
           error={error}
-          hint="Im Graph API Explorer Ihre App wählen, „Nutzer-Token“ erzeugen und diese Berechtigungen erlauben: "
+          hint="Im Graph API Explorer Ihre App wählen, „Nutzer-Token“ erzeugen, diese Berechtigungen erlauben und im Bestätigungsfenster die Seite auswählen (business_management braucht es, wenn die Seite zu einem Business-Portfolio gehört):"
         >
           <Textarea
             id="meta-token"
@@ -269,6 +276,12 @@ function ConnectCard({ overview, onConnected }: { overview: Overview; onConnecte
 
         {pages ? (
           <div className="space-y-2 rounded-md border border-ink-200 p-3">
+            {missingPermissions.length > 0 ? (
+              <p className="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-800">
+                Dem Token fehlt {missingPermissions.join(", ")}. Ohne {missingPermissions.length === 1 ? "diese Berechtigung" : "diese Berechtigungen"}{" "}
+                kann das CRM die Leads nicht abholen. Bitte im Graph API Explorer anhaken und ein neues Token erzeugen.
+              </p>
+            ) : null}
             <p className="text-xs font-medium text-ink-800">Welche Seite soll Leads ins CRM schicken?</p>
             {pages.map((page) => (
               <label key={page.id} className="flex items-center gap-2 text-sm text-ink-800">

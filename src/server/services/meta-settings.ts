@@ -15,10 +15,12 @@ import {
   fetchMetaFormName,
   listMetaLeadForms,
   listMetaPages,
+  META_BUSINESS_PERMISSION,
   META_REQUIRED_PERMISSIONS,
   metaGraphVersion,
   metaMissingConfig,
   MetaApiError,
+  type MetaPageSearch,
   subscribePage,
   unsubscribePage,
 } from "@/server/integrations/meta";
@@ -48,7 +50,7 @@ export async function getMetaOverview(ctx: ActorContext) {
     missingConfig: metaMissingConfig(),
     webhookUrl: metaWebhookUrl(),
     graphVersion: metaGraphVersion(),
-    permissions: [...META_REQUIRED_PERMISSIONS],
+    permissions: [...META_REQUIRED_PERMISSIONS, META_BUSINESS_PERMISSION],
     pages: pages.map((page) => ({
       id: page.id,
       pageId: page.pageId,
@@ -81,7 +83,7 @@ const tokenSchema = z.object({
   accessToken: z.string({ error: "Bitte das Zugriffstoken einfügen." }).trim().min(20, "Das sieht nicht nach einem Zugriffstoken aus.").max(2000),
 });
 
-async function pagesFor(accessToken: string) {
+async function pagesFor(accessToken: string): Promise<MetaPageSearch> {
   try {
     return await listMetaPages(await exchangeForLongLivedToken(accessToken));
   } catch (error) {
@@ -92,29 +94,54 @@ async function pagesFor(accessToken: string) {
   }
 }
 
+/**
+ * Warum das Token keine Seite liefert — so genau, wie Meta es verrät. Die
+ * häufigsten Gründe: Seite beim Bestätigen nicht gewählt (Meta merkt sich die
+ * erste Auswahl), Seite im Business-Portfolio ohne `business_management`,
+ * oder die Person hat auf der Seite keinen vollen Zugriff.
+ */
+export function noPagesMessage({ grant, withoutToken }: Pick<MetaPageSearch, "grant" | "withoutToken">): string {
+  const lead = "Mit diesem Token ist keine Facebook-Seite erreichbar.";
+  if (withoutToken.length > 0) {
+    const names = withoutToken.slice(0, 3).map((page) => `„${page.name}“`).join(", ");
+    return `Das Token sieht ${names}, aber Meta gibt dafür kein Seiten-Token heraus. Die Person, die das Token erzeugt, braucht auf der Seite vollen Zugriff (im Business-Portfolio unter Seiten → Personen: volle Kontrolle).`;
+  }
+  const declined = grant?.declined.filter((permission) => permission === "pages_show_list" || permission === META_BUSINESS_PERMISSION) ?? [];
+  if (declined.length > 0) {
+    return `${lead} Beim Bestätigen ${declined.length === 1 ? "wurde" : "wurden"} ${declined.join(" und ")} abgelehnt. Bei Facebook unter Einstellungen → Unternehmensintegrationen die App entfernen, dann im Graph API Explorer ein neues Token erzeugen und alles erlauben.`;
+  }
+  if (grant && !grant.granted.includes("pages_show_list")) {
+    return `${lead} Dem Token fehlt pages_show_list. Im Graph API Explorer anhaken und ein neues Token erzeugen.`;
+  }
+  if (grant && !grant.granted.includes(META_BUSINESS_PERMISSION)) {
+    return `${lead} Gehört die Seite zu einem Business-Portfolio, braucht das Token zusätzlich business_management. Im Graph API Explorer anhaken, ein neues Token erzeugen und beim Bestätigen Portfolio und Seite auswählen.`;
+  }
+  return `${lead} Meta merkt sich die Auswahl vom ersten Bestätigen: Bei Facebook unter Einstellungen → Unternehmensintegrationen die App entfernen, dann im Graph API Explorer ein neues Token erzeugen und im Fenster Portfolio und Seite auswählen.`;
+}
+
 /** Welche Seiten das Token sieht — ohne Seiten-Tokens an den Browser zu geben. */
 export async function lookupMetaPages(ctx: ActorContext, input: z.input<typeof tokenSchema>) {
   assertPermission(ctx, "settings.manage");
   const { accessToken } = tokenSchema.parse(input);
-  const pages = await pagesFor(accessToken);
-  if (pages.length === 0) {
-    throw ValidationError(
-      "Mit diesem Token ist keine Facebook-Seite erreichbar. Wurde beim Erzeugen die Seite ausgewählt und „pages_show_list“ erlaubt?",
-    );
-  }
+  const search = await pagesFor(accessToken);
+  if (search.pages.length === 0) throw ValidationError(noPagesMessage(search));
   const known = await prisma.metaLeadPage.findMany({
-    where: { pageId: { in: pages.map((page) => page.id) } },
+    where: { pageId: { in: search.pages.map((page) => page.id) } },
     select: { pageId: true, organizationId: true },
   });
-  return pages.map((page) => {
-    const match = known.find((entry) => entry.pageId === page.id);
-    return {
-      id: page.id,
-      name: page.name,
-      connected: match?.organizationId === ctx.organizationId,
-      connectedElsewhere: Boolean(match && match.organizationId !== ctx.organizationId),
-    };
-  });
+  return {
+    pages: search.pages.map((page) => {
+      const match = known.find((entry) => entry.pageId === page.id);
+      return {
+        id: page.id,
+        name: page.name,
+        connected: match?.organizationId === ctx.organizationId,
+        connectedElsewhere: Boolean(match && match.organizationId !== ctx.organizationId),
+      };
+    }),
+    /** Ohne diese Berechtigungen kann das CRM die Leads später nicht abholen. */
+    missingPermissions: search.grant ? META_REQUIRED_PERMISSIONS.filter((permission) => !search.grant!.granted.includes(permission)) : [],
+  };
 }
 
 const connectSchema = tokenSchema.extend({
@@ -124,7 +151,7 @@ const connectSchema = tokenSchema.extend({
 export async function connectMetaPages(ctx: ActorContext, input: z.input<typeof connectSchema>) {
   assertPermission(ctx, "settings.manage");
   const data = connectSchema.parse(input);
-  const available = await pagesFor(data.accessToken);
+  const available = (await pagesFor(data.accessToken)).pages;
 
   const connected: string[] = [];
   for (const pageId of data.pageIds) {

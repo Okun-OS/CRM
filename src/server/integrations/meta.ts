@@ -24,6 +24,12 @@ export const META_REQUIRED_PERMISSIONS = [
   "ads_management",
 ] as const;
 
+/**
+ * Zusätzlich nötig, wenn die Seite einem Business-Portfolio gehört: Ohne diese
+ * Berechtigung liefert Meta solche Seiten nicht unter `me/accounts`.
+ */
+export const META_BUSINESS_PERMISSION = "business_management";
+
 export function metaGraphVersion(): string {
   return process.env.META_GRAPH_VERSION?.trim() || "v27.0";
 }
@@ -145,15 +151,136 @@ export async function exchangeForLongLivedToken(token: string): Promise<string> 
 
 export type MetaPage = { id: string; name: string; accessToken: string };
 
-/** Seiten, auf die das Nutzer-Token Zugriff hat — mit je eigenem Seiten-Token. */
-export async function listMetaPages(userToken: string): Promise<MetaPage[]> {
-  const result = await graph<{ data?: { id: string; name: string; access_token?: string }[] }>("GET", "me/accounts", userToken, {
-    fields: "id,name,access_token",
-    limit: 100,
-  });
-  return (result.data ?? [])
-    .filter((page) => page.access_token)
-    .map((page) => ({ id: page.id, name: page.name, accessToken: page.access_token! }));
+export type MetaTokenGrant = {
+  granted: string[];
+  declined: string[];
+  /** Seiten, die beim Bestätigen ausdrücklich gewählt wurden (`granular_scopes`). */
+  pageIds: string[];
+  /** Business-Portfolios, die beim Bestätigen ausdrücklich gewählt wurden. */
+  businessIds: string[];
+};
+
+const PAGE_SCOPES = new Set(["pages_show_list", "pages_manage_metadata", "pages_read_engagement", "pages_manage_ads", "leads_retrieval"]);
+
+/**
+ * Was das Nutzer-Token darf: erteilte und abgelehnte Berechtigungen und,
+ * soweit Meta es verrät, welche Seiten und Portfolios beim Bestätigen gewählt
+ * wurden. Dient der Fehlersuche und als Umweg zu den Seiten — scheitert es,
+ * kommt `null` zurück.
+ */
+export async function inspectMetaToken(userToken: string): Promise<MetaTokenGrant | null> {
+  let permissions: { permission: string; status: string }[];
+  try {
+    const result = await graph<{ data?: { permission: string; status: string }[] }>("GET", "me/permissions", userToken, { limit: 100 });
+    permissions = result.data ?? [];
+  } catch {
+    return null;
+  }
+  const pageIds = new Set<string>();
+  const businessIds = new Set<string>();
+  const { appId, appSecret } = metaConfig();
+  if (appId && appSecret) {
+    try {
+      const debug = await graph<{ data?: { granular_scopes?: { scope: string; target_ids?: string[] }[] } }>(
+        "GET",
+        "debug_token",
+        `${appId}|${appSecret}`,
+        { input_token: userToken },
+      );
+      for (const entry of debug.data?.granular_scopes ?? []) {
+        const target = entry.scope === META_BUSINESS_PERMISSION ? businessIds : PAGE_SCOPES.has(entry.scope) ? pageIds : null;
+        for (const id of entry.target_ids ?? []) target?.add(id);
+      }
+    } catch {
+      // Nur ein Hinweis; ohne ihn geht es mit me/accounts und me/businesses weiter.
+    }
+  }
+  return {
+    granted: permissions.filter((entry) => entry.status === "granted").map((entry) => entry.permission),
+    declined: permissions.filter((entry) => entry.status === "declined").map((entry) => entry.permission),
+    pageIds: [...pageIds],
+    businessIds: [...businessIds],
+  };
+}
+
+export type MetaPageSearch = {
+  pages: MetaPage[];
+  /** Seiten, die das Token sieht, für die Meta aber kein Seiten-Token herausgibt. */
+  withoutToken: { id: string; name: string }[];
+  grant: MetaTokenGrant | null;
+};
+
+const MAX_PAGE_CANDIDATES = 50;
+
+/**
+ * Seiten, auf die das Nutzer-Token Zugriff hat — mit je eigenem Seiten-Token.
+ *
+ * Erst `me/accounts`. Ist die Liste leer (typisch bei Seiten, die einem
+ * Business-Portfolio gehören), werden die beim Bestätigen gewählten Seiten
+ * und die Seiten der Portfolios einzeln nach ihrem Seiten-Token gefragt.
+ */
+export async function listMetaPages(userToken: string): Promise<MetaPageSearch> {
+  const [accounts, grant] = await Promise.all([
+    graph<{ data?: { id: string; name: string; access_token?: string }[] }>("GET", "me/accounts", userToken, {
+      fields: "id,name,access_token",
+      limit: 100,
+    }),
+    inspectMetaToken(userToken),
+  ]);
+  const pages = new Map<string, MetaPage>();
+  /** Seiten, die Meta mit Namen gezeigt hat (auch ohne Seiten-Token). */
+  const seen = new Map<string, string>();
+  for (const page of accounts.data ?? []) {
+    if (page.access_token) pages.set(page.id, { id: page.id, name: page.name, accessToken: page.access_token });
+    else seen.set(page.id, page.name);
+  }
+
+  if (pages.size === 0 && grant) {
+    const candidates = new Set([...seen.keys(), ...grant.pageIds]);
+    const businessIds = new Set(grant.businessIds);
+    if (grant.granted.includes(META_BUSINESS_PERMISSION)) {
+      try {
+        const businesses = await graph<{ data?: { id: string }[] }>("GET", "me/businesses", userToken, { fields: "id", limit: 50 });
+        for (const business of businesses.data ?? []) businessIds.add(business.id);
+      } catch {
+        // Ohne Portfolio-Liste bleibt es bei den ausdrücklich gewählten Seiten.
+      }
+    }
+    for (const businessId of [...businessIds].slice(0, 10)) {
+      for (const edge of ["owned_pages", "client_pages"]) {
+        try {
+          const owned = await graph<{ data?: { id: string; name?: string }[] }>("GET", `${businessId}/${edge}`, userToken, {
+            fields: "id,name",
+            limit: 100,
+          });
+          for (const page of owned.data ?? []) {
+            candidates.add(page.id);
+            if (page.name) seen.set(page.id, page.name);
+          }
+        } catch {
+          // Kein Zugriff auf dieses Portfolio — weiter mit dem nächsten.
+        }
+      }
+    }
+    for (const id of [...candidates].slice(0, MAX_PAGE_CANDIDATES)) {
+      try {
+        const page = await graph<{ id: string; name?: string; access_token?: string }>("GET", id, userToken, {
+          fields: "id,name,access_token",
+        });
+        const name = page.name ?? seen.get(id) ?? id;
+        if (page.access_token) pages.set(page.id, { id: page.id, name, accessToken: page.access_token });
+        else seen.set(id, name);
+      } catch {
+        // Seite nicht lesbar — zählt nur, wenn Meta sie oben schon gezeigt hat.
+      }
+    }
+  }
+
+  return {
+    pages: [...pages.values()],
+    withoutToken: [...seen.entries()].filter(([id]) => !pages.has(id)).map(([id, name]) => ({ id, name })),
+    grant,
+  };
 }
 
 /** Meldet der App künftig jede neue Formular-Einsendung dieser Seite (Feld `leadgen`). */

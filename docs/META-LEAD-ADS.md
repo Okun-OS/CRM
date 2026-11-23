@@ -74,7 +74,9 @@ Railway startet den Dienst danach neu.
    oben die eigene App wählen, *Nutzer-Token* erzeugen und diese
    Berechtigungen erlauben: `leads_retrieval`, `pages_manage_metadata`,
    `pages_show_list`, `pages_read_engagement`, `pages_manage_ads`,
-   `ads_management`. Beim Bestätigen die Facebook-Seite auswählen.
+   `ads_management`, bei Seiten in einem Business-Portfolio zusätzlich
+   `business_management`. Beim Bestätigen das Portfolio und die
+   Facebook-Seite auswählen.
 2. Im CRM unter *Einstellungen → Integrationen → Meta Lead Ads* das Token
    einfügen, **Seiten laden**, Seite ankreuzen, **Verbinden**.
    Das CRM tauscht das Token gegen ein dauerhaftes Seiten-Token (läuft nicht
@@ -85,6 +87,23 @@ Railway startet den Dienst danach neu.
 Die Person, deren Token verwendet wird, braucht auf der Seite die Aufgabe
 „Werbeanzeigen erstellen“. Ist im Business-Manager der *Lead-Zugriff*
 (Leads Access Manager) eingeschränkt, muss sie dort freigegeben sein.
+
+**„Keine Facebook-Seite erreichbar“:** Das CRM fragt zuerst `me/accounts`.
+Ist die Liste leer, versucht es die beim Bestätigen gewählten Seiten
+(`debug_token` → `granular_scopes`) und die Seiten der Business-Portfolios
+(`me/businesses` → `owned_pages`/`client_pages`) einzeln. Findet es auch so
+nichts, nennt die Meldung den Grund, soweit Meta ihn verrät:
+
+- `pages_show_list` fehlt oder wurde abgelehnt;
+- `business_management` fehlt (Seite gehört einem Portfolio);
+- die Seite ist sichtbar, aber Meta gibt kein Seiten-Token heraus: Die Person
+  hat auf der Seite keinen vollen Zugriff;
+- sonst: Meta merkt sich die Auswahl vom ersten Bestätigen. Bei Facebook
+  unter *Einstellungen → Unternehmensintegrationen* die App entfernen, ein
+  neues Token erzeugen und im Fenster Portfolio und Seite auswählen.
+
+Fehlt dem Token eine der Berechtigungen fürs Abholen der Leads, warnt das
+CRM schon bei „Seiten laden“.
 
 ### 5. Testen
 
@@ -134,7 +153,7 @@ Laut Metas Doku zu Lead Ads (Stand November 2026):
 | Datei | Inhalt |
 | --- | --- |
 | `src/app/api/integrations/meta/webhook/route.ts` | Webhook: Bestätigung (GET), Meldungen mit Signaturprüfung (POST) |
-| `src/server/integrations/meta.ts` | Graph API: Token tauschen, Seiten, Abo, Lead abrufen |
+| `src/server/integrations/meta.ts` | Graph API: Token tauschen und prüfen, Seiten (auch aus Portfolios), Abo, Lead abrufen |
 | `src/server/services/meta-leads.ts` | Meldung festhalten, Lead anlegen, Dubletten, Benachrichtigung, Wiederholung |
 | `src/server/services/meta-settings.ts` | Einstellungen: verbinden, Empfänger, Test-E-Mail, Neuversuch |
 | `src/server/integrations/lead-notification-mail.ts` | E-Mail „Neuer Lead“ |
