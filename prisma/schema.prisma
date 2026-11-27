@@ -2319,6 +2319,11 @@ model MetaLeadPage {
   lastLeadAt     DateTime?
   lastErrorAt    DateTime?
   lastError      String?
+  /// Letzte Meldung von Meta per Webhook — zeigt, ob Meta überhaupt meldet.
+  lastWebhookAt  DateTime?
+  /// Letzter eigener Abgleich: Das CRM fragt regelmäßig selbst nach neuen
+  /// Einsendungen, falls Webhooks ausbleiben (z. B. App im Entwicklungsmodus).
+  lastPolledAt   DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

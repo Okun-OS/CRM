@@ -25,7 +25,15 @@ import {
   unsubscribePage,
 } from "@/server/integrations/meta";
 import { Prisma } from "@/generated/prisma/client";
-import { completeMetaLead, processImportedMetaLeads, processMetaLeadEvent, sendLeadNotification, type ImportedMetaLead } from "./meta-leads";
+import {
+  completeMetaLead,
+  META_POLL_INTERVAL_MS,
+  pollMetaPage,
+  processImportedMetaLeads,
+  processMetaLeadEvent,
+  sendLeadNotification,
+  type ImportedMetaLead,
+} from "./meta-leads";
 
 /**
  * Einstellungen → Integrationen → Meta Lead Ads.
@@ -40,16 +48,35 @@ export function metaWebhookUrl(): string {
   return new URL("/api/integrations/meta/webhook", env().APP_URL).toString();
 }
 
+/**
+ * Kann das CRM die E-Mail bei neuen Leads verschicken? Über den Postausgang
+ * des Betriebs (Resend/SMTP auf Railway) oder den der Organisation.
+ */
+async function leadMailStatus(ctx: ActorContext): Promise<{ ready: boolean; reason: string | null }> {
+  const { platformMailIntended } = await import("@/server/integrations/platform-mail");
+  if (platformMailIntended()) return { ready: true, reason: null };
+  try {
+    const { resolveEmailTransport } = await import("@/server/integrations/email");
+    const resolution = await resolveEmailTransport(ctx);
+    return resolution.ok ? { ready: true, reason: null } : { ready: false, reason: resolution.reason };
+  } catch {
+    return { ready: false, reason: "Der E-Mail-Versand ist nicht eingerichtet." };
+  }
+}
+
 export async function getMetaOverview(ctx: ActorContext) {
   assertPermission(ctx, "settings.manage");
-  const [pages, events] = await Promise.all([
+  const [pages, events, mail] = await Promise.all([
     prisma.metaLeadPage.findMany({ where: scope(ctx), orderBy: { createdAt: "asc" } }),
     prisma.metaLeadEvent.findMany({ where: scope(ctx), orderBy: { receivedAt: "desc" }, take: 25 }),
+    leadMailStatus(ctx),
   ]);
   return {
     missingConfig: metaMissingConfig(),
     webhookUrl: metaWebhookUrl(),
     graphVersion: metaGraphVersion(),
+    mail,
+    pollIntervalMinutes: Math.round(META_POLL_INTERVAL_MS / 60_000),
     permissions: [...META_REQUIRED_PERMISSIONS, META_BUSINESS_PERMISSION],
     pages: pages.map((page) => ({
       id: page.id,
@@ -61,6 +88,8 @@ export async function getMetaOverview(ctx: ActorContext) {
       lastLeadAt: page.lastLeadAt?.toISOString() ?? null,
       lastError: page.lastError,
       lastErrorAt: page.lastErrorAt?.toISOString() ?? null,
+      lastWebhookAt: page.lastWebhookAt?.toISOString() ?? null,
+      lastPolledAt: page.lastPolledAt?.toISOString() ?? null,
       createdAt: page.createdAt.toISOString(),
     })),
     events: events.map((event) => ({
@@ -291,6 +320,29 @@ export async function sendMetaTestNotification(ctx: ActorContext, id: string) {
     ],
   });
   return { sent: result.sent, reason: result.reason ?? null, recipients: page.notifyEmails };
+}
+
+/**
+ * „Jetzt abgleichen“: sofort bei Meta nach neuen Einsendungen fragen und
+ * gefundene gleich anlegen (mit Benachrichtigung und E-Mail wie live).
+ */
+export async function syncMetaPage(ctx: ActorContext, id: string) {
+  assertPermission(ctx, "settings.manage");
+  const page = assertFound(await prisma.metaLeadPage.findFirst({ where: { id, ...scope(ctx) } }), "Die Seite wurde nicht gefunden.");
+  if (!page.isActive) throw ValidationError("Die Seite ist pausiert. Erst wieder aktivieren.");
+  const result = await pollMetaPage(page.id, new Date(), { force: true });
+  if (result.error) throw ValidationError(`Der Abgleich mit Meta ist fehlgeschlagen: ${result.error}`);
+  if (!result.polled) throw Conflict("Ein Abgleich läuft gerade. Bitte gleich noch einmal versuchen.");
+
+  const pending = await prisma.metaLeadEvent.findMany({
+    where: { organizationId: ctx.organizationId, pageId: page.pageId, status: "PENDING" },
+    orderBy: { receivedAt: "asc" },
+    take: 50,
+    select: { id: true },
+  });
+  let created = 0;
+  for (const event of pending) if (await processMetaLeadEvent(event.id)) created++;
+  return { found: result.found, added: result.added, created };
 }
 
 /** Eine gescheiterte Meldung sofort erneut versuchen. */

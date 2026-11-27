@@ -11,7 +11,14 @@ import { contextForApiKey } from "./api-keys";
 import { createLead, updateLead } from "./leads";
 import { createNote } from "./notes";
 import { notify } from "./notifications";
-import { fetchMetaFormName, fetchMetaLead, MetaApiError, type MetaLead } from "@/server/integrations/meta";
+import {
+  fetchMetaFormLeads,
+  fetchMetaFormName,
+  fetchMetaLead,
+  listMetaLeadForms,
+  MetaApiError,
+  type MetaLead,
+} from "@/server/integrations/meta";
 import { answerLine, leadNotificationMail, type LeadNotificationInput } from "@/server/integrations/lead-notification-mail";
 
 /**
@@ -86,6 +93,8 @@ export async function recordMetaWebhook(payload: unknown): Promise<{ recorded: s
         ignored++;
         continue;
       }
+      // Für die Einstellungen: Meta meldet tatsächlich (sonst hilft nur der Abgleich).
+      await prisma.metaLeadPage.update({ where: { pageId }, data: { lastWebhookAt: new Date() } });
       try {
         const event = await prisma.metaLeadEvent.create({
           data: {
@@ -676,6 +685,113 @@ export async function processDueMetaLeads(limit = 20, now = new Date()): Promise
   let done = 0;
   for (const event of due) if (await processMetaLeadEvent(event.id, now)) done++;
   return done;
+}
+
+/* ── 3. Eigener Abgleich ───────────────────────────────────────────────── */
+
+/** So oft fragt das CRM selbst bei Meta nach neuen Einsendungen. */
+export const META_POLL_INTERVAL_MS = 5 * 60_000;
+/** Überlappung, damit eine Einsendung an der Zeitgrenze nicht durchrutscht. */
+const POLL_OVERLAP_MS = 15 * 60_000;
+/** Ältere Einsendungen kommen still dazu (ohne Einzel-E-Mail), wie beim Import. */
+const POLL_QUIET_AFTER_MS = 24 * 60 * 60_000;
+
+export type MetaPollResult = { polled: boolean; found: number; added: number; error: string | null };
+
+/** Aktive Formulare der Seite; gibt Meta die Liste nicht heraus, die schon bekannten. */
+async function formsToPoll(page: { pageId: string; organizationId: string }, token: string): Promise<{ id: string; name: string | null }[]> {
+  try {
+    const forms = await listMetaLeadForms(page.pageId, token);
+    return forms.filter((form) => !form.status || form.status === "ACTIVE").map((form) => ({ id: form.id, name: form.name }));
+  } catch (error) {
+    if (error instanceof MetaApiError && error.tokenInvalid) throw error;
+    const known = await prisma.metaLeadEvent.findMany({
+      where: { organizationId: page.organizationId, pageId: page.pageId, formId: { not: null } },
+      distinct: ["formId"],
+      select: { formId: true },
+    });
+    return known.map((event) => ({ id: event.formId!, name: null }));
+  }
+}
+
+/**
+ * Fragt bei Meta nach Einsendungen seit dem letzten Abgleich und hält jede
+ * unbekannte zur Übernahme fest — derselbe Weg wie eine Webhook-Meldung,
+ * dieselbe Sperre gegen Doppelte (leadgen_id). So kommen Leads auch an, wenn
+ * Meta keine Webhooks schickt (App im Entwicklungsmodus, Abo fehlt).
+ *
+ * Neue Einsendungen bekommen Benachrichtigung und E-Mail; ältere als 24
+ * Stunden (etwa nach längerer Pause) kommen still dazu wie beim Import.
+ * Gelöschte Leads bleiben gelöscht: Ihre Einsendungen sind schon bekannt.
+ */
+export async function pollMetaPage(id: string, now = new Date(), options: { force?: boolean } = {}): Promise<MetaPollResult> {
+  const idle: MetaPollResult = { polled: false, found: 0, added: 0, error: null };
+  const page = await prisma.metaLeadPage.findUnique({ where: { id } });
+  if (!page || !page.isActive) return idle;
+  const previous = page.lastPolledAt;
+  if (!options.force && previous && now.getTime() - previous.getTime() < META_POLL_INTERVAL_MS) return idle;
+  // Reservieren: Laufen mehrere Instanzen, fragt nur eine.
+  const claimed = await prisma.metaLeadPage.updateMany({ where: { id: page.id, lastPolledAt: previous }, data: { lastPolledAt: now } });
+  if (claimed.count === 0) return idle;
+
+  const since = new Date((previous ?? page.createdAt).getTime() - POLL_OVERLAP_MS);
+  const token = decryptSecret(page.tokenCipher);
+  let found = 0;
+  let added = 0;
+  try {
+    for (const form of await formsToPoll(page, token)) {
+      for await (const batch of fetchMetaFormLeads(form.id, token, since)) {
+        for (const lead of batch) {
+          found++;
+          const submitted = lead.created_time ? new Date(lead.created_time).getTime() : Number.NaN;
+          const quiet = !Number.isNaN(submitted) && now.getTime() - submitted > POLL_QUIET_AFTER_MS;
+          const raw: ImportedMetaLead = { ...lead, form_id: lead.form_id ?? form.id, ...(form.name ? { _formName: form.name } : {}) };
+          try {
+            await prisma.metaLeadEvent.create({
+              data: {
+                organizationId: page.organizationId,
+                pageId: page.pageId,
+                leadgenId: lead.id,
+                formId: raw.form_id,
+                adId: lead.ad_id ?? null,
+                origin: quiet ? "import" : "poll",
+                rawLead: raw as unknown as Prisma.InputJsonValue,
+                importedById: quiet ? page.connectedById : null,
+              },
+            });
+            added++;
+          } catch (error) {
+            // Schon bekannt — per Webhook, Import oder früherem Abgleich.
+            if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 400) : "Unbekannter Fehler";
+    logWarn("meta.poll_failed", { pageId: page.pageId, error: message });
+    await prisma.metaLeadPage.update({ where: { id: page.id }, data: { lastError: `Abgleich mit Meta: ${message}`, lastErrorAt: now } });
+    return { polled: true, found, added, error: message };
+  }
+  // Ein früherer Fehler des Abgleichs ist damit erledigt.
+  if (page.lastError?.startsWith("Abgleich mit Meta:")) {
+    await prisma.metaLeadPage.update({ where: { id: page.id }, data: { lastError: null, lastErrorAt: null } });
+  }
+  if (added > 0) logInfo("meta.poll_found_leads", { pageId: page.pageId, added });
+  return { polled: true, found, added, error: null };
+}
+
+/** Für den Worker: alle aktiven Seiten, deren letzter Abgleich fällig ist. */
+export async function pollDueMetaPages(now = new Date()): Promise<number> {
+  const pages = await prisma.metaLeadPage.findMany({
+    where: { isActive: true, OR: [{ lastPolledAt: null }, { lastPolledAt: { lte: new Date(now.getTime() - META_POLL_INTERVAL_MS) } }] },
+    orderBy: { lastPolledAt: { sort: "asc", nulls: "first" } },
+    take: 20,
+    select: { id: true },
+  });
+  let added = 0;
+  for (const page of pages) added += (await pollMetaPage(page.id, now)).added;
+  return added;
 }
 
 /**

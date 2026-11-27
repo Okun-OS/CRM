@@ -3,14 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
-import { mapMetaFields, processDueMetaLeads, processMetaLeadEvent, recordMetaWebhook } from "@/server/services/meta-leads";
+import {
+  mapMetaFields,
+  pollMetaPage,
+  processDueMetaLeads,
+  processMetaLeadEvent,
+  recordMetaWebhook,
+} from "@/server/services/meta-leads";
 import {
   connectMetaPages,
+  getMetaOverview,
   importExistingMetaLeads,
   lookupMetaPages,
   noPagesMessage,
   retryMetaLeadEvent,
   sendMetaTestNotification,
+  syncMetaPage,
   updateMetaPage,
 } from "@/server/services/meta-settings";
 import { GET as verifyWebhook, POST as postWebhook } from "@/app/api/integrations/meta/webhook/route";
@@ -636,5 +644,146 @@ describe("Bestehende Leads importieren", () => {
     expect(JSON.parse(request.url.searchParams.get("filtering")!)).toEqual([
       { field: "time_created", operator: "GREATER_THAN", value: Math.floor(new Date("2026-09-01").getTime() / 1000) },
     ]);
+  });
+});
+
+describe("Eigener Abgleich mit Meta", () => {
+  /** Ein aktives und ein archiviertes Formular; im aktiven eine frische und eine alte Einsendung. */
+  function stubPoll(pageId: string, options: { formsUnavailable?: boolean } = {}) {
+    const original = globalThis.fetch;
+    const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString().replace(".000Z", "+0000");
+    vi.stubGlobal("fetch", async (input: string, init?: RequestInit) => {
+      const url = new URL(input);
+      const path = url.pathname.replace(/^\/v[\d.]+\//, "");
+      if (path === `${pageId}/leadgen_forms`) {
+        calls.push({ method: "GET", url, body: "" });
+        if (options.formsUnavailable) return json({ error: { message: "(#100) Unsupported get request", code: 100 } }, 400);
+        return json({
+          data: [
+            { id: "777001", name: "Hochpreisleadquelle", status: "ACTIVE" },
+            { id: "777002", name: "Altes Formular", status: "ARCHIVED" },
+          ],
+        });
+      }
+      if (path === "777001/leads") {
+        calls.push({ method: "GET", url, body: "" });
+        return json({
+          data: [
+            {
+              id: `P-NEU-${pageId}`,
+              created_time: minutesAgo(10),
+              form_id: "777001",
+              platform: "fb",
+              field_data: [
+                { name: "vollständiger_name", values: ["Wardak Ajmal"] },
+                { name: "e-mail-adresse", values: [`wardak-${pageId}@example.com`] },
+                { name: "telefonnummer", values: ["+4368864111317"] },
+              ],
+            },
+            {
+              id: `P-ALT-${pageId}`,
+              created_time: minutesAgo(3 * 24 * 60),
+              form_id: "777001",
+              platform: "fb",
+              field_data: [{ name: "full_name", values: ["Olaf Alt"] }, { name: "email", values: [`olaf-${pageId}@example.com`] }],
+            },
+          ],
+        });
+      }
+      if (path === "777002/leads") {
+        calls.push({ method: "GET", url, body: "" });
+        return json({ data: [] });
+      }
+      return original(input, init);
+    });
+  }
+
+  it("holt neue Einsendungen selbst ab, mit E-Mail nur für frische, und fragt höchstens alle 5 Minuten", async () => {
+    const { pageId, page, organization } = await connectedWorkspace();
+    stubPoll(pageId);
+    calls = [];
+
+    const first = await pollMetaPage(page.id);
+    expect(first).toEqual({ polled: true, found: 2, added: 2, error: null });
+    // Nur aktive Formulare, ab dem Verbinden (mit 15 Minuten Überlappung).
+    expect(calls.some((call) => call.url.pathname.endsWith("777002/leads"))).toBe(false);
+    const request = calls.find((call) => call.url.pathname.endsWith("777001/leads"))!;
+    expect(JSON.parse(request.url.searchParams.get("filtering")!)[0].value).toBe(Math.floor((page.createdAt.getTime() - 15 * 60_000) / 1000));
+
+    const events = await prisma.metaLeadEvent.findMany({ where: { pageId }, orderBy: { leadgenId: "asc" } });
+    expect(events.map((event) => [event.leadgenId, event.origin])).toEqual([
+      [`P-ALT-${pageId}`, "import"],
+      [`P-NEU-${pageId}`, "poll"],
+    ]);
+    for (const event of events) await processMetaLeadEvent(event.id);
+
+    const leads = await prisma.lead.findMany({ where: { organizationId: organization.id }, orderBy: { lastName: "asc" } });
+    expect(leads.map((lead) => [lead.firstName, lead.lastName, lead.phone])).toEqual([
+      ["Wardak", "Ajmal", "+4368864111317"],
+      ["Olaf", "Alt", null],
+    ]);
+    // E-Mail und Glocke nur für die frische Einsendung.
+    expect(resendMails().map((mail) => mail.subject)).toEqual(["Neuer Lead: Wardak Ajmal"]);
+    expect(await prisma.notification.count({ where: { organizationId: organization.id, type: "LEAD_RECEIVED" } })).toBe(1);
+
+    // Innerhalb von 5 Minuten fragt der Worker nicht erneut.
+    calls = [];
+    expect(await pollMetaPage(page.id)).toMatchObject({ polled: false });
+    expect(calls).toHaveLength(0);
+    // Erzwungen schon — Bekanntes wird nicht doppelt angelegt.
+    expect(await pollMetaPage(page.id, new Date(), { force: true })).toMatchObject({ polled: true, found: 2, added: 0 });
+    const after = await prisma.metaLeadPage.findUniqueOrThrow({ where: { id: page.id } });
+    expect(after.lastPolledAt).not.toBeNull();
+  });
+
+  it("„Jetzt abgleichen“ legt Gefundenes sofort an; gelöschte Leads bleiben gelöscht", async () => {
+    const { ctx, pageId, page, organization } = await connectedWorkspace();
+    stubPoll(pageId);
+    expect(await syncMetaPage(ctx, page.id)).toEqual({ found: 2, added: 2, created: 2 });
+    expect(await prisma.lead.count({ where: { organizationId: organization.id, deletedAt: null } })).toBe(2);
+
+    const wardak = await prisma.lead.findFirstOrThrow({ where: { organizationId: organization.id, lastName: "Ajmal" } });
+    await deleteLead(ctx, wardak.id);
+    expect(await syncMetaPage(ctx, page.id)).toEqual({ found: 2, added: 0, created: 0 });
+    expect(await prisma.lead.count({ where: { organizationId: organization.id, deletedAt: null } })).toBe(1);
+  });
+
+  it("nimmt die bekannten Formulare, wenn Meta die Liste verweigert, und meldet Fehler an der Seite", async () => {
+    const { pageId, page } = await connectedWorkspace();
+    stubPoll(pageId, { formsUnavailable: true });
+    // Ohne bekanntes Formular gibt es nichts zu fragen.
+    expect(await pollMetaPage(page.id)).toEqual({ polled: true, found: 0, added: 0, error: null });
+
+    await prisma.metaLeadEvent.create({
+      data: { organizationId: page.organizationId, pageId, leadgenId: `ALT-${pageId}`, formId: "777001", status: "CREATED", origin: "import" },
+    });
+    expect(await pollMetaPage(page.id, new Date(), { force: true })).toMatchObject({ polled: true, found: 2, added: 2 });
+
+    // Token entzogen: Fehler an der Seite, kein Absturz.
+    vi.stubGlobal("fetch", async () => json({ error: { message: "Error validating access token", code: 190 } }, 400));
+    const failed = await pollMetaPage(page.id, new Date(), { force: true });
+    expect(failed.error).toMatch(/Zugriffstoken ist ungültig/);
+    const after = await prisma.metaLeadPage.findUniqueOrThrow({ where: { id: page.id } });
+    expect(after.lastError).toMatch(/^Abgleich mit Meta:/);
+
+    // Klappt es wieder, verschwindet der Fehler.
+    stubPoll(pageId);
+    expect(await pollMetaPage(page.id, new Date(), { force: true })).toMatchObject({ error: null });
+    expect((await prisma.metaLeadPage.findUniqueOrThrow({ where: { id: page.id } })).lastError).toBeNull();
+  });
+
+  it("merkt sich, wann Meta zuletzt per Webhook gemeldet hat, und zeigt, ob E-Mails rausgehen", async () => {
+    const { ctx, pageId, page } = await connectedWorkspace();
+    expect((await getMetaOverview(ctx)).pages.find((entry) => entry.id === page.id)).toMatchObject({ lastWebhookAt: null });
+    await recordMetaWebhook(leadPayload(pageId, `L${randomUUID()}`));
+    const overview = await getMetaOverview(ctx);
+    expect(overview.pages.find((entry) => entry.id === page.id)!.lastWebhookAt).not.toBeNull();
+    expect(overview.mail).toEqual({ ready: true, reason: null });
+
+    delete process.env.RESEND_API_KEY;
+    delete process.env.MAIL_FROM;
+    const withoutMail = await getMetaOverview(ctx);
+    expect(withoutMail.mail.ready).toBe(false);
+    expect(withoutMail.mail.reason).toMatch(/Postausgang/);
   });
 });

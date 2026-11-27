@@ -35,6 +35,17 @@ und einem Knopf zur Akte.
    E-Mail an die eingestellten Adressen, über Resend bzw. den Postausgang
    des Betriebs (siehe OPERATIONS.md).
 
+**Eigener Abgleich:** Zusätzlich fragt das CRM je Seite alle 5 Minuten selbst
+bei Meta nach neuen Einsendungen (`GET /{form-id}/leads` der aktiven
+Formulare, seit dem letzten Abgleich mit 15 Minuten Überlappung). So kommen
+Leads auch an, wenn Meta keine Webhooks schickt, etwa solange die App im
+Entwicklungsmodus ist oder das Abo fehlt. Gefundenes läuft denselben Weg wie
+eine Webhook-Meldung, mit Benachrichtigung und E-Mail; Einsendungen, die
+älter als 24 Stunden sind, kommen still dazu wie beim Import. Gelöschte
+Leads bleiben gelöscht. In den Einstellungen stehen je Seite die letzte
+Webhook-Meldung und der letzte Abgleich, dazu **„Jetzt abgleichen“**. Ist kein
+E-Mail-Versand eingerichtet, weist die Seite darauf hin.
+
 Meta wiederholt eine Meldung bis zu 36 Stunden. Jede Einsendung wird über
 ihre `leadgen_id` genau einmal angelegt. Scheitert das Abholen (Meta nicht
 erreichbar, Token abgelaufen), versucht das CRM es automatisch erneut: nach
@@ -157,9 +168,10 @@ die Schnittstelle herausgibt, ist in Metas Doku nicht festgelegt.
 
 Laut Metas Doku zu Lead Ads (Stand November 2026):
 
-- **Entwicklungsmodus:** Die App liest nur Leads, die von Personen mit einer
-  Rolle in der App abgeschickt wurden. Zum Testen reicht das: das eigene
-  Formular selbst ausfüllen, etwa über die Vorschau der Anzeige.
+- **Entwicklungsmodus:** Meta schickt Webhooks nur für Test-Leads und
+  Personen mit einer Rolle in der App. Echte Einsendungen kommen dann über
+  den eigenen Abgleich (bis zu 5 Minuten Verzögerung); der Abruf mit dem
+  Seiten-Token funktionierte im Betrieb auch im Entwicklungsmodus.
 - **Echte Leads:** Dafür muss die App **live** sein, und Meta verlangt eine
   **App-Prüfung** für `leads_retrieval` und `pages_manage_ads` sowie die
   **Unternehmensverifizierung** (Handelsregisterauszug o. Ä.). Für die
@@ -172,7 +184,7 @@ Laut Metas Doku zu Lead Ads (Stand November 2026):
 | --- | --- |
 | `src/app/api/integrations/meta/webhook/route.ts` | Webhook: Bestätigung (GET), Meldungen mit Signaturprüfung (POST) |
 | `src/server/integrations/meta.ts` | Graph API: Token tauschen und prüfen, Seiten (auch aus Portfolios), Abo, Lead abrufen |
-| `src/server/services/meta-leads.ts` | Meldung festhalten, Lead anlegen, Dubletten, Benachrichtigung, Wiederholung |
+| `src/server/services/meta-leads.ts` | Meldung festhalten, eigener Abgleich, Lead anlegen, Dubletten, Benachrichtigung, Wiederholung |
 | `src/server/services/meta-settings.ts` | Einstellungen: verbinden, Empfänger, Test-E-Mail, Neuversuch |
 | `src/server/integrations/lead-notification-mail.ts` | E-Mail „Neuer Lead“ |
 | Tabellen `MetaLeadPage`, `MetaLeadEvent` | verbundene Seiten (Token verschlüsselt) und jede Einsendung genau einmal |

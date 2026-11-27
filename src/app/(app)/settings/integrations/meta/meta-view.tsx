@@ -26,6 +26,8 @@ type Page = {
   lastLeadAt: string | null;
   lastError: string | null;
   lastErrorAt: string | null;
+  lastWebhookAt: string | null;
+  lastPolledAt: string | null;
   createdAt: string;
 };
 
@@ -53,6 +55,8 @@ type Overview = {
   missingConfig: string[];
   webhookUrl: string;
   graphVersion: string;
+  mail: { ready: boolean; reason: string | null };
+  pollIntervalMinutes: number;
   permissions: string[];
   pages: Page[];
   events: LeadEvent[];
@@ -93,11 +97,18 @@ export function MetaView({ initial }: { initial: Overview }) {
         <Card>
           <CardHeader
             title="Verbundene Seiten"
-            description="Jede neue Formular-Einsendung dieser Seiten wird als Lead angelegt; die eingetragenen Adressen bekommen eine E-Mail."
+            description="Jede neue Formular-Einsendung dieser Seiten wird als Lead angelegt; die eingetragenen Adressen bekommen eine E-Mail. Meta meldet neue Einsendungen sofort, zusätzlich fragt das CRM regelmäßig selbst nach."
           />
           <CardBody className="space-y-4">
+            {!overview.mail.ready ? (
+              <p className="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-800">
+                <strong>E-Mails bei neuen Leads gehen gerade nicht raus.</strong> {overview.mail.reason} Für den Versand über Resend auf
+                Railway <code className="font-mono">RESEND_API_KEY</code> und <code className="font-mono">MAIL_FROM</code> setzen
+                (siehe OPERATIONS.md). Die Leads selbst kommen trotzdem an.
+              </p>
+            ) : null}
             {overview.pages.map((page) => (
-              <PageSettings key={page.id} page={page} onChanged={reload} />
+              <PageSettings key={page.id} page={page} pollIntervalMinutes={overview.pollIntervalMinutes} onChanged={reload} />
             ))}
           </CardBody>
         </Card>
@@ -307,14 +318,22 @@ function ConnectCard({ overview, onConnected }: { overview: Overview; onConnecte
   );
 }
 
-function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promise<void> }) {
+function PageSettings({
+  page,
+  pollIntervalMinutes,
+  onChanged,
+}: {
+  page: Page;
+  pollIntervalMinutes: number;
+  onChanged: () => Promise<void>;
+}) {
   const hydrated = useHydrated();
   const formatDateTime = (value: string) => (hydrated ? formatDateTimeNow(value) : "");
   const toast = useToast();
   const { data } = useReference();
   const [ownerId, setOwnerId] = React.useState(page.ownerId ?? "");
   const [emails, setEmails] = React.useState(page.notifyEmails.join(", "));
-  const [busy, setBusy] = React.useState<"save" | "test" | "toggle" | "remove" | null>(null);
+  const [busy, setBusy] = React.useState<"save" | "test" | "toggle" | "remove" | "sync" | null>(null);
   const [removing, setRemoving] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
 
@@ -345,6 +364,24 @@ function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promis
       else toast.error("Test-E-Mail nicht verschickt", result.reason ?? undefined);
     } catch (cause) {
       toast.error(cause instanceof ApiError ? cause.message : "Die Test-E-Mail ist fehlgeschlagen.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sync() {
+    setBusy("sync");
+    try {
+      const result = await api.post<{ found: number; added: number; created: number }>(`/api/v1/settings/meta/pages/${page.id}/sync`, {});
+      if (result.added > 0) {
+        toast.success(
+          result.added === 1 ? "1 neue Einsendung übernommen" : `${result.added} neue Einsendungen übernommen`,
+          "Die Leads stehen jetzt im CRM.",
+        );
+      } else toast.success("Abgeglichen", "Keine neuen Einsendungen bei Meta.");
+      await onChanged();
+    } catch (cause) {
+      toast.error(cause instanceof ApiError ? cause.message : "Der Abgleich ist fehlgeschlagen.");
     } finally {
       setBusy(null);
     }
@@ -410,6 +447,24 @@ function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promis
         </p>
       ) : null}
 
+      <div className="mt-3 rounded-md bg-ink-50 px-3 py-2 text-xs text-ink-700">
+        <p>
+          <span className="font-medium">Meldungen von Meta (Webhook):</span>{" "}
+          {page.lastWebhookAt ? `zuletzt ${formatDateTime(page.lastWebhookAt)}` : "bisher keine"}
+        </p>
+        <p>
+          <span className="font-medium">Eigener Abgleich alle {pollIntervalMinutes} Minuten:</span>{" "}
+          {page.isActive ? (page.lastPolledAt ? `zuletzt ${formatDateTime(page.lastPolledAt)}` : "startet gleich") : "pausiert"}
+        </p>
+        {!page.lastWebhookAt ? (
+          <p className="mt-1 text-ink-500">
+            Neue Leads kommen über den Abgleich trotzdem an, mit bis zu {pollIntervalMinutes} Minuten Verzögerung. Für sofortige
+            Meldungen muss die App bei Meta im Modus <strong>Live</strong> sein und die Seite das Feld <strong>leadgen</strong>{" "}
+            abonniert haben.
+          </p>
+        ) : null}
+      </div>
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field label="Neue Leads gehören" htmlFor={`owner-${page.id}`}>
           <Select id={`owner-${page.id}`} value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>
@@ -435,6 +490,15 @@ function PageSettings({ page, onChanged }: { page: Page; onChanged: () => Promis
         </Button>
         <Button size="sm" icon={<Mail className="h-3.5 w-3.5" />} loading={busy === "test"} onClick={() => void test()}>
           Test-E-Mail senden
+        </Button>
+        <Button
+          size="sm"
+          icon={<RefreshCw className="h-3.5 w-3.5" />}
+          loading={busy === "sync"}
+          disabled={!page.isActive}
+          onClick={() => void sync()}
+        >
+          Jetzt abgleichen
         </Button>
         <Button size="sm" icon={<Download className="h-3.5 w-3.5" />} onClick={() => setImporting(true)}>
           Bestehende Leads importieren
@@ -686,6 +750,7 @@ function EventsCard({ events, pages, onChanged }: { events: LeadEvent[]; pages: 
                 <Td className="text-xs">
                   <Badge tone={STATUS[event.status].tone}>{STATUS[event.status].label}</Badge>
                   {event.origin === "import" ? <Badge tone="neutral">Import</Badge> : null}
+                  {event.origin === "poll" ? <Badge tone="neutral">Abgleich</Badge> : null}
                   {event.status === "FAILED" ? (
                     <span className="mt-1 block max-w-xs text-2xs text-danger-700">
                       {event.error}

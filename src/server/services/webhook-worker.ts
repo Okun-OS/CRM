@@ -4,7 +4,7 @@ import { logError, logInfo } from "@/lib/logger";
 import { processDueWebhookDeliveries } from "./webhooks";
 import { purgeExpiredIdempotencyRecords } from "@/server/mailwin/idempotency";
 import { announceDueNextActions } from "@/server/mailwin/webhooks";
-import { processDueMetaLeads } from "./meta-leads";
+import { pollDueMetaPages, processDueMetaLeads } from "./meta-leads";
 
 /**
  * Hintergrundarbeit im Serverprozess.
@@ -42,7 +42,14 @@ export function startWebhookWorker(): void {
       logError("webhook_worker.delivery_failed", error);
     }
     try {
-      // Meta-Leads, deren Abholen beim ersten Mal gescheitert ist.
+      // Eigener Abgleich mit Meta (je Seite alle 5 Minuten), falls Webhooks ausbleiben.
+      await pollDueMetaPages();
+    } catch (error) {
+      logError("webhook_worker.meta_poll_failed", error);
+    }
+    try {
+      // Meta-Leads aus Abgleich und Import sowie solche, deren Abholen beim
+      // ersten Mal gescheitert ist.
       await processDueMetaLeads();
     } catch (error) {
       logError("webhook_worker.meta_leads_failed", error);
